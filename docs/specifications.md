@@ -4,7 +4,9 @@
 
 QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi di ottimizzazione mista prima della loro risoluzione classica.
 
-Il framework usa Maximum Weight Independent Set (MWIS) come meccanismo di selezione strutturale. Il kernel costruisce una rappresentazione canonica del problema MWIS, comprensiva di grafo, QUBO e, quando utile, BQM o Ising. Un adapter di esecuzione la compila verso il formato richiesto dal backend configurato e ne normalizza gli esiti in sample binarie. Dopo validazione e possibile repair, tali sample diventano candidate di insiemi indipendenti per trattenere un sottoinsieme di decisioni binarie. Il problema residuo viene quindi risolto da un backend classico.
+Il framework usa Maximum Weight Independent Set (MWIS) come meccanismo di selezione strutturale. Il kernel costruisce una rappresentazione canonica del problema MWIS, comprensiva di grafo, QUBO e, quando utile, BQM o Ising. Un adapter di esecuzione la compila verso il formato richiesto dal backend configurato e ne normalizza gli esiti in sample binarie. Dopo validazione e possibile repair, tali sample diventano candidate di insiemi indipendenti da cui derivare un sottoinsieme di decisioni binarie da trattenere. Il problema residuo viene quindi risolto da un backend classico.
+
+QReduce adotta uno schema di riduzione assimilabile a una **MIS invertita**: la MWIS non fissa direttamente la soluzione discreta finale del problema originale. Le candidate MWIS servono invece a costruire un dominio candidato ridotto; il backend classico sceglie poi i valori finali delle decisioni binarie ancora disponibili e delle eventuali variabili continue o discrete collegate, rispettando l'obiettivo e tutti i vincoli hard originali.
 
 Il flusso principale e`:
 
@@ -28,7 +30,7 @@ QReduce supporta sia una riduzione in singolo passaggio sia una riduzione iterat
 QReduce deve:
 
 - supportare problemi grandi MIP, MIQP e MIQCP con decisioni binarie riducibili;
-- usare MIS per proporre un dominio discreto piu` piccolo, non per sostituire automaticamente il problema originale;
+- usare MIS per proporre un dominio discreto piu` piccolo, non per sostituire automaticamente il problema originale ne` per fissare direttamente la selezione finale;
 - mantenere il kernel indipendente da provider, SDK e modello computazionale del backend MIS;
 - supportare backend MIS locali o remoti, classici o quantistici, tramite adapter che dichiarano capability e rappresentazioni accettate;
 - consentire compilation da una rappresentazione MWIS canonica verso QUBO/BQM, Ising/Hamiltoniane, circuiti gate-based, rappresentazioni native di grafo o altri formati specifici del backend;
@@ -44,6 +46,7 @@ QReduce non deve:
 
 - dichiarare ottimalita` globale del problema originale quando ha applicato esclusioni euristiche;
 - assumere che qualsiasi problema MIP possa essere trasformato utilmente in MIS;
+- interpretare la MIS come il complemento del grafo o come un'inversione dei segni/degli obiettivi della QUBO: l'inversione riguarda il flusso decisionale, dalla MIS al dominio candidato e poi al solve classico;
 - trasformare automaticamente tutti i vincoli hard in penalita` QUBO;
 - usare il valore di energia QUBO come unico criterio di qualita` della soluzione finale;
 - reimplementare implicitamente primitive, compiler, transpiler, embedding o algoritmi proprietari gia` forniti da un SDK o servizio selezionato;
@@ -112,6 +115,10 @@ MIS result != final solution of the original optimization problem
 MIS result -> retained decision domain -> residual classical solve
 ```
 
+Questo distingue QReduce da una MIS diretta. In una MIS diretta, un supporto `S` prodotto dalla MIS sarebbe gia` la selezione discreta da rifinire; gli elementi esterni a `S` non potrebbero rientrare. In QReduce, invece, piu` supporti MWIS validati e classificati `S_1, ..., S_m` vengono aggregati in un dominio `C_effective`: la MIS determina dove il solver classico puo` cercare, mentre il solver classico decide quali elementi di `C_effective` attivare effettivamente. Il portafoglio, piano o altra soluzione finale non deve quindi coincidere con una singola candidate MWIS ne` con la loro unione.
+
+Lo schema non costruisce il complemento del grafo e non inverte l'obiettivo della QUBO. Gli archi sono usati per produrre candidate di retention strutturalmente non conflittuali; il loro significato e la loro eventuale relazione con i vincoli hard restano di competenza dell'adapter di dominio.
+
 Il solver classico resta responsabile di:
 
 - valutare l'obiettivo originale;
@@ -146,6 +153,8 @@ Un arco puo` rappresentare, ad esempio:
 - dominanza euristica;
 - correlazione o similarita` oltre una soglia;
 - una relazione di mutua esclusione stimata dal dominio.
+
+Il grafo e` una struttura di riduzione, non necessariamente una codifica completa del modello originale. In particolare, dopo l'aggregazione di piu` candidate indipendenti, il candidate domain puo` contenere endpoint di uno stesso arco provenienti da candidate diverse. Il solve classico residuo non deve quindi assumere che `C_effective` sia a sua volta un insieme indipendente; deve mantenere l'obiettivo e i vincoli originali applicabili.
 
 ### 6.2 QUBO weighted MIS
 
@@ -215,9 +224,9 @@ La pipeline single-pass deve seguire questi stadi. Il termine `RawMISSample` ind
 9. Riparare deterministicamente le sample non indipendenti, quando abilitato, e validare di nuovo l'esito.
 10. Trasformare gli esiti validi in `IndependentSetCandidate`, applicare filtri hard, score e ranking dichiarati.
 11. Selezionare fino a `num_source_mis_candidates` `RankedRetentionCandidate`, soggette alla policy di diversita`.
-12. Aggregare le candidate, applicare la protezione dichiarata, il precheck e il cap per ottenere il candidate domain effettivo `C_effective`.
+12. Aggregare le candidate, applicare la protezione dichiarata, il precheck e il cap per ottenere il candidate domain effettivo `C_effective`; tale dominio e` una proposta di ricerca e non una selezione finale.
 13. Fissare fuori da `C_effective` le decisioni binarie escluse.
-14. Risolvere il problema residuo con un solver classico entro il budget residuo.
+14. Risolvere il problema residuo con un solver classico entro il budget residuo, lasciando al solver la scelta delle decisioni binarie non fissate e delle altre variabili del modello.
 15. Validare la soluzione finale rispetto ai vincoli originali, alle tolleranze e al fixing manifest.
 16. Salvare artifact, provenance, metriche e failure reason, anche in caso di terminazione anticipata.
 ```
@@ -243,7 +252,7 @@ C_effective = apply_protection_and_cap(C_raw, protected_items, V)
 
 dove `S_1, ..., S_m` sono `RankedRetentionCandidate` riparate se necessario, validate, ordinate e selezionate secondo la policy di diversita`.
 
-Usare l'unione di piu` candidate e` preferibile al fissaggio del singolo MIS migliore, poiche` riduce la sensibilita` al sampling stocastico e preserva alternative combinatorie per il solver classico.
+Usare l'unione di piu` candidate e` preferibile al fissaggio del singolo MIS migliore, poiche` riduce la sensibilita` al sampling stocastico e preserva alternative combinatorie per il solver classico. Questa e` la realizzazione operativa dello schema MIS invertita: `C_effective` delimita il dominio in cui il solver classico puo` scegliere, ma non impone di selezionare tutti i suoi item e non richiede che la soluzione finale coincida con una candidate MIS sorgente.
 
 Ogni candidate deve essere serializzata come `CandidateRecord` con almeno:
 
@@ -316,7 +325,7 @@ Le eventuali variabili collegate a `delta_i` devono essere fissate o vincolate c
 x_i = 0        for every i in V \ C_effective
 ```
 
-Il modello deve mantenere l'obiettivo originale e tutti i vincoli globali applicabili. La riduzione non autorizza a omettere vincoli che coinvolgono elementi esclusi, come bilanci, demand satisfaction, costi di switching o condizioni di stato iniziale.
+Il modello deve mantenere l'obiettivo originale e tutti i vincoli globali applicabili. La riduzione non autorizza a omettere vincoli che coinvolgono elementi esclusi, come bilanci, demand satisfaction, costi di switching o condizioni di stato iniziale. Il backend classico puo` pertanto scegliere qualsiasi combinazione fattibile degli item in `C_effective`, incluse combinazioni che non coincidono con una singola candidate MWIS, purche` rispetti il modello originale e il fixing manifest.
 
 ## 9. Riduzione iterativa
 
@@ -1198,6 +1207,8 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 ### 20.5 Candidate domain e fixing
 
 - L'unione delle candidate selezionate produce il dominio atteso.
+- Il candidate domain aggregato e` trattato come dominio di ricerca e non come selezione finale: il solver classico puo` attivare un sottoinsieme fattibile di `C_effective` che non coincide con alcuna candidate MIS sorgente.
+- L'aggregazione di candidate MIS non induce l'assunzione che `C_effective` sia un insieme indipendente o che il grafo sostituisca i vincoli hard del problema originale.
 - Il ranking di cap e` stabile.
 - Il framework fallisce esplicitamente se il dominio e` sotto il minimo richiesto.
 - Gli item protetti non sono scartati silenziosamente quando eccedono il cap.
