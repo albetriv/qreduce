@@ -178,6 +178,8 @@ Il modello QUBO deve contenere esclusivamente:
 
 Con pesi finiti e non negativi e con `lambda_edge > max_i(w_i)`, ogni minimizzatore globale della QUBO corrisponde a un insieme indipendente: se una selezione contiene un arco violato, rimuovere uno dei suoi endpoint diminuisce strettamente l'energia. Il sampling euristico puo` comunque produrre sample non indipendenti e deve quindi passare dalla validazione strutturale.
 
+Il problema MWIS e gli esiti di un backend MWIS devono essere distinti. Un solver exact puo` restituire un solo optimum globale, oppure piu` optimum se e` configurato per enumerarli e ne esistono diversi con lo stesso peso massimo. Un backend euristico o stocastico puo` invece restituire molte sample distinte nella stessa esecuzione o in esecuzioni con seed diversi; tali sample possono essere subottimali, non massimali o persino non indipendenti prima del repair. Anche un backend deterministico puo` restituire piu` esiti se supporta l'enumerazione di soluzioni ottime o near-optimal. In tutti i casi, QReduce normalizza ogni esito come `RawMISSample`: il nome non certifica che la sample sia un MWIS globale.
+
 `lambda_edge_policy` deve essere serializzata e dichiarare almeno:
 
 ```text
@@ -210,7 +212,7 @@ z = 2 * delta - 1
 
 ## 7. Pipeline single-pass
 
-La pipeline single-pass deve seguire questi stadi. Il termine `RawMISSample` indica solo una sample binaria prodotta dal backend: non implica che sia indipendente, massimale o di peso massimo.
+La pipeline single-pass deve seguire questi stadi. Il termine `RawMISSample` indica solo una sample binaria prodotta dal backend: non implica che sia indipendente, massimale o di peso massimo. Piu` `RawMISSample` distinte possono provenire da sampling euristico/stocastico, da esecuzioni con seed diversi oppure da un backend deterministico configurato per enumerare piu` soluzioni; il framework non assume una sola di tali origini.
 
 ```text
 1. Validare il problema e identificare le decisioni binarie riducibili.
@@ -368,13 +370,15 @@ Esempio di un singolo round seguito da una possibile iterazione. Se il dominio i
 V_0 = {A, B, C, D, E, F}
 ```
 
-le candidate MWIS selezionate nel solo round `0` possono essere, ad esempio:
+le candidate di insieme indipendente ottenute da un backend MWIS e selezionate nel solo round `0` possono essere, ad esempio:
 
 ```text
 S_1 = {A, C}
 S_2 = {A, D}
 S_3 = {B, D, E}
 ```
+
+I tre set dell'esempio non sono necessariamente tre MWIS globali. Nel caso usuale di un backend euristico o stocastico rappresentano sample/candidate distinte, ad esempio generate nella stessa esecuzione o con seed diversi, poi validate, eventualmente riparate e classificate. Con un backend exact potrebbero invece rappresentare piu` optimum di pari peso soltanto se il backend e` configurato per enumerarli. In entrambi i casi, la pluralita` di candidate serve a preservare alternative per il dominio del solve classico, non a dichiarare che ogni candidate sia ottima per MWIS.
 
 L'aggregazione interna allo stesso round produce:
 
@@ -1196,6 +1200,7 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - La QUBO non contiene penalita` di cardinalita`.
 - La configurazione standard rifiuta `lambda_edge <= max_i(w_i)` e registra la policy effettiva.
 - Su grafi piccoli enumerabili, con `lambda_edge > max_i(w_i)`, ogni minimizzatore globale della QUBO corrisponde a un insieme indipendente di peso massimo.
+- I test distinguono un optimum MWIS certificato da una `RawMISSample`: una sample restituita da un backend euristico, stocastico o deterministico con enumerazione non e` trattata automaticamente come soluzione di peso massimo.
 - Una policy non certificante richiede `allow_noncertifying_penalty=true` e non dichiara la garanzia strutturale del modello standard.
 - La conversione QUBO -> BQM preserva termini e domini.
 - L'energia calcolata localmente coincide con il modello esportato su casi piccoli.
@@ -1205,6 +1210,7 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - Ogni adapter dichiara provider, backend, famiglia, modalita` di esecuzione, capability e rappresentazioni supportate.
 - Il framework rifiuta prima della compilation un problema, una modalita` di esecuzione o un parametro incompatibile con le capability dichiarate.
 - Un backend locale concreto restituisce sample binarie con ordine nodo stabile.
+- Il framework accetta e normalizza piu` sample distinte sia da backend stocastici/euristici sia da backend deterministici configurati per enumerare piu` soluzioni, senza assumere che tutte siano MWIS globali.
 - Il backend exact e` rifiutato sopra una soglia esplicita di variabili.
 - Ogni adapter normalizza le risposte in `RawMISSample` e preserva `node_order`, `delta`, identificatore stabile e metadata redatti.
 - Il framework ricalcola, quando possibile, energia canonica, peso di selezione e validita` strutturale; uno score nativo provider-specifico non viene trattato automaticamente come energia QUBO.
