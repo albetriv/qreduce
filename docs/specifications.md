@@ -362,6 +362,34 @@ excluded items V_t \ C_t_effective
 cumulative retained domain V_(t+1)
 ```
 
+Esempio di un singolo round seguito da una possibile iterazione. Se il dominio iniziale e`:
+
+```text
+V_0 = {A, B, C, D, E, F}
+```
+
+le candidate MWIS selezionate nel solo round `0` possono essere, ad esempio:
+
+```text
+S_1 = {A, C}
+S_2 = {A, D}
+S_3 = {B, D, E}
+```
+
+L'aggregazione interna allo stesso round produce:
+
+```text
+C_0_raw = {A, B, C, D, E}
+```
+
+Se protezioni e cap determinano `C_0_effective = {A, B, C, D}`, gli item `E` e `F` sono esclusi e il problema `P_1` impone `delta_E = 0` e `delta_F = 0`. Se il processo termina dopo questo round, il solver classico sceglie una combinazione fattibile di `A`, `B`, `C` e `D`. Se invece viene avviato il round `1`, il suo dominio di input e` soltanto:
+
+```text
+V_1 = C_0_effective = {A, B, C, D}
+```
+
+Il grafo e le candidate MWIS del round `1` possono quindi contenere solo `A`, `B`, `C` e `D`; `E` e `F` non possono rientrare. L'unione di piu` candidate avviene dunque prima del fixing, all'interno di ciascun round, mentre la riduzione tra round e` monotona.
+
 Per la prima versione vale l'invariante di monotonicita`:
 
 ```text
