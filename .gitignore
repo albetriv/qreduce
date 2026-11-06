@@ -1,0 +1,3 @@
+# Runtime and temporary files produced by Cline.
+.cline/
+.cline-tmp/
