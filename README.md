@@ -34,4 +34,4 @@ Esempi di adapter previsti: D-Wave, IBM Qiskit/Quantum, AWS Braket e Pasqal/Puls
 
 ## Documentazione
 
-La specifica completa e normativa e` disponibile in [`docs/specifications.md`](docs/specifications.md).
+La specifica completa e normativa e` disponibile in [`docs/specifications.md`](./docs/specifications.md).
