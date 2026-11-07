@@ -12,9 +12,14 @@ dependencies = []
 [dependency-groups]
 dev = [
     "pytest (>=8.0)",
-    "ipykernel (>=7.3.0,<8.0.0)",
     "ruff (>=0.8)",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
 
 [tool.poetry]
 packages = [{ include = "qreduce", from = "src" }]

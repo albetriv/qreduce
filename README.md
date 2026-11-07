@@ -8,15 +8,28 @@ Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di
 
 ## Sviluppo
 
-Il progetto usa [Poetry](https://python-poetry.org/) e adotta un layout `src/`. Sono supportate le versioni di Python dalla 3.11 alla 3.14.
+Il progetto usa [Poetry](https://python-poetry.org/) e adotta un layout `src/`.
+La compatibilita` tecnica supportata e` Python `>=3.12,<3.13`; il valore in
+`pyproject.toml` e` la fonte autorevole.
 
 ```powershell
+poetry lock
 poetry install
 poetry run pytest
 poetry run ruff check .
 ```
 
-Il primo comando crea l'ambiente virtuale, installa il package in modalita` editable e genera `poetry.lock`. Le dipendenze di dominio saranno aggiunte solo quando verranno implementati i rispettivi adapter, per mantenere il kernel indipendente dai provider.
+`poetry lock` risolve le dipendenze e crea o rigenera il file `poetry.lock`, che
+e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
+package in modalita` editable insieme alle dipendenze gia` risolte.
+
+Le dipendenze core restano provider-agnostic. Test e lint appartengono al gruppo
+di sviluppo; binding del backend classico, SDK MIS e librerie di dominio saranno
+isolati nei rispettivi adapter solo quando la loro installazione e il loro
+contratto runtime saranno verificati. In particolare, CPLEX non e` una
+dipendenza del package core: se il backend richiesto non e` disponibile, QReduce
+deve produrre una failure esplicita e non selezionare automaticamente un solver
+alternativo.
 
 ## Policy e valutazione esterna
 
