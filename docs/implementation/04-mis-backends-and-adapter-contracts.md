@@ -1,0 +1,101 @@
+# 04 - MIS backends and adapter contracts
+
+## Scopo
+
+Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare un backend locale concreto della v1. Il backend locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
+
+## Riferimenti alle specifiche
+
+- Sezioni 3.1, 7, 11, 12, 17, 18, 19 e 20.2.
+- `docs/implementation/02-core-domain-models-and-configuration.md`.
+- `docs/implementation/03-canonical-mwis-graph-and-qubo.md`.
+
+## Contratto MIS minimo
+
+L'API concreta puo` evolvere, ma deve mantenere la separazione funzionale:
+
+```text
+capabilities()
+compile(canonical_problem, compilation_request)
+solve(compiled_job, execution_request)
+```
+
+La separazione tra compilation ed esecuzione e` obbligatoria anche quando il backend locale le realizza internamente nella stessa operazione. Devono rimanere auditabili tempi, parametri effettivi, forma compilata, stato di completion e failure reason.
+
+## Capability richieste
+
+Ogni adapter deve dichiarare almeno:
+
+- provider e backend identifier;
+- backend family;
+- execution location locale o remota;
+- forme supportate tra `mis_graph`, `qubo`, `bqm` e `ising`;
+- supporto seed, solution count e limite dimensionale;
+- parametri supportati e parametri rifiutati;
+- requisiti di SDK, credenziali, device o mapping;
+- disponibilita` runtime effettiva.
+
+La prima milestone deve usare `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
+
+## Backend locale concreto della v1
+
+La scelta dell'algoritmo locale resta aperta fino alla fase di implementazione, ma il backend deve:
+
+- essere operativo senza provider remoto;
+- rispettare il contratto capability/compile/solve;
+- accettare una rappresentazione canonica dichiarata;
+- restituire zero, una o piu` sample binarie nel `node_order` canonico;
+- registrare seed, runtime, parametri effettivi e completion status;
+- non dichiarare automaticamente che una sample sia un optimum MWIS;
+- produrre failure normalizzata se non puo` eseguire la richiesta.
+
+L'exact solver della task 03 resta separato: e` uno strumento diagnostico sotto soglia, non il backend locale operativo richiesto dalla v1.
+
+## Normalizzazione delle sample
+
+Ogni esito deve diventare un `RawMISSample` equivalente con:
+
+```text
+stable raw_sample_id
+node_order
+delta vector in {0, 1}
+provider/native metadata, redacted when necessary
+native score or energy, if supplied
+source execution metadata
+```
+
+Il framework deve poi deduplicare per vettore `delta`, validare l'independent set e ricalcolare, quando possibile, energia QUBO e peso di selezione. Uno score nativo non e` automaticamente un'energia QUBO.
+
+## Parametri condizionali
+
+Campi come `num_reads`, `shots`, `embedding_policy`, `transpiler_options` o parametri di emulatori non appartengono al contratto comune di ogni backend. Possono essere presenti nella configurazione, ma sono validi soltanto quando dichiarati supportati dall'adapter selezionato.
+
+## Moduli Python indicativi
+
+```text
+src/qreduce/mis/contracts.py
+src/qreduce/mis/capabilities.py
+src/qreduce/mis/local_backend.py
+src/qreduce/mis/normalization.py
+src/qreduce/mis/compilation.py
+```
+
+Questi nomi non fissano l'API pubblica finale.
+
+## Test minimi
+
+- Capability incompatibile rifiutata prima della compilation.
+- Backend locale restituisce `delta` binarie nel node order dichiarato.
+- Piu` sample distinte sono normalizzate senza assumerne l'ottimalita`.
+- Sample duplicate sono aggregate deterministicamente.
+- Parametri non supportati producono failure esplicita.
+- SDK/provider dichiarato ma indisponibile produce reason normalizzata.
+- Metadata non contengono segreti e distinguono backend richiesto da effettivo.
+- Exact solver sopra soglia produce rejection esplicita.
+
+## Criteri di completamento
+
+- Esiste un backend locale concreto utilizzabile nella pipeline v1.
+- Il core non importa classi di provider o formati runtime proprietari.
+- Compilation, execution e normalizzazione sono osservabili separatamente.
+- Ogni cambio di backend o modalita` richiede una configurazione esplicita.
