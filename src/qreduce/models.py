@@ -43,6 +43,7 @@ class LambdaEdgePolicy:
     formula_description: str | None = None
     weight_normalization: str | None = None
     noncertifying_behavior: str | None = None
+    proof_condition_satisfied: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)

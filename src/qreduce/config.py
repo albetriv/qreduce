@@ -119,6 +119,17 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
             "lambda_edge_policy",
             "A noncertifying penalty requires explicit lambda_edge_policy provenance.",
         )
+    if (
+        config.allow_noncertifying_penalty
+        and config.lambda_edge_policy is not None
+        and not config.lambda_edge_policy.noncertifying_behavior
+    ):
+        _add_issue(
+            issues,
+            "noncertifying_behavior_missing",
+            "lambda_edge_policy.noncertifying_behavior",
+            "A noncertifying penalty policy must declare its intended behavior.",
+        )
 
     _require_int_at_least(issues, "mis_execution.requested_solution_count", execution.requested_solution_count, 1)
     _require_int_at_least(issues, "mis_execution.max_distinct_samples", execution.max_distinct_samples, 1)

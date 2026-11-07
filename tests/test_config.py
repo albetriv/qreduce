@@ -119,6 +119,13 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
         (make_config(reduction=replace(make_config().reduction, candidate_domain_min_items=6)), "candidate_domain_bounds_inverted"),
         (make_config(reduction=replace(make_config().reduction, target_binary_variables=1.5)), "integer_below_minimum"),
         (make_config(lambda_edge=None, lambda_edge_policy=None), "missing_lambda_edge"),
+        (
+            make_config(
+                allow_noncertifying_penalty=True,
+                lambda_edge_policy=LambdaEdgePolicy("experimental", "1", 2.0),
+            ),
+            "noncertifying_behavior_missing",
+        ),
     ],
 )
 def test_invalid_configuration_has_normalized_reason(
