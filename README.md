@@ -4,7 +4,23 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: progetto in fase di specifica e progettazione. Non sono ancora disponibili un pacchetto installabile o comandi di esecuzione.
+> **Stato**: progetto in fase iniziale di implementazione. Il package Python e la configurazione di sviluppo sono disponibili; i workflow di riduzione non sono ancora implementati.
+
+## Sviluppo
+
+Il progetto usa [Poetry](https://python-poetry.org/) e adotta un layout `src/`. Sono supportate le versioni di Python dalla 3.11 alla 3.14.
+
+```powershell
+poetry install
+poetry run pytest
+poetry run ruff check .
+```
+
+Il primo comando crea l'ambiente virtuale, installa il package in modalita` editable e genera `poetry.lock`. Le dipendenze di dominio saranno aggiunte solo quando verranno implementati i rispettivi adapter, per mantenere il kernel indipendente dai provider.
+
+## Policy e valutazione esterna
+
+QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e ne registra configurazione, provenance ed esiti. Non include un workflow di calibrazione, benchmark o selezione automatica della policy: riferimenti classici, metriche di qualita`, soglie e separazione fra tuning e valutazione finale restano responsabilita` dell'applicazione o dell'adapter di dominio.
 
 ## Flusso
 

@@ -38,7 +38,8 @@ QReduce deve:
 - supportare riduzione single-pass e multi-round;
 - distinguere in modo esplicito riduzione euristica, fixing sicuro e fixing imposto dall'utente;
 - produrre artifact completi, deterministici quando possibile e auditabili;
-- consentire adapter per diversi domini applicativi senza incorporare logica di dominio nel kernel.
+- consentire adapter per diversi domini applicativi senza incorporare logica di dominio nel kernel;
+- accettare policy di riduzione esplicite e rendere osservabili, serializzabili e riproducibili i parametri e gli esiti necessari affinche` un'applicazione esterna possa confrontare policy differenti.
 
 ## 3. Non-obiettivi
 
@@ -52,7 +53,9 @@ QReduce non deve:
 - reimplementare implicitamente primitive, compiler, transpiler, embedding o algoritmi proprietari gia` forniti da un SDK o servizio selezionato;
 - assumere che tutti i backend accettino BQM/QUBO, usino `num_reads`, restituiscano energia QUBO o dispongano di un simulatore locale equivalente;
 - nascondere fallback, rilassamenti, failure o indisponibilita` di backend;
-- dipendere da uno specifico dominio, dataset, benchmark o applicazione finanziaria.
+- dipendere da uno specifico dominio, dataset, benchmark o applicazione finanziaria;
+- definire o imporre dataset di calibrazione, benchmark, riferimento classico, funzione di qualita`, soglie di accettazione o regole universali per scegliere una policy migliore;
+- eseguire automaticamente tuning, calibrazione o selezione di policy in base a risultati di run precedenti.
 
 ### 3.1 Perimetro della prima versione
 
@@ -900,17 +903,19 @@ and fixed variables respect the fixing manifest
 
 Un solve time-limited con incumbent feasible puo` essere adottato se supera il post-check. In questo caso il run deve riportare `run_status = partial_success`, `classical_solver_status = time_limit_with_feasible_incumbent` e `residual_problem_optimality_claim = feasible_incumbent` o `gap_bounded` se il backend fornisce un gap valido.
 
-## 16. Calibrazione e valutazione
+## 16. Osservabilita` delle policy e supporto alla valutazione esterna
 
-### 16.1 Principio
+### 16.1 Confine di responsabilita`
 
-Le policy graph/MIS/reduction devono essere calibrate su un insieme di istanze in cui sia disponibile un riferimento classico full-domain affidabile, almeno come incumbent comparabile o soluzione con gap dichiarato. Prima della calibrazione, dataset, classe di istanze, budget temporali, seed, metrica di confronto e soglie di accettazione devono essere fissati e serializzati.
+QReduce esegue una riduzione usando la configurazione e le policy fornite dall'applicazione chiamante. Il kernel non seleziona, ottimizza o dichiara migliore una policy graph/MIS/reduction e non include un workflow obbligatorio di calibrazione.
 
-La calibrazione non deve usare dati di valutazione finale o informazioni future rispetto allo scenario che l'adapter sta modellando. Le istanze devono essere partizionate, quando applicabile, in calibration set e final evaluation set disgiunti; la scelta di una policy usa soltanto il calibration set.
+La definizione di una benchmark suite, la disponibilita` di un riferimento classico, la metrica di qualita` della soluzione originale, le soglie di accettazione e l'eventuale split fra calibration, validation e final evaluation appartengono all'applicazione o all'adapter di dominio.
 
-### 16.2 Metriche minime
+Se un'applicazione dichiara una policy come calibrata, raccomandata, congelata o adatta a una classe di istanze, tale dichiarazione deve essere supportata da un protocollo esterno riproducibile. QReduce deve consentire di registrarne identita` e provenance, ma non ne certifica la validita` metodologica.
 
-Per ogni istanza e configurazione devono essere raccolte:
+### 16.2 Metriche tecniche minime per ogni run
+
+Per ogni run QReduce deve rendere disponibili, direttamente negli artifact oppure nel run summary, almeno:
 
 ```text
 original binary variable count
@@ -928,28 +933,45 @@ valid and repaired candidate counts
 candidate-domain size
 classical residual feasibility
 postcheck feasibility
-objective value
-objective gap versus reference, when comparable
+objective value, when supplied by the ClassicalBackend or adapter
 best bound and solver gap, when available
-stability across seeds, when sampling is stochastic
+stability-relevant seed and stochastic-execution metadata
+domain-specific evaluation metrics supplied by the adapter or caller, with metric identifiers, units, comparison convention and provenance
 run status and terminal reason
 ```
 
-### 16.3 Selezione delle policy
+### 16.3 Provenance di policy fornita dall'esterno
 
-Una policy non puo` essere scelta solo per la massima riduzione. La selezione deve usare una regola predefinita, versionata prima della valutazione, che bilanci almeno:
+La configurazione risolta deve poter includere metadata opzionali di provenance della policy, senza attribuire al kernel responsabilita` di calibrazione:
 
 ```text
-1. feasibility and postcheck pass rate;
-2. objective-quality loss versus a trusted reference;
-3. reduction ratio;
-4. end-to-end runtime;
-5. robustness across instances and seeds.
+policy_id
+policy_version
+policy_source
+policy_hash
+policy_selection_status
+external_policy_selection_reference
+external_evaluation_reference
+declared_instance_class
+declared_validity_scope
 ```
 
-Per configurazioni confrontate su piu` istanze, metriche robuste come mediana e percentile 75 del gap sono preferibili al miglior risultato singolo.
+`policy_selection_status` e` informativo e puo` assumere valori quali `user_supplied`, `externally_calibrated`, `externally_validated`, `experimental` o `unknown`.
 
-Le run failure, infeasible e post-check failed devono contribuire al denominatore del feasibility/post-check pass rate e non possono essere escluse dalle metriche aggregate. Il gap rispetto al riferimento deve usare la stessa funzione obiettivo e la stessa convenzione di segno; se non e` comparabile deve essere registrato come `unavailable`, non sostituito da zero. Una policy e` eleggibile soltanto se soddisfa le soglie di feasibility e post-check pass rate configurate; fra le policy eleggibili e` scelta secondo l'ordinamento dichiarato delle metriche aggregate.
+QReduce deve serializzare tali valori, ma non deve modificarli, verificarne il contenuto metodologico o dedurre che una policy sia superiore a un'altra.
+
+### 16.4 Regole per workflow esterni di calibrazione
+
+Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benchmarking, deve:
+
+```text
+1. fissare e serializzare prima dell'esecuzione policy candidate, budget, seed, classe di istanze e regole di confronto;
+2. non usare dati di valutazione finale o informazioni future per scegliere una policy;
+3. includere failure, infeasibility e post-check failed nelle metriche aggregate;
+4. definire nel dominio dell'applicazione il riferimento e la convenzione dell'eventuale objective gap;
+5. distinguere fra policy candidate, policy selezionata esternamente e policy usata in una final evaluation;
+6. collegare gli artifact esterni alla configurazione e al run QReduce tramite identificatori e hash.
+```
 
 ## 17. Artifact e riproducibilita`
 
@@ -1014,6 +1036,8 @@ proof or user-request reference, if applicable
 ```
 
 I formati `qubo.json`, `bqm.*`, `ising.json`, gli artifact di compilation/esecuzione MIS, `raw_samples.json` e `solver_result.json` devono avere schema e versione dichiarati. I formati concreti degli artifact provider-specifici devono essere registrati nel manifest; un consumer non puo` dedurli dall'estensione del file. Per ogni esecuzione MIS devono essere serializzati provider e backend richiesti/effettivi, famiglia del backend, modalita` locale/remota, device se applicabile, capability risolte, rappresentazione compilata, mapping/embedding/transpilation se applicabili, parametri effettivi, stato di completion e decisione di fallback. Gli artifact devono preservare failure e candidate non adottate; non e` ammesso eliminare risultati negativi per produrre statistiche apparentemente migliori. I metadata serializzati devono essere redatti da credenziali, token, segreti e dati personali.
+
+Riferimenti a benchmark, calibration run, validation run o policy selection eseguiti esternamente possono essere registrati nel `run_manifest.json` come provenance opaca. Il kernel li conserva e li collega a `config_hash` e `policy_hash`, ma non legge dataset esterni, non aggrega risultati di piu` run e non determina la policy migliore.
 
 ## 18. Configurazione
 
@@ -1126,7 +1150,16 @@ software_version
 resolved_config_hash
 input_hash_policy
 metadata_redaction_enabled
+policy_id
+policy_version
+policy_source
+policy_hash
+policy_selection_status
+external_policy_selection_reference
+external_evaluation_reference
 ```
+
+I riferimenti esterni di policy sono metadata di provenance e non abilitano comportamenti adattivi. Una run QReduce non puo` modificare la configurazione risolta ne` selezionare una policy differente in base ai propri risultati, salvo futura funzionalita` esplicita, versionata e disabilitata per default.
 
 ## 19. Stati e failure reason
 
@@ -1266,14 +1299,14 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - Il post-check applica e registra tolleranze di fattibilita`, integrality e ricomputazione dell'obiettivo.
 - Un incumbent feasible dopo time limit puo` essere adottato solo con `partial_success` e post-check positivo.
 
-### 20.8 Calibrazione
+### 20.8 Provenance della policy e valutazione esterna
 
-- Una policy non viene dichiarata migliore se non soddisfa una soglia minima di feasibility.
-- Il gap rispetto al riferimento usa la stessa funzione obiettivo e convenzione di segno.
-- Le metriche aggregate includono tutte le failure e non solo le run adottate.
-- La scelta finale e` riproducibile a parita` di dati, seed e backend.
-- Calibration set e final evaluation set sono disgiunti quando applicabile.
-- Una policy non eleggibile per le soglie minime di feasibility/post-check non puo` essere scelta, indipendentemente dalla riduzione ottenuta.
+- La configurazione risolta serializza `policy_id`, `policy_version`, `policy_hash`, `policy_source` e `policy_selection_status` quando sono forniti dal chiamante.
+- Gli stessi metadata di policy sono riportati nel `run_manifest.json` e collegabili agli artifact del run.
+- QReduce esegue la stessa policy risolta in modo riproducibile a parita` di input, seed, capability e backend effettivo.
+- Il kernel registra failure, infeasibility e post-check failed nel run summary e non elimina artifact negativi.
+- Le metriche tecniche obbligatorie sono disponibili anche quando il chiamante non fornisce riferimento classico, objective gap o metriche di dominio.
+- QReduce non espone una funzione che scelga automaticamente una policy migliore sulla base di benchmark o risultati di run precedenti.
 
 ## 21. Criteri di accettazione della prima versione
 
@@ -1291,8 +1324,9 @@ La prima versione di QReduce e` accettata quando:
 10. Il framework distingue origine e garanzia di fixing euristico, sicuro e imposto dall'utente.
 11. La configurazione standard impone la condizione certificante `lambda_edge > max_i(w_i)` e i test piccoli ne verificano la proprieta`.
 12. Tutti gli artifact minimi, incluse capability, compilation ed esecuzione MIS, le versioni di schema, gli hash richiesti e il fixing manifest sono prodotti per un run single-pass.
-13. I test unitari e di integrazione elencati nelle sezioni rilevanti passano.
-14. La documentazione dichiara chiaramente che il solve ottimo del problema residuo non implica ottimalita` del problema originale dopo fixing euristico o user-imposed.
+13. Il framework serializza la provenance opzionale della policy fornita dal chiamante e le metriche tecniche necessarie per confronti esterni, senza implementare o imporre un workflow di calibrazione o selezione automatica della policy.
+14. I test unitari e di integrazione elencati nelle sezioni rilevanti passano.
+15. La documentazione dichiara chiaramente che il solve ottimo del problema residuo non implica ottimalita` del problema originale dopo fixing euristico o user-imposed.
 
 ## 22. Evoluzioni successive
 
@@ -1303,8 +1337,8 @@ Le evoluzioni pianificate, ma non richieste nella prima versione, includono:
 - politiche di graph construction apprese o data-driven;
 - integrazione con certificate di presolve e reduced-cost fixing;
 - adaptive selection del numero di round e della dimensione di `C`;
-- portfolio di policy MIS e selezione automatica per classe di istanze;
-- parallelizzazione di sample, candidate evaluation e configurazioni di calibrazione;
+- package opzionale o applicazione esterna per benchmark, tuning e selezione di portfolio di policy MIS per classi di istanze dichiarate;
+- utility opzionali per orchestrare in parallelo run QReduce richieste da un workflow esterno di valutazione delle policy;
 - supporto a decomposizione per blocchi e piu` grafi nello stesso round;
 - integrazione di warm start classici tra round;
 - bound globali per quantificare la perdita introdotta dalla riduzione euristica;

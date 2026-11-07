@@ -1,3 +1,14 @@
 # Runtime and temporary files produced by Cline.
 .cline/
 .cline-tmp/
+
+# Python bytecode, tools, virtual environments, and build artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+dist/
+build/
+*.egg-info/
