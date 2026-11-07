@@ -1,3 +1,9 @@
+---
+globs:
+  - "notebooks/**/*.ipynb"
+  - "src/**/*.py"
+---
+
 # Regola: separazione tra notebook Jupyter e file Python
 
 Sintesi
