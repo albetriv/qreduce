@@ -14,6 +14,41 @@ files = [
 ]
 
 [[package]]
+name = "cplex"
+version = "22.2.0.1"
+description = "A Python interface to the CPLEX Callable Library, Community Edition."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "cplex-22.2.0.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:31fecb466566dfea449f096cf0d74de69f316156aab3199115cad17d50fa4e92"},
+    {file = "cplex-22.2.0.1-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:dc39d01dd690710d364a207d88fb86bbbdd8a9e82e333b9262170c666ee3640e"},
+    {file = "cplex-22.2.0.1-cp310-cp310-manylinux2014_ppc64le.whl", hash = "sha256:572b56c5def1c48e09a424cfae38e2e46d39a694a06425cf17600132ba0ab8cd"},
+    {file = "cplex-22.2.0.1-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:f916bf7e5581228ef79ddf7952aec2f9eaacf061f6c8c68ccb9d4393902bb436"},
+    {file = "cplex-22.2.0.1-cp310-cp310-win_amd64.whl", hash = "sha256:4fb664d0f52e6273b021278f080b0a1248c6fb020f5003562190e9cc6e465f8d"},
+    {file = "cplex-22.2.0.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:3f21fc34c4cf14bdcf026401b7ea45c0b7e6ed81fe1317faceb248943976bb25"},
+    {file = "cplex-22.2.0.1-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:0ca7fce46ac17a19e5d99bdf1eeee6e7c449357e261c6256921dc8a4460b84ce"},
+    {file = "cplex-22.2.0.1-cp311-cp311-manylinux2014_ppc64le.whl", hash = "sha256:1d323070ce11cf14251851b5f3841fa70df2fc63f0a281c04e6e8f5827f6933f"},
+    {file = "cplex-22.2.0.1-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:5b03ef0f018c65d514d5ef63308048ef97922e15ca42a6c80dba210b364abfc0"},
+    {file = "cplex-22.2.0.1-cp311-cp311-win_amd64.whl", hash = "sha256:6f9f6a7316f89ad0eaa8f82c160a749de30764ace79a7995de9e58dc6b973677"},
+    {file = "cplex-22.2.0.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:94be9d4397cafe5c1caf113c4ba9dd6f9bc44ee66f56eb09581dc8904bb5cff1"},
+    {file = "cplex-22.2.0.1-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:df6b52cc66e66be89ee7354210aa59e68542131e2db5e46ffda871046667b7ca"},
+    {file = "cplex-22.2.0.1-cp312-cp312-manylinux2014_ppc64le.whl", hash = "sha256:52a296b6c397a9f62d234393d43ddd1f01e6daeb5ced6e72c1f94f38dfeb0585"},
+    {file = "cplex-22.2.0.1-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:9b023e288883c3b88dcaac14e5c95f91bf59c400a8920c5fff887785c2f3993c"},
+    {file = "cplex-22.2.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:9bad9b108ecc2fde2b1afd2731870e7d412210617a115efe0224f659b906dc19"},
+    {file = "cplex-22.2.0.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:53ab97acf40ce4eb1e2a9faa0314721ceec7d064ce08ece6ec25194d262d302e"},
+    {file = "cplex-22.2.0.1-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:056fb2a435af2bfbebde55c54bc6f18db4ab0c4d73c8dda2555067dc8e56eb96"},
+    {file = "cplex-22.2.0.1-cp313-cp313-manylinux2014_ppc64le.whl", hash = "sha256:b765b198a00ad45e9b0f7a6550dc7054edfc0d02321815018408444f20ae8778"},
+    {file = "cplex-22.2.0.1-cp313-cp313-manylinux2014_x86_64.whl", hash = "sha256:39288a397d6294242b7ce97d4ef86f3df9053b8bf6e040a764bde05d6a2ab332"},
+    {file = "cplex-22.2.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:0b19dc84f828f4ad812eaba0c459f41e77d0cef6d066f197aa9cd0a81fda8780"},
+    {file = "cplex-22.2.0.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a28ee4852fab68c75c86ce2f0416e63a7c4343ddb9f370259f9c824012ae8938"},
+    {file = "cplex-22.2.0.1-cp314-cp314-manylinux2014_aarch64.whl", hash = "sha256:90ead4eb80f0b57dcac032881045172e2827e538ec5b5b026617dfbeed086477"},
+    {file = "cplex-22.2.0.1-cp314-cp314-manylinux2014_ppc64le.whl", hash = "sha256:a306dc9a1cf73e670f1e00b0b999ced1b18cd26d94d9725d43d6687a23a0f03a"},
+    {file = "cplex-22.2.0.1-cp314-cp314-manylinux2014_x86_64.whl", hash = "sha256:24a31a301c300dbaecc9a7b681da22a9c249932c8ba9ec95ded469f1ff68049c"},
+    {file = "cplex-22.2.0.1-cp314-cp314-win_amd64.whl", hash = "sha256:47e8f93bb1b950a4f18a38074aeb16cdadd5ce78e4812f2b58a2ef9a006cc839"},
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.3.1"
 description = "brain-dead simple config-ini parsing"
@@ -117,4 +152,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "8163a16c5dd93a6f91179ae15ddd6e129e55763dce38d349a215e229f265a48e"
+content-hash = "faa215ceb1ab108f4a15ed0000a32fc8288ba252d8cd9f22c1ca8b5f73afba7a"

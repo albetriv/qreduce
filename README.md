@@ -24,12 +24,13 @@ e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
 package in modalita` editable insieme alle dipendenze gia` risolte.
 
 Le dipendenze core restano provider-agnostic. Test e lint appartengono al gruppo
-di sviluppo; binding del backend classico, SDK MIS e librerie di dominio saranno
-isolati nei rispettivi adapter solo quando la loro installazione e il loro
-contratto runtime saranno verificati. In particolare, CPLEX non e` una
-dipendenza del package core: se il backend richiesto non e` disponibile, QReduce
-deve produrre una failure esplicita e non selezionare automaticamente un solver
-alternativo.
+di sviluppo. Il binding Python CPLEX e` una dipendenza runtime strutturale del
+backend classico dimostrativo, dichiarata nel gruppo di dipendenze principale
+del package per rendere riproducibile il solve MIQP residuale. Questo non rende
+il kernel dipendente da CPLEX: il binding e` importato lazy soltanto dal backend
+`CplexClassicalBackend`, e `import qreduce` non lo carica. Se il binding, la
+licenza o l'ambiente CPLEX non sono utilizzabili, QReduce deve produrre una
+failure esplicita e non selezionare automaticamente un solver alternativo.
 
 ## Policy e valutazione esterna
 

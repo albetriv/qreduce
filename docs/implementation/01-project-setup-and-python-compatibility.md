@@ -21,9 +21,7 @@ l'indipendenza del kernel QReduce.
 ## Allineamento documentale richiesto
 
 Il valore in `pyproject.toml` e` la fonte tecnica della compatibilita` Python.
-Il README dovra` essere aggiornato da una successiva modifica per dichiarare
-Python 3.12, sostituendo l'attuale intervallo piu` ampio non coerente con il
-vincolo di packaging.
+Il README dichiara Python 3.12, coerentemente con il vincolo di packaging.
 
 Il README dovra` inoltre descrivere `poetry.lock` come file risolto e versionato;
 la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
@@ -52,10 +50,11 @@ MIQP support available: true | false | unknown
 effective backend: cplex | unavailable
 ```
 
-La libreria Python concreta e le istruzioni di installazione saranno definite
-nel documento del backend classico quando verranno verificate nell'ambiente
-reale. Fino a quel momento non si assume che una particolare distribuzione
-CPLEX sia installabile automaticamente tramite Poetry.
+Il binding Python CPLEX e` dichiarato come dipendenza runtime del backend
+classico dimostrativo con vincolo `cplex (>=22.2.0.0,<23.0.0.0)`. Rimane isolato
+dal kernel tramite import lazy nel backend concreto: la dichiarazione di
+packaging rende riproducibile l'installazione, ma non implica che licenza e
+capacita` MIQP siano disponibili in ogni runtime.
 
 ## Convenzioni di progetto
 
