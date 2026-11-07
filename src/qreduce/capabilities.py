@@ -31,6 +31,12 @@ class RuntimeCapabilities:
     supports_compilation_time_limit: bool
     supports_async_execution: bool
     supports_cancellation: bool
+    supports_local_simulator: bool = False
+    supports_remote_qpu: bool = False
+    requires_embedding: bool = False
+    requires_transpilation: bool = False
+    requires_geometric_mapping: bool = False
+    requires_device_mapping: bool = False
     supported_parameter_names: frozenset[str] = frozenset()
     required_sdk: str | None = None
     required_credentials: bool = False
@@ -105,9 +111,6 @@ def validate_backend_compatibility(
         and selection.device_id not in capabilities.supported_device_ids
     ):
         _add_issue(issues, "device_id", "Requested device is not supported by this backend.")
-    if capabilities.maximum_variables is not None and execution.exact_solver_max_variables > capabilities.maximum_variables:
-        _add_issue(issues, "exact_solver_max_variables", "Configured variable limit exceeds runtime capability.")
-
     unsupported_parameter_names = sorted(
         set(execution.provider_parameters) - set(capabilities.supported_parameter_names)
     )
