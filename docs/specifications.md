@@ -129,6 +129,65 @@ Il solver classico resta responsabile di:
 - scegliere i valori finali delle variabili non fissate;
 - restituire status, bound, gap e prova di fattibilita` secondo le capacita` del backend.
 
+### 5.1 Esempio concettuale di integrazione da parte di un'applicazione esterna
+
+Un'applicazione esterna possiede un problema di dominio e usa QReduce come componente di riduzione, non come sostituto del proprio modello o del proprio solver classico.
+
+```text
+Applicazione esterna
+  1. carica o costruisce il problema originale;
+  2. seleziona una policy esplicita di grafo, MIS, repair e riduzione;
+  3. costruisce adapter di dominio, backend MIS e backend classico;
+  4. invoca QReduce con tali dipendenze e con la configurazione risolta;
+  5. riceve risultato, fixing manifest, post-check e artifact;
+  6. applica decisioni di business o metriche di dominio esterne.
+
+Adapter di dominio
+  - identifica le decisioni binarie riducibili;
+  - costruisce il grafo con pesi e ragioni degli archi;
+  - traduce il candidate domain in fixing del problema originale;
+  - costruisce il problema residuo;
+  - verifica la soluzione finale rispetto alla semantica del dominio.
+
+QReduce
+  - orchestra la pipeline MWIS e la riduzione;
+  - seleziona il candidate domain secondo la policy ricevuta;
+  - non interpreta il significato di dominio di nodi, pesi e archi;
+  - non sceglie la policy migliore;
+  - non dichiara che il fixing euristico preservi l'ottimo originale.
+
+Backend classico
+  - risolve il problema ristretto;
+  - mantiene objective e vincoli hard originali;
+  - restituisce risultato, bound/gap e stato secondo le sue capability.
+```
+
+Il flusso concettuale di una singola richiesta e`:
+
+```text
+original_problem
+  + domain_adapter
+  + reduction_policy
+  + mis_backend
+  + classical_backend
+  + artifact_configuration
+  -> QReduce.run(...)
+  -> reduction_result
+
+reduction_result
+  -> candidate_domain
+  -> fixing_manifest
+  -> residual_classical_result
+  -> postcheck_result
+  -> run_manifest and artifacts
+```
+
+La firma `QReduce.run(...)` e` concettuale e non costituisce ancora un'API Python pubblica. L'API concreta deve mantenere gli stessi confini di responsabilita`.
+
+La scelta della policy appartiene al chiamante. Per esempio, il chiamante puo` passare una policy fornita manualmente, sperimentale o calibrata da un workflow esterno. QReduce serializza i relativi metadata di provenance, ma non confronta run precedenti e non modifica la policy durante il run.
+
+L'applicazione adotta una soluzione soltanto se il risultato classico e` feasible e il post-check dell'adapter e` positivo. In caso contrario deve trattare l'esito come failure o partial result secondo le proprie regole di dominio; QReduce conserva comunque artifact, metriche e failure reason.
+
 ## 6. Modello MIS
 
 ### 6.1 Grafo di riduzione

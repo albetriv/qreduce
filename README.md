@@ -22,6 +22,19 @@ Il primo comando crea l'ambiente virtuale, installa il package in modalita` edit
 
 QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e ne registra configurazione, provenance ed esiti. Non include un workflow di calibrazione, benchmark o selezione automatica della policy: riferimenti classici, metriche di qualita`, soglie e separazione fra tuning e valutazione finale restano responsabilita` dell'applicazione o dell'adapter di dominio.
 
+## Integrazione concettuale
+
+```text
+applicazione esterna
+  -> problema originale + policy esplicita
+  -> adapter di dominio + backend MIS + backend classico
+  -> QReduce
+  -> candidate domain + fixing manifest + solve residuo + post-check
+  -> decisione dell'applicazione
+```
+
+L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e ne produce artifact auditabili. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
+
 ## Flusso
 
 ```text
