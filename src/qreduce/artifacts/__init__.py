@@ -1,0 +1,1 @@
+"""Artifact metadata contracts and serialization utilities."""
