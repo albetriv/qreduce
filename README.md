@@ -4,7 +4,7 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: progetto in fase iniziale di implementazione. Il package Python e la configurazione di sviluppo sono disponibili; i workflow di riduzione non sono ancora implementati.
+> **Stato**: progetto in fase iniziale di implementazione. E` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico; artifact completi, recovery e multi-round restano fuori dalla prima milestone.
 
 ## Sviluppo
 
@@ -19,18 +19,38 @@ poetry run pytest
 poetry run ruff check .
 ```
 
+Per installare il solver classico opzionale CPLEX:
+
+```powershell
+poetry install --extras cplex
+```
+
 `poetry lock` risolve le dipendenze e crea o rigenera il file `poetry.lock`, che
 e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
 package in modalita` editable insieme alle dipendenze gia` risolte.
 
 Le dipendenze core restano provider-agnostic. Test e lint appartengono al gruppo
-di sviluppo. Il binding Python CPLEX e` una dipendenza runtime strutturale del
-backend classico dimostrativo, dichiarata nel gruppo di dipendenze principale
-del package per rendere riproducibile il solve MIQP residuale. Questo non rende
-il kernel dipendente da CPLEX: il binding e` importato lazy soltanto dal backend
-`CplexClassicalBackend`, e `import qreduce` non lo carica. Se il binding, la
-licenza o l'ambiente CPLEX non sono utilizzabili, QReduce deve produrre una
-failure esplicita e non selezionare automaticamente un solver alternativo.
+di sviluppo. Il binding Python CPLEX appartiene all'extra `cplex`, perche` e`
+richiesto soltanto dal solver classico opzionale `cplex`. Il binding e` importato
+lazy da `CplexClassicalBackend`, quindi `import qreduce` non lo carica. Se il
+binding, la licenza o l'ambiente CPLEX non sono utilizzabili, QReduce produce una
+failure esplicita e non seleziona automaticamente un solver alternativo.
+
+## Selezione dei solver
+
+L'applicazione seleziona i solver tramite ID pubblici e serializzabili; QReduce
+risolve internamente il relativo backend Python attraverso registry espliciti.
+
+```text
+mis_solver_id = "local_greedy"
+classical_solver_id = "cplex"
+```
+
+`local_greedy` risolve il MWIS usato per la riduzione del dominio. `cplex`
+risolve il MILP/MIQP residuo dopo l'applicazione dei fixing. Le classi interne
+`LocalGreedyMISBackend` e `CplexClassicalBackend` non sono la scelta primaria
+dell'utente. Un ID sconosciuto, non disponibile o incompatibile fallisce in modo
+esplicito; non e` previsto fallback silenzioso.
 
 ## Policy e valutazione esterna
 
@@ -41,7 +61,7 @@ QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e 
 ```text
 applicazione esterna
   -> problema originale + policy esplicita
-  -> adapter di dominio + backend MIS + backend classico
+  -> adapter di dominio + MIS solver + solver classico
   -> QReduce
   -> candidate domain + fixing manifest + solve residuo + post-check
   -> decisione dell'applicazione
@@ -55,7 +75,7 @@ L'applicazione mantiene la responsabilita` del modello di dominio, della scelta 
 problema MIP/MIQP/MIQCP
   -> grafo di conflitto/ridondanza
   -> MWIS canonico: grafo, QUBO e/o BQM/Ising
-  -> compilation ed esecuzione del backend MIS
+  -> compilation ed esecuzione del MIS solver
   -> validazione, repair e candidate domain
   -> fixing delle decisioni escluse
   -> solve classico del problema residuo

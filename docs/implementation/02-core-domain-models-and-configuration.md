@@ -18,7 +18,7 @@ La configurazione deve distinguere tre concetti:
 
 | Categoria | Ruolo | Esempi |
 |---|---|---|
-| Configurazione di run risolta | Richiesta validata e serializzata | Budget, seed, cap, lambda, backend richiesto |
+| Configurazione di run risolta | Richiesta validata e serializzata | Budget, seed, cap, lambda, solver richiesto |
 | Policy e provenance | Decisioni esterne applicate senza adattamento implicito | ID, versione, hash, selection status |
 | Capability runtime | Cio` che un adapter/backend puo` realmente fare | Forme supportate, CPLEX disponibile, seed supportato |
 
@@ -31,7 +31,6 @@ L'implementazione dovra` fornire tipi serializzabili equivalenti ai seguenti gru
 ```text
 ResolvedRunConfig
 ReductionPolicy
-MISBackendSelection
 MISExecutionOptions
 ClassicalSolveOptions
 ArtifactOptions
@@ -58,8 +57,8 @@ max_end_to_end_runtime_seconds
 
 lambda_edge or lambda_edge_policy
 allow_noncertifying_penalty
-mis_provider_id
-mis_backend_id
+mis_solver_id
+provider/backend/device details, resolved from the selected solver capability
 mis_backend_family
 execution_mode
 fallback_policy
@@ -71,7 +70,7 @@ repair_max_iterations
 minimum_candidate_jaccard_distance
 exact_solver_max_variables
 
-classical_backend_name
+classical_solver_id
 time_limit_seconds
 mip_gap_tolerance
 threads
@@ -92,7 +91,8 @@ I valori iniziali, i default concreti e il canale di caricamento della configura
 - `max_reduction_rounds = 1` e` la configurazione supportata dalla prima milestone single-pass; il contratto puo` contenere il campo multi-round.
 - Un timeout effettivo non puo` superare il budget end-to-end residuo.
 - Una policy MWIS standard richiede `lambda_edge > max_i(w_i)` per il grafo del round, salvo esplicita policy non certificante consentita dalle specifiche.
-- I parametri specifici di un backend sono validi soltanto se la capability del backend selezionato li dichiara supportati.
+- Gli ID pubblici `mis_solver_id` e `classical_solver_id` devono essere risolti da registry espliciti; ID sconosciuti sono errori di configurazione e non attivano fallback.
+- I parametri specifici di un backend sono validi soltanto se la capability dell'implementazione selezionata li dichiara supportati.
 
 ## Stati, failure e adozione
 
@@ -125,6 +125,9 @@ src/qreduce/config.py
 src/qreduce/models.py
 src/qreduce/status.py
 src/qreduce/capabilities.py
+src/qreduce/solvers.py
+src/qreduce/mis/registry.py
+src/qreduce/classical/registry.py
 src/qreduce/artifacts/metadata.py
 ```
 

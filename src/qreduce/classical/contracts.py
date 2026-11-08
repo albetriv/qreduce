@@ -24,6 +24,7 @@ class ClassicalSolveRequest:
     model_export_enabled: bool
     model_export_path: str | None = None
     solver_parameters: Mapping[str, object] = field(default_factory=dict)
+    requested_solver_id: str = "cplex"
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -38,6 +39,8 @@ class ClassicalSolveRequest:
             raise ValueError("threads must be at least one when supplied.")
         if self.model_export_enabled and (self.model_export_path is None or not self.model_export_path.strip()):
             raise ValueError("model_export_path is required when model export is enabled.")
+        if not self.requested_solver_id.strip():
+            raise ValueError("requested_solver_id cannot be blank.")
         object.__setattr__(self, "solver_parameters", MappingProxyType(dict(self.solver_parameters)))
 
     @property
@@ -72,9 +75,15 @@ class ClassicalSolveResult:
     model_export_path: str | None = None
     remaining_time_budget_at_start_seconds: float | None = None
     diagnostic_message: str | None = None
+    requested_solver_id: str = "cplex"
+    effective_solver_id: str | None = None
 
     def __post_init__(self) -> None:
         _require_nonnegative_finite(self.runtime_seconds, "runtime_seconds")
+        if not self.requested_solver_id.strip():
+            raise ValueError("requested_solver_id cannot be blank.")
+        if self.effective_solver_id is not None and not self.effective_solver_id.strip():
+            raise ValueError("effective_solver_id cannot be blank when supplied.")
         if self.classical_solver_status is ClassicalSolverStatus.UNAVAILABLE and self.terminal_reason is None:
             raise ValueError("An unavailable solver result requires a terminal reason.")
         if self.classical_solver_status is ClassicalSolverStatus.FAILED and self.terminal_reason is None:

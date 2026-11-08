@@ -4,6 +4,9 @@ from dataclasses import asdict, dataclass
 from importlib import import_module as _import_module
 from typing import Literal
 
+from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
+from qreduce.solvers import BuiltinClassicalSolverId
+
 
 @dataclass(frozen=True, slots=True)
 class CplexRuntimeCapability:
@@ -57,4 +60,23 @@ def probe_cplex_runtime() -> CplexRuntimeCapability:
         effective_backend="cplex",
         terminal_reason=None,
         diagnostic_message=None,
+    )
+
+
+def cplex_classical_capabilities() -> ClassicalRuntimeCapabilities:
+    """Return the common capability view used by the classical solver registry."""
+
+    observed = probe_cplex_runtime()
+    return ClassicalRuntimeCapabilities(
+        solver_id=BuiltinClassicalSolverId.CPLEX.value,
+        runtime_available=observed.binding_importable,
+        supports_milp=True,
+        supports_miqp=True,
+        supports_random_seed=True,
+        supports_threads=True,
+        supports_mip_gap=True,
+        supports_model_export=True,
+        binding_importable=observed.binding_importable,
+        license_environment_available=observed.license_environment_available,
+        diagnostic_message=observed.diagnostic_message,
     )

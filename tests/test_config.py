@@ -9,7 +9,6 @@ from qreduce.models import (
     ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
-    MISBackendSelection,
     MISExecutionOptions,
     PolicyProvenance,
     ReductionPolicy,
@@ -18,10 +17,7 @@ from qreduce.models import (
 )
 from qreduce.status import (
     AdoptionStatus,
-    BackendFamily,
     ClassicalSolverStatus,
-    ExecutionMode,
-    FallbackPolicy,
     PipelineStage,
     PolicySelectionStatus,
     PostcheckMode,
@@ -52,13 +48,7 @@ def make_config(**changes: object) -> ResolvedRunConfig:
             effective_lambda_edge=2.0,
         ),
         allow_noncertifying_penalty=False,
-        mis_backend=MISBackendSelection(
-            provider_id="local",
-            backend_id="heuristic",
-            backend_family=BackendFamily.CLASSICAL_HEURISTIC,
-            execution_mode=ExecutionMode.LOCAL,
-            fallback_policy=FallbackPolicy.FAIL,
-        ),
+        mis_solver_id="local_greedy",
         mis_execution=MISExecutionOptions(
             requested_solution_count=2,
             random_seed=17,
@@ -71,7 +61,7 @@ def make_config(**changes: object) -> ResolvedRunConfig:
             provider_parameters={"temperature": 0.5},
         ),
         classical_solve=ClassicalSolveOptions(
-            backend_name="cplex",
+            classical_solver_id="cplex",
             time_limit_seconds=30.0,
             mip_gap_tolerance=0.01,
             threads=1,

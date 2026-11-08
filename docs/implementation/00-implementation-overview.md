@@ -17,15 +17,17 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | Tema | Decisione |
 |---|---|
 | Runtime supportato | Python 3.12 |
-| Backend classico concreto | IBM ILOG CPLEX |
+| MIS solver built-in | `local_greedy` |
+| Solver classico opzionale | `cplex` tramite extra `qreduce[cplex]` |
 | Adapter dimostrativo obbligatorio | Ottimizzazione media-varianza di portafoglio |
 | Primo percorso completo | Riduzione single-pass |
 | Provider quantistici/remoti | Non richiesti per la prima milestone |
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
 
-CPLEX e l'adapter di portafoglio rendono dimostrabile il requisito della v1 di
-un solve residuo MIQP con variabili binarie e continue. Non rendono il kernel
-dipendente da CPLEX o dal dominio finanziario.
+Il solver `cplex` e l'adapter di portafoglio rendono dimostrabile il requisito
+della v1 di un solve residuo MIQP con variabili binarie e continue. Non rendono
+il kernel dipendente da CPLEX o dal dominio finanziario: CPLEX e` un extra
+opzionale e il suo binding viene importato lazy.
 
 ## Principio di progettazione
 
@@ -35,8 +37,8 @@ La prima milestone deve produrre un vertical slice locale e auditabile:
 portfolio problem
   -> domain adapter builds ReductionGraph
   -> canonical MWIS/QUBO
-  -> local MIS backend
-  -> sample validation, repair, ranking and candidate domain
+  -> local_greedy MIS solver
+  -> sample normalization and candidate domain
   -> explicit fixing manifest
   -> CPLEX residual MIQP solve
   -> adapter post-check
@@ -67,8 +69,8 @@ problema originale dopo fixing euristico.
 | 03 | `03-canonical-mwis-graph-and-qubo.md` | Grafo, QUBO, energia, Ising ed exact diagnostics |
 | 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS e backend locale concreto |
 | 05 | `05-mean-variance-portfolio-domain-adapter.md` | Adapter MIQP, CPLEX, fixing e post-check |
-| 06 | Futura orchestrazione single-pass | Pipeline concreta, artifact e test di integrazione |
-| 07 | Future estensioni | Multi-round, recovery e adapter remoti/provider-specifici |
+| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta e test di integrazione portfolio + local_greedy + CPLEX |
+| 07 | Future estensioni | Artifact completi, multi-round, recovery e adapter remoti/provider-specifici |
 
 ## Rappresentazioni MWIS e indipendenza dal provider
 
@@ -96,9 +98,9 @@ definizione concreta:
 
 - libreria per dataclass/configurazione e validazione;
 - formato interno definitivo delle strutture QUBO e Ising;
-- algoritmo del backend MIS locale concreto;
+- ulteriori solver MIS e classici oltre a `local_greedy` e `cplex`;
 - schema esatto di tutti i file JSON e CSV;
-- binding Python CPLEX e strategia di packaging/licenza;
+- verifica della licenza CPLEX nell'ambiente che esegue i test live;
 - API pubblica finale di `QReduce.run(...)`;
 - CLI, notebook e schema di input utente;
 - BQM/annealing, gate-based, neutral-atom o adapter remoti;

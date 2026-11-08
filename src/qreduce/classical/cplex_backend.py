@@ -4,17 +4,34 @@ from importlib import import_module as _import_module
 from time import perf_counter
 from typing import Any
 
+from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
 from qreduce.classical.contracts import ClassicalSolveRequest, ClassicalSolveResult
+from qreduce.classical.cplex_capability import cplex_classical_capabilities
 from qreduce.domains.portfolio.models import PortfolioResidualProblem
+from qreduce.solvers import BuiltinClassicalSolverId
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
 class CplexClassicalBackend:
     """Solve supported residual portfolio MIQPs without importing CPLEX at module load."""
 
+    solver_id = BuiltinClassicalSolverId.CPLEX.value
+
+    def capabilities(self) -> ClassicalRuntimeCapabilities:
+        """Report binding availability without creating a CPLEX model."""
+
+        return cplex_classical_capabilities()
+
     def solve(self, reduced_problem: object, request: ClassicalSolveRequest) -> ClassicalSolveResult:
         """Solve one residual problem or return a normalized, explicit failure result."""
 
+        if request.requested_solver_id != self.solver_id:
+            return _failure_result(
+                request,
+                ClassicalSolverStatus.FAILED,
+                TerminalReason.UNSUPPORTED_PROBLEM_STRUCTURE,
+                f"CplexClassicalBackend cannot execute requested solver '{request.requested_solver_id}'.",
+            )
         if request.effective_time_limit_seconds is None:
             return ClassicalSolveResult(
                 classical_solver_status=ClassicalSolverStatus.NOT_RUN,
@@ -28,6 +45,7 @@ class CplexClassicalBackend:
                 runtime_seconds=0.0,
                 remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
                 diagnostic_message="No positive end-to-end time budget remains for the classical backend.",
+                requested_solver_id=request.requested_solver_id,
             )
         if not isinstance(reduced_problem, PortfolioResidualProblem):
             return ClassicalSolveResult(
@@ -42,6 +60,7 @@ class CplexClassicalBackend:
                 runtime_seconds=0.0,
                 remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
                 diagnostic_message="CplexClassicalBackend only supports PortfolioResidualProblem.",
+                requested_solver_id=request.requested_solver_id,
             )
         try:
             cplex_module = _import_module("cplex")
@@ -58,6 +77,7 @@ class CplexClassicalBackend:
                 runtime_seconds=0.0,
                 remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
                 diagnostic_message="The optional CPLEX Python binding is not importable.",
+                requested_solver_id=request.requested_solver_id,
             )
         started_at = perf_counter()
         try:
@@ -91,6 +111,7 @@ class CplexClassicalBackend:
                 runtime_seconds=perf_counter() - started_at,
                 remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
                 diagnostic_message=f"CPLEX solve failed: {type(error).__name__}: {error}",
+                requested_solver_id=request.requested_solver_id,
             )
 
 
@@ -210,6 +231,30 @@ def _result_from_model(
         model_export_path=request.model_export_path if request.model_export_enabled else None,
         remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
         diagnostic_message=None if normalized_status is not ClassicalSolverStatus.FAILED else f"CPLEX status: {status_text}",
+        requested_solver_id=request.requested_solver_id,
+        effective_solver_id=BuiltinClassicalSolverId.CPLEX.value,
+    )
+
+
+def _failure_result(
+    request: ClassicalSolveRequest,
+    status: ClassicalSolverStatus,
+    terminal_reason: TerminalReason,
+    diagnostic_message: str,
+) -> ClassicalSolveResult:
+    return ClassicalSolveResult(
+        classical_solver_status=status,
+        terminal_reason=terminal_reason,
+        solver_claimed_feasible=False,
+        objective_value=None,
+        best_bound=None,
+        gap=None,
+        is_optimal=False,
+        is_time_limited=False,
+        runtime_seconds=0.0,
+        remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
+        diagnostic_message=diagnostic_message,
+        requested_solver_id=request.requested_solver_id,
     )
 
 

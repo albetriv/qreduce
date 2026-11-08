@@ -168,8 +168,8 @@ Il flusso concettuale di una singola richiesta e`:
 original_problem
   + domain_adapter
   + reduction_policy
-  + mis_backend
-  + classical_backend
+  + mis_solver_id
+  + classical_solver_id
   + artifact_configuration
   -> QReduce.run(...)
   -> reduction_result
@@ -1187,7 +1187,7 @@ emulator_noise_model
 Parametri minimi solver classico:
 
 ```text
-classical_backend_name
+classical_solver_id
 time_limit_seconds
 mip_gap_tolerance
 random_seed

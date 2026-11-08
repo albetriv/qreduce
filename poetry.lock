@@ -17,9 +17,10 @@ files = [
 name = "cplex"
 version = "22.2.0.1"
 description = "A Python interface to the CPLEX Callable Library, Community Edition."
-optional = false
+optional = true
 python-versions = ">=3.10"
 groups = ["main"]
+markers = "extra == \"cplex\""
 files = [
     {file = "cplex-22.2.0.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:31fecb466566dfea449f096cf0d74de69f316156aab3199115cad17d50fa4e92"},
     {file = "cplex-22.2.0.1-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:dc39d01dd690710d364a207d88fb86bbbdd8a9e82e333b9262170c666ee3640e"},
@@ -149,7 +150,10 @@ files = [
     {file = "ruff-0.17.4.tar.gz", hash = "sha256:f32d178b50e826e00f6c6c1be3f56333068acb9b67fe167143527fa9b81e890d"},
 ]
 
+[extras]
+cplex = ["cplex"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "faa215ceb1ab108f4a15ed0000a32fc8288ba252d8cd9f22c1ca8b5f73afba7a"
+content-hash = "31d43582ae70409dc1bc0c0c99a17628fe2f1d464c7626543118890ee4be048b"

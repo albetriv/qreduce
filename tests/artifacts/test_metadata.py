@@ -12,15 +12,11 @@ from qreduce.models import (
     ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
-    MISBackendSelection,
     MISExecutionOptions,
     ReductionPolicy,
     ResolvedRunConfig,
 )
 from qreduce.status import (
-    BackendFamily,
-    ExecutionMode,
-    FallbackPolicy,
     PostcheckMode,
 )
 
@@ -34,13 +30,7 @@ def make_config() -> ResolvedRunConfig:
         lambda_edge=2.0,
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,
-        mis_backend=MISBackendSelection(
-            "local",
-            "heuristic",
-            BackendFamily.CLASSICAL_HEURISTIC,
-            ExecutionMode.LOCAL,
-            FallbackPolicy.FAIL,
-        ),
+        mis_solver_id="local_greedy",
         mis_execution=MISExecutionOptions(2, 17, 4, True, 3, 0.25, 20),
         classical_solve=ClassicalSolveOptions(
             "cplex", 30.0, 0.01, 1, False, 1e-6, 1e-6, 1e-7, 1e-7, PostcheckMode.STRICT
@@ -64,7 +54,7 @@ def test_config_serializes_nested_dataclasses_and_enums() -> None:
 
     serialized_config = make_config().to_dict()
 
-    assert json.loads(canonical_json(serialized_config))["mis_backend"]["execution_mode"] == "local"
+    assert json.loads(canonical_json(serialized_config))["mis_solver_id"] == "local_greedy"
 
 
 def test_redaction_removes_secrets_recursively_and_from_url_queries() -> None:

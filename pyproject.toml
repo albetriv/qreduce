@@ -7,7 +7,10 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = ["cplex (>=22.2.0.0,<23.0.0.0)"]
+dependencies = []
+
+[project.optional-dependencies]
+cplex = ["cplex (>=22.2.0.0,<23.0.0.0)"]
 
 [dependency-groups]
 dev = [
@@ -17,6 +20,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: exercises multiple QReduce components together.",
+    "requires_cplex: requires the optional CPLEX binding and a usable license.",
+]
 
 [tool.ruff]
 target-version = "py312"

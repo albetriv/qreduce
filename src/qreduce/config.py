@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 
 from qreduce.models import ResolvedRunConfig
-from qreduce.status import FallbackPolicy, TerminalReason
+from qreduce.status import TerminalReason
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,9 +65,8 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         config.artifacts.artifact_schema_version,
     )
     _require_nonempty(issues, "artifacts.producer_version", config.artifacts.producer_version)
-    _require_nonempty(issues, "mis_backend.provider_id", config.mis_backend.provider_id)
-    _require_nonempty(issues, "mis_backend.backend_id", config.mis_backend.backend_id)
-    _require_nonempty(issues, "classical_solve.backend_name", classical.backend_name)
+    _require_nonempty(issues, "mis_solver_id", config.mis_solver_id)
+    _require_nonempty(issues, "classical_solve.classical_solver_id", classical.classical_solver_id)
 
     if reduction.max_reduction_rounds != 1:
         _add_issue(
@@ -75,13 +74,6 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
             "single_pass_only",
             "reduction.max_reduction_rounds",
             "The first milestone supports exactly one reduction round.",
-        )
-    if config.mis_backend.fallback_policy is not FallbackPolicy.FAIL:
-        _add_issue(
-            issues,
-            "unsupported_fallback_policy",
-            "mis_backend.fallback_policy",
-            "The first milestone only permits fallback_policy='fail'.",
         )
     _require_int_at_least(issues, "reduction.candidate_domain_min_items", reduction.candidate_domain_min_items, 0)
     _require_int_at_least(issues, "reduction.candidate_domain_max_items", reduction.candidate_domain_max_items, 0)

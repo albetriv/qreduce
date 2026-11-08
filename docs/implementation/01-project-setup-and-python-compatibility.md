@@ -14,7 +14,8 @@ l'indipendenza del kernel QReduce.
 ## Decisioni applicate
 
 - La v1 supporta Python `>=3.12,<3.13`.
-- IBM ILOG CPLEX e` il backend classico concreto della v1.
+- `local_greedy` e` il MIS solver built-in della v1.
+- IBM ILOG CPLEX e` il solver classico opzionale della reference slice v1.
 - Il kernel non importa direttamente SDK di provider MIS.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
 
@@ -33,8 +34,8 @@ la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
 |---|---|---|
 | Core | Librerie strettamente necessarie al kernel | Provider-agnostic |
 | Development | pytest, ruff | Qualita` e test |
-| Classical backend | Binding Python CPLEX | Isolato dal core |
-| MIS adapter | Algoritmo locale o SDK provider | Dichiarato tramite capability |
+| Optional classical solver | Binding Python CPLEX | Extra `qreduce[cplex]`, isolato dal core |
+| MIS solver | Algoritmo locale o SDK provider | Selezionato da solver ID e dichiarato tramite capability |
 | Domain adapter | Librerie numeriche per il portfolio | Isolate dal kernel |
 
 ## CPLEX come capability runtime
@@ -43,18 +44,18 @@ La scelta di CPLEX non autorizza fallback automatici. Il runtime dovra` rilevare
 in modo esplicito almeno:
 
 ```text
-requested backend: cplex
+requested solver: cplex
 binding importable: true | false
 license/environment available: true | false | unknown
 MIQP support available: true | false | unknown
-effective backend: cplex | unavailable
+effective solver: cplex | unavailable
 ```
 
-Il binding Python CPLEX e` dichiarato come dipendenza runtime del backend
-classico dimostrativo con vincolo `cplex (>=22.2.0.0,<23.0.0.0)`. Rimane isolato
-dal kernel tramite import lazy nel backend concreto: la dichiarazione di
-packaging rende riproducibile l'installazione, ma non implica che licenza e
-capacita` MIQP siano disponibili in ogni runtime.
+Il binding Python CPLEX e` dichiarato nell'extra `cplex` con vincolo
+`cplex (>=22.2.0.0,<23.0.0.0)`. Rimane isolato dal kernel tramite import lazy
+nel backend concreto. L'installazione dell'extra rende riproducibile il runtime
+richiesto dal solver `cplex`, ma non implica che licenza e capacita` MIQP siano
+disponibili in ogni ambiente.
 
 ## Convenzioni di progetto
 
@@ -77,7 +78,7 @@ logic.
 - Configurazione test e lint riproducibile tramite Poetry.
 - Meccanismo per dichiarare capability installate senza importarle dal core.
 - Verifica controllata del binding CPLEX prima di dichiarare operativo il backend.
-- Regole di packaging per dipendenze core, development e opzionali.
+- Registry dei solver built-in e regole di packaging per dipendenze core, development e opzionali.
 
 ## Criteri di completamento
 

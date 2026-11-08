@@ -6,17 +6,13 @@ from types import MappingProxyType
 
 from qreduce.status import (
     AdoptionStatus,
-    BackendFamily,
     ClassicalSolverStatus,
-    ExecutionMode,
-    FallbackPolicy,
     PipelineStage,
     PolicySelectionStatus,
     PostcheckMode,
     PostcheckStatus,
     RunStatus,
     TerminalReason,
-    UnsupportedBackendParameterPolicy,
 )
 
 
@@ -44,21 +40,6 @@ class LambdaEdgePolicy:
     weight_normalization: str | None = None
     noncertifying_behavior: str | None = None
     proof_condition_satisfied: bool | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class MISBackendSelection:
-    """Requested MIS provider, backend, family and execution location."""
-
-    provider_id: str
-    backend_id: str
-    backend_family: BackendFamily
-    execution_mode: ExecutionMode
-    fallback_policy: FallbackPolicy
-    device_id: str | None = None
-    unsupported_backend_parameter_policy: UnsupportedBackendParameterPolicy = (
-        UnsupportedBackendParameterPolicy.REJECT
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,7 +71,7 @@ class MISExecutionOptions:
 class ClassicalSolveOptions:
     """Resolved controls for the residual classical solve and its post-check."""
 
-    backend_name: str
+    classical_solver_id: str
     time_limit_seconds: float
     mip_gap_tolerance: float | None
     threads: int | None
@@ -138,7 +119,7 @@ class ResolvedRunConfig:
     lambda_edge: float | None
     lambda_edge_policy: LambdaEdgePolicy | None
     allow_noncertifying_penalty: bool
-    mis_backend: MISBackendSelection
+    mis_solver_id: str
     mis_execution: MISExecutionOptions
     classical_solve: ClassicalSolveOptions
     artifacts: ArtifactOptions

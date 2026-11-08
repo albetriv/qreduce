@@ -14,7 +14,7 @@ from qreduce.status import PostcheckMode
 
 def make_tolerances() -> ClassicalSolveOptions:
     return ClassicalSolveOptions(
-        backend_name="cplex",
+        classical_solver_id="cplex",
         time_limit_seconds=10.0,
         mip_gap_tolerance=None,
         threads=None,

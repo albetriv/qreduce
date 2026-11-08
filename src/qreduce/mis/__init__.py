@@ -18,6 +18,11 @@ from qreduce.mis.normalization import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
 )
+from qreduce.mis.registry import (
+    MISSolverRegistry,
+    UnknownMISSolverError,
+    builtin_mis_solver_registry,
+)
 
 __all__ = [
     "BackendReportedScoreKind",
@@ -31,7 +36,10 @@ __all__ = [
     "MISCompletionStatus",
     "MISExecutionAdapter",
     "MISNormalizationResult",
+    "MISSolverRegistry",
     "RawMISSample",
+    "UnknownMISSolverError",
+    "builtin_mis_solver_registry",
     "deduplicate_raw_mis_samples",
     "normalize_backend_result",
     "validate_compilation_request",

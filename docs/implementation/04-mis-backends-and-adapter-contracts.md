@@ -2,7 +2,7 @@
 
 ## Scopo
 
-Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare un backend locale concreto della v1. Il backend locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
+Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare il solver locale concreto della v1. Il solver locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
 
 ## Riferimenti alle specifiche
 
@@ -37,9 +37,11 @@ Ogni adapter deve dichiarare almeno:
 
 La prima milestone deve usare `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
 
-## Backend locale concreto della v1
+## Solver locale concreto della v1
 
-La scelta dell'algoritmo locale resta aperta fino alla fase di implementazione, ma il backend deve:
+La v1 espone il solver ID `local_greedy`, risolto internamente dal registry verso
+`LocalGreedyMISBackend`. Il suo dettaglio operativo resta `provider_id = local`
+e `backend_id = greedy_mis`. Il solver deve:
 
 - essere operativo senza provider remoto;
 - rispettare il contratto capability/compile/solve;
@@ -76,6 +78,7 @@ Campi come `num_reads`, `shots`, `embedding_policy`, `transpiler_options` o para
 src/qreduce/mis/contracts.py
 src/qreduce/mis/capabilities.py
 src/qreduce/mis/local_backend.py
+src/qreduce/mis/registry.py
 src/qreduce/mis/normalization.py
 src/qreduce/mis/compilation.py
 ```
@@ -95,7 +98,7 @@ Questi nomi non fissano l'API pubblica finale.
 
 ## Criteri di completamento
 
-- Esiste un backend locale concreto utilizzabile nella pipeline v1.
+- Esiste il solver `local_greedy`, utilizzabile nella pipeline v1 tramite registry.
 - Il core non importa classi di provider o formati runtime proprietari.
 - Compilation, execution e normalizzazione sono osservabili separatamente.
 - Ogni cambio di backend o modalita` richiede una configurazione esplicita.
