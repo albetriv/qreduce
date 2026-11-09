@@ -42,7 +42,7 @@ RoundResult
 
 I contratti devono rendere possibili validazione prima dell'esecuzione, serializzazione della configurazione effettiva e test indipendenti dal dominio.
 
-## Configurazione minima della v1
+## Configurazione corrente
 
 La configurazione risolta deve poter rappresentare almeno i campi normativi:
 
@@ -87,8 +87,8 @@ I valori iniziali, i default concreti e il canale di caricamento della configura
 ## Invarianti di validazione iniziali
 
 - La configurazione richiesta non puo` essere modificata durante un run.
-- `fallback_policy = fail` e` l'unico comportamento della prima v1.
-- `max_reduction_rounds = 1` e` la configurazione supportata dalla prima milestone single-pass; il contratto puo` contenere il campo multi-round.
+- `fallback_policy = fail` e` l'unico comportamento supportato.
+- `max_reduction_rounds = 1` e` la configurazione supportata dalla pipeline single-pass; il contratto puo` contenere il campo multi-round.
 - Un timeout effettivo non puo` superare il budget end-to-end residuo.
 - Una policy MWIS standard richiede `lambda_edge > max_i(w_i)` per il grafo del round, salvo esplicita policy non certificante consentita dalle specifiche.
 - Gli ID pubblici `mis_solver_id` e `classical_solver_id` devono essere risolti da registry espliciti; ID sconosciuti sono errori di configurazione e non attivano fallback.

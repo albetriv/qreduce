@@ -2,8 +2,8 @@
 
 ## Scopo
 
-Questo documento e` la roadmap tecnica iniziale della prima versione di QReduce.
-Traduce `docs/specifications.md` in milestone implementative, senza sostituirla:
+Questo documento descrive la roadmap tecnica di QReduce.
+Traduce `docs/specifications.md` in task implementativi, senza sostituirla:
 le specifiche restano la fonte normativa per requisiti funzionali, confini di
 responsabilita`, garanzie, stati, failure reason e criteri di accettazione.
 
@@ -12,7 +12,7 @@ operative, assunzioni temporanee e contratti da verificare durante lo sviluppo.
 Una decisione qui descritta puo` essere rivista se non modifica i requisiti
 normativi o se la revisione delle specifiche viene approvata esplicitamente.
 
-## Decisioni gia` stabilite per la v1
+## Decisioni tecniche correnti
 
 | Tema | Decisione |
 |---|---|
@@ -20,18 +20,18 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | MIS solver built-in | `local_greedy` |
 | Solver classico opzionale | `cplex` tramite extra `qreduce[cplex]` |
 | Adapter dimostrativo obbligatorio | Ottimizzazione media-varianza di portafoglio |
-| Primo percorso completo | Riduzione single-pass |
-| Provider quantistici/remoti | Non richiesti per la prima milestone |
+| Percorso completo | Riduzione single-pass |
+| Provider quantistici/remoti | Non richiesti dal kernel |
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
 
 Il solver `cplex` e l'adapter di portafoglio rendono dimostrabile il requisito
-della v1 di un solve residuo MIQP con variabili binarie e continue. Non rendono
+di un solve residuo MIQP con variabili binarie e continue. Non rendono
 il kernel dipendente da CPLEX o dal dominio finanziario: CPLEX e` un extra
 opzionale e il suo binding viene importato lazy.
 
 ## Principio di progettazione
 
-La prima milestone deve produrre un vertical slice locale e auditabile:
+L'implementazione deve produrre un percorso locale e auditabile:
 
 ```text
 portfolio problem
@@ -42,7 +42,8 @@ portfolio problem
   -> explicit fixing manifest
   -> CPLEX residual MIQP solve
   -> adapter post-check
-  -> versioned artifacts and run summary
+  -> complete in-memory run result and run summary
+  -> optional caller-owned artifact export
 ```
 
 Il risultato MWIS restringe il dominio delle decisioni binarie. Non e` il
@@ -57,7 +58,8 @@ problema originale dopo fixing euristico.
 | Roadmap e decisioni tecniche correnti | `docs/implementation/` | Revisionabile e tracciabile |
 | Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook |
 | Test permanenti | `tests/` | Ogni milestone aggiunge test proporzionati |
-| Artefatti di run | `outputs/{run_id}/` | Generati dalla pipeline, non usati come file temporanei |
+| Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem |
+| Export opzionale | `outputs/{run_id}/` o destinazione caller-owned | Attivato esplicitamente dal chiamante, non usato come file temporaneo |
 | File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo |
 
 ## Sequenza implementativa proposta
@@ -70,7 +72,7 @@ problema originale dopo fixing euristico.
 | 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS e backend locale concreto |
 | 05 | `05-mean-variance-portfolio-domain-adapter.md` | Adapter MIQP, CPLEX, fixing e post-check |
 | 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta e test di integrazione portfolio + local_greedy + CPLEX |
-| 07 | Future estensioni | Artifact completi, multi-round, recovery e adapter remoti/provider-specifici |
+| 07 | Estensioni opzionali | Exporter di artifact, multi-round, recovery e adapter remoti/provider-specifici |
 
 ## Rappresentazioni MWIS e indipendenza dal provider
 

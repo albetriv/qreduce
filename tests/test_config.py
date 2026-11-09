@@ -110,6 +110,14 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
         (make_config(reduction=replace(make_config().reduction, target_binary_variables=1.5)), "integer_below_minimum"),
         (make_config(lambda_edge=None, lambda_edge_policy=None), "missing_lambda_edge"),
         (
+            make_config(lambda_edge=None, lambda_edge_policy=LambdaEdgePolicy("standard", "1", None)),
+            "missing_effective_lambda_edge",
+        ),
+        (
+            make_config(lambda_edge_policy=LambdaEdgePolicy("standard", "1", 3.0)),
+            "lambda_edge_policy_mismatch",
+        ),
+        (
             make_config(
                 allow_noncertifying_penalty=True,
                 lambda_edge_policy=LambdaEdgePolicy("experimental", "1", 2.0),

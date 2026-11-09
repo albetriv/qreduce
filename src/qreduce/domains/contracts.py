@@ -128,6 +128,12 @@ class ReducibleProblemAdapter(Protocol):
         retained_item_ids: tuple[str, ...],
     ) -> DomainValidationResult: ...
 
+    def build_fixing_manifest(
+        self,
+        problem: object,
+        retained_item_ids: tuple[str, ...],
+    ) -> FixingManifest: ...
+
     def restrict_problem(
         self,
         problem: object,
@@ -141,4 +147,5 @@ class ReducibleProblemAdapter(Protocol):
         solution: object,
         fixing_manifest: FixingManifest,
         tolerances: object,
+        solver_objective_value: float | None = None,
     ) -> FinalSolutionValidationResult: ...

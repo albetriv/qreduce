@@ -57,11 +57,11 @@ QReduce non deve:
 - definire o imporre dataset di calibrazione, benchmark, riferimento classico, funzione di qualita`, soglie di accettazione o regole universali per scegliere una policy migliore;
 - eseguire automaticamente tuning, calibrazione o selezione di policy in base a risultati di run precedenti.
 
-### 3.1 Perimetro della prima versione
+### 3.1 Perimetro attuale
 
-La prima versione implementa il percorso end-to-end con i componenti obbligatori seguenti:
+QReduce implementa il percorso end-to-end con i componenti obbligatori seguenti:
 
-| Componente | Stato nella prima versione |
+| Componente | Stato |
 |---|---|
 | Adapter di dominio dimostrativo | obbligatorio |
 | Rappresentazione MWIS canonica: grafo, QUBO e conversione BQM/Ising quando applicabile; validazione, repair e candidate domain | obbligatorio |
@@ -69,17 +69,17 @@ La prima versione implementa il percorso end-to-end con i componenti obbligatori
 | Backend MIS locale concreto, euristico o simulato | obbligatorio; non deve rendere il kernel dipendente da uno specifico provider o SDK |
 | Exact MIS/QUBO solver | obbligatorio, solo per diagnostica e test sotto una soglia configurabile |
 | Backend classico SCIP **oppure** CPLEX | obbligatorio: almeno una integrazione concreta deve essere operativa |
-| Secondo backend classico | interfaccia predisposta; implementazione opzionale nella prima versione |
-| Adapter annealing/BQM, ad esempio D-Wave Ocean | opzionale nella prima versione; se implementato, puo` supportare simulatore locale, hybrid o QPU secondo capability dichiarate |
-| Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale nella prima versione; contratto predisposto |
-| Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale nella prima versione; contratto predisposto |
-| QPU remota, embedding o mapping fisico | non richiesti nella prima versione; richiesti soltanto dagli adapter che li dichiarano necessari |
+| Secondo backend classico | interfaccia predisposta; implementazione opzionale |
+| Adapter annealing/BQM, ad esempio D-Wave Ocean | opzionale; se implementato, puo` supportare simulatore locale, hybrid o QPU secondo capability dichiarate |
+| Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale; contratto predisposto |
+| Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
+| QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
 
 La configurazione deve rifiutare esplicitamente un backend dichiarato ma non implementato o non disponibile. Uno stub o un contratto predisposto non costituisce un backend utilizzabile.
 
 ## 4. Classe di problemi supportata
 
-La prima versione supporta problemi con la forma concettuale:
+QReduce supporta problemi con la forma concettuale:
 
 ```text
 minimize or maximize F(delta, x, y)
@@ -179,14 +179,15 @@ reduction_result
   -> fixing_manifest
   -> residual_classical_result
   -> postcheck_result
-  -> run_manifest and artifacts
+  -> in-memory run summary, metrics and diagnostics
+  -> optional caller-owned export of manifests and artifacts
 ```
 
 La firma `QReduce.run(...)` e` concettuale e non costituisce ancora un'API Python pubblica. L'API concreta deve mantenere gli stessi confini di responsabilita`.
 
 La scelta della policy appartiene al chiamante. Per esempio, il chiamante puo` passare una policy fornita manualmente, sperimentale o calibrata da un workflow esterno. QReduce serializza i relativi metadata di provenance, ma non confronta run precedenti e non modifica la policy durante il run.
 
-L'applicazione adotta una soluzione soltanto se il risultato classico e` feasible e il post-check dell'adapter e` positivo. In caso contrario deve trattare l'esito come failure o partial result secondo le proprie regole di dominio; QReduce conserva comunque artifact, metriche e failure reason.
+L'applicazione adotta una soluzione soltanto se il risultato classico e` feasible e il post-check dell'adapter e` positivo. In caso contrario deve trattare l'esito come failure o partial result secondo le proprie regole di dominio; QReduce conserva comunque nel risultato in memoria metriche, dati intermedi disponibili e failure reason.
 
 ## 6. Modello MIS
 
@@ -253,7 +254,7 @@ proof condition satisfied: true | false
 intended behavior when the proof condition is false
 ```
 
-La prima versione deve rifiutare una configurazione standard MWIS in cui `lambda_edge <= max_i(w_i)`, salvo una policy sperimentale esplicitamente marcata `allow_noncertifying_penalty=true`; quest'ultima non puo` dichiarare la garanzia strutturale sopra descritta.
+QReduce deve rifiutare una configurazione standard MWIS in cui `lambda_edge <= max_i(w_i)`, salvo una policy sperimentale esplicitamente marcata `allow_noncertifying_penalty=true`; quest'ultima non puo` dichiarare la garanzia strutturale sopra descritta.
 
 La cardinalita` non deve entrare nella QUBO standard tramite penalita` quadrate, hinge penalties o termini equivalenti. Eventuali requisiti di cardinalita` del problema originale devono essere gestiti dal problema classico residuo e, se necessario, da filtri o repair post-sampling espliciti.
 
@@ -337,7 +338,7 @@ candidate_rank_key
 
 ### 8.2 Ranking degli elementi
 
-Gli elementi del candidate domain devono essere ordinati con una policy dichiarata. La policy iniziale obbligatoria per la prima versione usa solo candidate selezionate dopo deduplicazione, validazione, repair e filtro di diversita`. Per ogni item, `selection_frequency` e` il numero di candidate selezionate che lo contengono; `mean_candidate_quality` e` la media aritmetica del `candidate_quality_score` delle candidate selezionate che lo contengono.
+Gli elementi del candidate domain devono essere ordinati con una policy dichiarata. La policy standard usa solo candidate selezionate dopo deduplicazione, validazione, repair e filtro di diversita`. Per ogni item, `selection_frequency` e` il numero di candidate selezionate che lo contengono; `mean_candidate_quality` e` la media aritmetica del `candidate_quality_score` delle candidate selezionate che lo contengono.
 
 Salvo una policy dell'adapter esplicitamente versionata, `candidate_quality_score` e` il valore scalare `selection_weight`. La `candidate_rank_key`, usata per ordinare e selezionare le candidate, e` invece la tupla lessicografica:
 
@@ -369,7 +370,7 @@ candidate_domain_min_items
 num_source_mis_candidates
 ```
 
-Gli item protetti devono appartenere al dominio di input `V`. Non e` ammesso riattivare un item fissato a zero in un round precedente senza una policy esplicita di rollback e ricostruzione del modello; la prima versione non supporta il rollback.
+Gli item protetti devono appartenere al dominio di input `V`. Non e` ammesso riattivare un item fissato a zero in un round precedente senza una policy esplicita di rollback e ricostruzione del modello; il rollback non e` supportato.
 
 Gli item `mandatory_items`, `user_locked_items` e `safe_retained_items` hanno precedenza sul cap. Se il loro numero supera `candidate_domain_max_items`, il round fallisce con `protected_items_exceed_candidate_domain_cap`; il framework non deve scartare silenziosamente un item protetto. Gli `incumbent_supported_items` seguono la politica configurata `incumbent_protection_mode: required | best_effort`: nel primo caso producono lo stesso failure, nel secondo possono essere scartati solo secondo il ranking e con reason code esplicita.
 
@@ -456,7 +457,7 @@ V_1 = C_0_effective = {A, B, C, D}
 
 Il grafo e le candidate MWIS del round `1` possono quindi contenere solo `A`, `B`, `C` e `D`; `E` e `F` non possono rientrare. L'unione di piu` candidate avviene dunque prima del fixing, all'interno di ciascun round, mentre la riduzione tra round e` monotona.
 
-Per la prima versione vale l'invariante di monotonicita`:
+Vale l'invariante di monotonicita`:
 
 ```text
 V_(t+1) subseteq V_t
@@ -518,7 +519,7 @@ Ogni elemento aggiunto deve riportare una reason code. Il framework non puo` agg
 
 ### 9.5 Policy di recovery
 
-La prima versione non esegue rollback ne` riattiva item gia` fissati. Le policy di recovery ammesse sono configurabili e devono essere esplicite:
+QReduce non esegue rollback ne` riattiva item gia` fissati. Le policy di recovery ammesse sono configurabili e devono essere esplicite:
 
 ```text
 on_candidate_domain_too_small:
@@ -705,9 +706,9 @@ redacted raw backend metadata, if serializable
 
 Il vettore binario deve essere validato rispetto al `node_order` serializzato nel `ReductionGraph`; un adapter deve dichiarare e applicare esplicitamente ogni convenzione di endianess, ordine dei bit, spin/binary conversion o decoding provider-specifico. I metadata grezzi non devono contenere credenziali, token, segreti, endpoint con parametri sensibili o dati personali.
 
-### 11.5 Backend della prima versione e adapter futuri
+### 11.5 Backend disponibili e adapter opzionali
 
-La prima versione implementa almeno:
+QReduce implementa almeno:
 
 ```text
 un backend MIS locale concreto, euristico o simulato
@@ -743,7 +744,7 @@ completion status
 failure and fallback policy
 ```
 
-Il backend effettivo e` una capacita` runtime e non un semplice valore dichiarativo di configurazione. La prima versione adotta `fallback_policy = fail`: un fallback a un provider, backend, device o modalita` differente e` vietato, salvo una policy futura esplicita, auditabile, versionata e disabilitata per default. Il budget end-to-end include validazione delle capability, compilation, submission, attesa attribuibile, recupero, normalizzazione e validazione dei risultati; eventuali attese esterne non attribuibili devono essere separate e registrate quando misurabili.
+Il backend effettivo e` una capacita` runtime e non un semplice valore dichiarativo di configurazione. QReduce adotta `fallback_policy = fail`: un fallback a un provider, backend, device o modalita` differente e` vietato, salvo una policy esplicita, auditabile, versionata e disabilitata per default. Il budget end-to-end include validazione delle capability, compilation, submission, attesa attribuibile, recupero, normalizzazione e validazione dei risultati; eventuali attese esterne non attribuibili devono essere separate e registrate quando misurabili.
 
 ## 12. Repair, validazione e diversita`
 
@@ -771,7 +772,7 @@ node_order_version
 
 Il repair puo` essere abilitato per trasformare sample strutturalmente infeasible in candidate indipendenti. Repair, trim e augment sono fasi distinte: il repair rimuove conflitti; il trim riduce la cardinalita` secondo policy; l'augment aggiunge solo nodi non in conflitto con il set corrente. Ogni fase deve essere riportata separatamente negli artifact.
 
-La policy obbligatoria della prima versione per il repair e`:
+La policy standard per il repair e`:
 
 ```text
 1. identificare gli archi violati;
@@ -807,7 +808,7 @@ Per `A = B = empty set`, la distanza e` definita come `0`. La diversita` deve es
 
 ## 13. Adapter di dominio
 
-Il kernel QReduce deve dipendere da contratti di dominio, non da formule specifiche di una singola applicazione. Nella prima versione, `problem` e `reduced_problem` sono oggetti opachi posseduti dall'adapter: il kernel non deve dipendere da docplex, PySCIPOpt, CPLEX, SCIP o da una rappresentazione matematica universale.
+Il kernel QReduce deve dipendere da contratti di dominio, non da formule specifiche di una singola applicazione. `problem` e `reduced_problem` sono oggetti opachi posseduti dall'adapter: il kernel non deve dipendere da docplex, PySCIPOpt, CPLEX, SCIP o da una rappresentazione matematica universale.
 
 I contratti minimi serializzabili sono:
 
@@ -921,7 +922,7 @@ model export path, if requested
 remaining time budget at solve start
 ```
 
-La prima versione implementa almeno uno tra SCIP e CPLEX. Il secondo backend puo` essere supportato dal contratto ma non deve essere dichiarato operativo se non implementato. L'indisponibilita` del backend richiesto deve produrre failure esplicita; non e` ammesso il fallback silenzioso da CPLEX a SCIP o viceversa.
+QReduce implementa almeno uno tra SCIP e CPLEX. Il secondo backend puo` essere supportato dal contratto ma non deve essere dichiarato operativo se non implementato. L'indisponibilita` del backend richiesto deve produrre failure esplicita; non e` ammesso il fallback silenzioso da CPLEX a SCIP o viceversa.
 
 ## 15. Post-check della soluzione finale
 
@@ -1032,11 +1033,13 @@ Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benc
 6. collegare gli artifact esterni alla configurazione e al run QReduce tramite identificatori e hash.
 ```
 
-## 17. Artifact e riproducibilita`
+## 17. Risultato in memoria, artifact opzionali e riproducibilita`
 
-Ogni esecuzione deve avere un identificatore di run immutabile e una configurazione risolta serializzata. Ogni artifact JSON o CSV strutturato deve dichiarare, direttamente o nel relativo manifest, `schema_version`, `producer_version`, `run_id`, `created_at`, `config_hash` e, quando applicabile, `input_hash`, `policy_hash` e `content_hash`.
+L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
 
-Struttura minima raccomandata:
+Il chiamante puo` persistere, trasmettere o scartare il risultato in memoria secondo le proprie esigenze. Un exporter opzionale puo` produrre JSON, CSV, database record, object storage o altri formati; non e` un prerequisito per usare il kernel. Ogni artifact JSON o CSV strutturato prodotto da un exporter deve dichiarare, direttamente o nel relativo manifest, `schema_version`, `producer_version`, `run_id`, `created_at`, `config_hash` e, quando applicabile, `input_hash`, `policy_hash` e `content_hash`.
+
+Se il chiamante seleziona l'export su filesystem, la seguente e` una struttura minima raccomandata:
 
 ```text
 outputs/{run_id}/
@@ -1094,9 +1097,9 @@ policy version
 proof or user-request reference, if applicable
 ```
 
-I formati `qubo.json`, `bqm.*`, `ising.json`, gli artifact di compilation/esecuzione MIS, `raw_samples.json` e `solver_result.json` devono avere schema e versione dichiarati. I formati concreti degli artifact provider-specifici devono essere registrati nel manifest; un consumer non puo` dedurli dall'estensione del file. Per ogni esecuzione MIS devono essere serializzati provider e backend richiesti/effettivi, famiglia del backend, modalita` locale/remota, device se applicabile, capability risolte, rappresentazione compilata, mapping/embedding/transpilation se applicabili, parametri effettivi, stato di completion e decisione di fallback. Gli artifact devono preservare failure e candidate non adottate; non e` ammesso eliminare risultati negativi per produrre statistiche apparentemente migliori. I metadata serializzati devono essere redatti da credenziali, token, segreti e dati personali.
+Il risultato in memoria deve preservare failure e candidate non adottate fino allo stage raggiunto; non e` ammesso eliminare risultati negativi per produrre statistiche apparentemente migliori. Quando viene selezionato un exporter, i formati `qubo.json`, `bqm.*`, `ising.json`, gli artifact di compilation/esecuzione MIS, `raw_samples.json` e `solver_result.json` devono avere schema e versione dichiarati. I formati concreti degli artifact provider-specifici devono essere registrati nel manifest; un consumer non puo` dedurli dall'estensione del file. Per ogni esecuzione MIS esportata devono essere disponibili provider e backend richiesti/effettivi, famiglia del backend, modalita` locale/remota, device se applicabile, capability risolte, rappresentazione compilata, mapping/embedding/transpilation se applicabili, parametri effettivi, stato di completion e decisione di fallback. I metadata serializzati devono essere redatti da credenziali, token, segreti e dati personali.
 
-Riferimenti a benchmark, calibration run, validation run o policy selection eseguiti esternamente possono essere registrati nel `run_manifest.json` come provenance opaca. Il kernel li conserva e li collega a `config_hash` e `policy_hash`, ma non legge dataset esterni, non aggrega risultati di piu` run e non determina la policy migliore.
+Riferimenti a benchmark, calibration run, validation run o policy selection eseguiti esternamente possono essere registrati nel risultato in memoria e, se richiesto, nel `run_manifest.json` come provenance opaca. Il kernel li conserva e li collega a `config_hash` e `policy_hash`, ma non legge dataset esterni, non aggrega risultati di piu` run e non determina la policy migliore.
 
 ## 18. Configurazione
 
@@ -1367,9 +1370,9 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - Le metriche tecniche obbligatorie sono disponibili anche quando il chiamante non fornisce riferimento classico, objective gap o metriche di dominio.
 - QReduce non espone una funzione che scelga automaticamente una policy migliore sulla base di benchmark o risultati di run precedenti.
 
-## 21. Criteri di accettazione della prima versione
+## 21. Criteri di accettazione
 
-La prima versione di QReduce e` accettata quando:
+QReduce soddisfa i criteri di accettazione quando:
 
 1. Esiste un adapter di dominio dimostrativo per un problema MIQP o MIQCP con variabili binarie e continue, contratti serializzabili e mapping completo item/variabili.
 2. Il framework esegue il percorso completo `graph -> MIS -> candidate domain -> restricted classical solve -> post-check`.
@@ -1379,17 +1382,17 @@ La prima versione di QReduce e` accettata quando:
 6. La configurazione valida capability, rappresentazione, parametri e modalita` di esecuzione prima della compilation e rifiuta esplicitamente adapter o capability non disponibili.
 7. Il framework normalizza i risultati del backend in sample binarie canoniche e ricalcola le metriche strutturali necessarie all'audit.
 8. Il framework supporta concretamente almeno uno tra SCIP e CPLEX per il residual solve; l'interfaccia e` predisposta per entrambi.
-9. La riduzione applica fixing espliciti e serializza un fixing manifest.
+9. La riduzione applica fixing espliciti e rende disponibile un fixing manifest serializzabile nel risultato in memoria.
 10. Il framework distingue origine e garanzia di fixing euristico, sicuro e imposto dall'utente.
 11. La configurazione standard impone la condizione certificante `lambda_edge > max_i(w_i)` e i test piccoli ne verificano la proprieta`.
-12. Tutti gli artifact minimi, incluse capability, compilation ed esecuzione MIS, le versioni di schema, gli hash richiesti e il fixing manifest sono prodotti per un run single-pass.
+12. Un run single-pass restituisce in memoria configurazione risolta, capability, compilation ed esecuzione MIS disponibili, fixing manifest, metriche tecniche, hash e failure parziali fino allo stage raggiunto; la persistenza in artifact e` opzionale e caller-owned.
 13. Il framework serializza la provenance opzionale della policy fornita dal chiamante e le metriche tecniche necessarie per confronti esterni, senza implementare o imporre un workflow di calibrazione o selezione automatica della policy.
 14. I test unitari e di integrazione elencati nelle sezioni rilevanti passano.
 15. La documentazione dichiara chiaramente che il solve ottimo del problema residuo non implica ottimalita` del problema originale dopo fixing euristico o user-imposed.
 
-## 22. Evoluzioni successive
+## 22. Estensioni non incluse
 
-Le evoluzioni pianificate, ma non richieste nella prima versione, includono:
+Le estensioni non incluse includono:
 
 - implementazione di ulteriori adapter per D-Wave Leap Hybrid e QPU, IBM Quantum/Qiskit, AWS Braket, Pasqal/Pulser e altri provider;
 - portfolio e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
@@ -1401,5 +1404,5 @@ Le evoluzioni pianificate, ma non richieste nella prima versione, includono:
 - supporto a decomposizione per blocchi e piu` grafi nello stesso round;
 - integrazione di warm start classici tra round;
 - bound globali per quantificare la perdita introdotta dalla riduzione euristica;
-- fallback espliciti e auditabili tra backend, se richiesti da una futura policy;
+- fallback espliciti e auditabili tra backend, se richiesti da una policy esplicita;
 - rollback cross-round e riattivazione controllata di item gia` fissati.

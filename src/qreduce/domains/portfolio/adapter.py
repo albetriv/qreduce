@@ -124,6 +124,7 @@ class MeanVariancePortfolioAdapter:
         solution: object,
         fixing_manifest: FixingManifest,
         tolerances: ClassicalSolveOptions,
+        solver_objective_value: float | None = None,
     ) -> FinalSolutionValidationResult:
         if not isinstance(solution, dict):
             raise TypeError("Portfolio post-check expects a variable-value dictionary.")
@@ -132,6 +133,7 @@ class MeanVariancePortfolioAdapter:
             variable_values=solution,
             fixing_manifest=fixing_manifest,
             tolerances=tolerances,
+            solver_objective_value=solver_objective_value,
         )
 
 

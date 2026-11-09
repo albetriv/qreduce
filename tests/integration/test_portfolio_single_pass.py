@@ -1,5 +1,7 @@
 """End-to-end reference portfolio path using local greedy MWIS and requested CPLEX."""
 
+import json
+
 import pytest
 
 from qreduce.domains.portfolio import (
@@ -69,6 +71,10 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(monkey
     result = run_single_pass(portfolio_problem, adapter, config)
 
     assert result.retained_item_ids
+    assert result.fixing_manifest is not None
+    assert result.selected_mis_samples
+    assert result.mis_compilation_result is not None
+    assert result.mis_execution_result is not None
     assert result.run_result.run_status is RunStatus.FAILED
     assert result.run_result.stage is PipelineStage.CLASSICAL
     assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE
@@ -76,3 +82,9 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(monkey
     assert result.classical_result is not None
     assert result.classical_result.requested_solver_id == "cplex"
     assert result.classical_result.effective_solver_id is None
+    assert result.metrics["raw_sample_count"] == 1
+    assert result.metrics["candidate_domain_size"] == len(result.retained_item_ids)
+    serialized_result = result.to_dict()
+    assert serialized_result["fixing_manifest"] is not None
+    assert serialized_result["mis_execution_result"] is not None
+    json.dumps(serialized_result)

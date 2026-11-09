@@ -4,7 +4,7 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: progetto in fase iniziale di implementazione. E` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico; artifact completi, recovery e multi-round restano fuori dalla prima milestone.
+> **Stato**: e` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico, con risultato auditabile in memoria. Exporter di artifact, recovery e multi-round non sono inclusi.
 
 ## Sviluppo
 
@@ -67,7 +67,7 @@ applicazione esterna
   -> decisione dell'applicazione
 ```
 
-L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e ne produce artifact auditabili. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
+L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e restituisce un risultato auditabile in memoria; il chiamante decide se e come persisterlo. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
 
 ## Flusso
 
@@ -93,7 +93,7 @@ Esempi di adapter previsti: D-Wave, IBM Qiskit/Quantum, AWS Braket e Pasqal/Puls
 - MWIS propone una riduzione del dominio; non e` la soluzione finale del problema originale.
 - Un fixing derivato euristicamente non certifica l'ottimalita` globale dell'originale.
 - Ogni soluzione residua deve superare un post-check rispetto ai fixing e ai vincoli del problema originale.
-- Configuration, risultati intermedi, failure e provenance del backend devono essere auditabili.
+- Configuration, risultati intermedi, failure e provenance del backend sono disponibili nel risultato in memoria e possono essere esportati dal chiamante.
 
 ## Documentazione
 

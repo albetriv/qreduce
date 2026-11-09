@@ -2,7 +2,7 @@
 
 ## Scopo
 
-Allineare l'infrastruttura di sviluppo della v1 a Python 3.12 e preparare il
+Allineare l'infrastruttura di sviluppo a Python 3.12 e preparare il
 progetto a dipendenze opzionali o runtime-specifiche senza compromettere
 l'indipendenza del kernel QReduce.
 
@@ -13,9 +13,9 @@ l'indipendenza del kernel QReduce.
 
 ## Decisioni applicate
 
-- La v1 supporta Python `>=3.12,<3.13`.
-- `local_greedy` e` il MIS solver built-in della v1.
-- IBM ILOG CPLEX e` il solver classico opzionale della reference slice v1.
+- QReduce supporta Python `>=3.12,<3.13`.
+- `local_greedy` e` il MIS solver built-in.
+- IBM ILOG CPLEX e` il solver classico opzionale del percorso reference.
 - Il kernel non importa direttamente SDK di provider MIS.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
 
@@ -68,7 +68,7 @@ outputs/{run_id}/   artifact della pipeline
 ```
 
 Le funzioni, classi e algoritmi devono essere implementati in moduli Python.
-Eventuali notebook futuri possono caricare artefatti, visualizzare risultati e
+Eventuali notebook possono caricare artefatti, visualizzare risultati e
 orchestrare chiamate leggere, ma non sono la fonte primaria della business
 logic.
 
@@ -83,7 +83,7 @@ logic.
 ## Criteri di completamento
 
 - `poetry run pytest` e `poetry run ruff check .` sono eseguibili in Python 3.12.
-- README, `pyproject.toml` e CI futura dichiarano la stessa versione supportata.
+- README, `pyproject.toml` e CI dichiarano la stessa versione supportata.
 - Nessuna dipendenza provider-specifica e` richiesta dal package core soltanto
   per importare `qreduce`.
 - L'indisponibilita` di CPLEX puo` essere rappresentata come capability/failure

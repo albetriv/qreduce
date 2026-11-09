@@ -2,7 +2,7 @@
 
 ## Scopo
 
-Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare il solver locale concreto della v1. Il solver locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
+Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare il solver locale concreto. Il solver locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
 
 ## Riferimenti alle specifiche
 
@@ -35,11 +35,11 @@ Ogni adapter deve dichiarare almeno:
 - requisiti di SDK, credenziali, device o mapping;
 - disponibilita` runtime effettiva.
 
-La prima milestone deve usare `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
+Il framework usa `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
 
-## Solver locale concreto della v1
+## Solver locale concreto
 
-La v1 espone il solver ID `local_greedy`, risolto internamente dal registry verso
+QReduce espone il solver ID `local_greedy`, risolto internamente dal registry verso
 `LocalGreedyMISBackend`. Il suo dettaglio operativo resta `provider_id = local`
 e `backend_id = greedy_mis`. Il solver deve:
 
@@ -51,7 +51,7 @@ e `backend_id = greedy_mis`. Il solver deve:
 - non dichiarare automaticamente che una sample sia un optimum MWIS;
 - produrre failure normalizzata se non puo` eseguire la richiesta.
 
-L'exact solver della task 03 resta separato: e` uno strumento diagnostico sotto soglia, non il backend locale operativo richiesto dalla v1.
+L'exact solver della task 03 resta separato: e` uno strumento diagnostico sotto soglia, non il backend locale operativo.
 
 ## Normalizzazione delle sample
 
@@ -98,7 +98,7 @@ Questi nomi non fissano l'API pubblica finale.
 
 ## Criteri di completamento
 
-- Esiste il solver `local_greedy`, utilizzabile nella pipeline v1 tramite registry.
+- Esiste il solver `local_greedy`, utilizzabile nella pipeline tramite registry.
 - Il core non importa classi di provider o formati runtime proprietari.
 - Compilation, execution e normalizzazione sono osservabili separatamente.
 - Ogni cambio di backend o modalita` richiede una configurazione esplicita.

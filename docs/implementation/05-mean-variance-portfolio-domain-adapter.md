@@ -2,7 +2,7 @@
 
 ## Scopo
 
-Definire l'adapter reference della v1: un problema di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo. La combinazione dimostrativa usa `local_greedy` per il MWIS e il solver opzionale `cplex` per il MIQP, senza rendere il kernel dipendente da finanza, CPLEX o da una rappresentazione universale dei problemi.
+Definire l'adapter reference: un problema di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo. La combinazione dimostrativa usa `local_greedy` per il MWIS e il solver opzionale `cplex` per il MIQP, senza rendere il kernel dipendente da finanza, CPLEX o da una rappresentazione universale dei problemi.
 
 ## Riferimenti alle specifiche
 
@@ -93,7 +93,7 @@ Una soluzione e` adottabile soltanto con solve feasible, post-check positivo e f
 
 ## Dati e test iniziali
 
-La prima milestone deve usare istanze sintetiche piccole e deterministiche, costruite nei test o tramite factory Python. Non introdurre dataset esterni o notebook come fonte primaria della logica.
+Usare istanze sintetiche piccole e deterministiche, costruite nei test o tramite factory Python. Non introdurre dataset esterni o notebook come fonte primaria della logica.
 
 Test minimi:
 

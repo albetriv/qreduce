@@ -50,7 +50,7 @@ class EffectiveTimeout:
 
 
 def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
-    """Validate v1-static invariants without inspecting a reduction graph."""
+    """Validate static invariants without inspecting a reduction graph."""
 
     issues: list[ValidationIssue] = []
     reduction = config.reduction
@@ -73,7 +73,7 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
             issues,
             "single_pass_only",
             "reduction.max_reduction_rounds",
-            "The first milestone supports exactly one reduction round.",
+            "The single-pass pipeline supports exactly one reduction round.",
         )
     _require_int_at_least(issues, "reduction.candidate_domain_min_items", reduction.candidate_domain_min_items, 0)
     _require_int_at_least(issues, "reduction.candidate_domain_max_items", reduction.candidate_domain_max_items, 0)
@@ -104,6 +104,25 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
                 "lambda_edge_policy.effective_lambda_edge",
                 config.lambda_edge_policy.effective_lambda_edge,
             )
+        elif config.lambda_edge is None:
+            _add_issue(
+                issues,
+                "missing_effective_lambda_edge",
+                "lambda_edge_policy.effective_lambda_edge",
+                "A lambda_edge_policy used without lambda_edge must declare effective_lambda_edge.",
+            )
+    if (
+        config.lambda_edge is not None
+        and config.lambda_edge_policy is not None
+        and config.lambda_edge_policy.effective_lambda_edge is not None
+        and config.lambda_edge != config.lambda_edge_policy.effective_lambda_edge
+    ):
+        _add_issue(
+            issues,
+            "lambda_edge_policy_mismatch",
+            "lambda_edge_policy.effective_lambda_edge",
+            "lambda_edge and lambda_edge_policy.effective_lambda_edge must match when both are provided.",
+        )
     if config.allow_noncertifying_penalty and config.lambda_edge_policy is None:
         _add_issue(
             issues,
