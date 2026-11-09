@@ -6,6 +6,36 @@ from collections.abc import Iterable
 from qreduce.mwis.graph import ReductionGraph
 
 
+def plot_correlation_matrix(asset_ids, correlation, graph: ReductionGraph, threshold: float):
+    """Display signed correlations and outline actual graph edges in red."""
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch, Rectangle
+
+    asset_ids = tuple(asset_ids)
+    if asset_ids != graph.node_ids or len(correlation) != len(asset_ids) or any(
+        len(row) != len(asset_ids) for row in correlation
+    ):
+        raise ValueError("correlation dimensions and asset order must match the graph")
+    fig, ax = plt.subplots(figsize=(7, 6))
+    image = ax.imshow(correlation, cmap="Greys", vmin=-1, vmax=1)
+    fig.colorbar(image, ax=ax, label="Correlazione")
+    for i, left in enumerate(asset_ids):
+        for j, right in enumerate(asset_ids):
+            value = correlation[i][j]
+            ax.text(j, i, f"{value:.2f}", ha="center", va="center",
+                    color="white" if value > 0.3 else "black")
+            if left != right and tuple(sorted((left, right))) in graph.edge_reasons:
+                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
+                                       edgecolor="red", linewidth=2.5))
+    ax.set_xticks(range(len(asset_ids)), labels=asset_ids, rotation=45, ha="right")
+    ax.set_yticks(range(len(asset_ids)), labels=asset_ids)
+    ax.set_title(f"Asset correlation matrix (soglia assoluta: {threshold:g})")
+    ax.legend(handles=[Patch(facecolor="none", edgecolor="red", label="Arco nel grafo")],
+              loc="upper left", bbox_to_anchor=(1.2, 1))
+    fig.tight_layout()
+    return fig, ax
+
+
 def plot_reduction_graph(
     graph: ReductionGraph,
     highlighted_ids: Iterable[str] | None = None,

@@ -105,7 +105,10 @@ esempi risiede in `src/qreduce/notebook_examples.py`; i notebook non esportano
 artifact e non sono benchmark o raccomandazioni di policy.
 I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare
 illustrativo, non coordinate geometriche del problema. Nel notebook portfolio
-il colore evidenzia il dominio mantenuto, non la selezione finale.
+il caso sintetico usa cinque asset; la matrice delle correlazioni evidenzia gli
+archi generati dalla soglia assoluta. Nel grafo del risultato il colore
+evidenzia il dominio mantenuto, non la selezione finale. Gli archi non sono
+vincoli hard del problema originale.
 
 ```bash
 poetry install --with notebooks

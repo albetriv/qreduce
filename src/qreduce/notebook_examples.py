@@ -70,12 +70,18 @@ def energy_example() -> dict[str, object]:
 def portfolio_example() -> dict[str, object]:
     """Run the real single-pass pipeline, retaining failures and partial output."""
     problem = PortfolioProblem(
-        asset_ids=("asset-a", "asset-b", "asset-c"),
-        expected_returns={"asset-a": 0.10, "asset-b": 0.08, "asset-c": 0.06},
-        covariance=((0.04, 0.018, 0.002), (0.018, 0.09, 0.003), (0.002, 0.003, 0.01)),
-        lower_bounds={"asset-a": 0.0, "asset-b": 0.0, "asset-c": 0.0},
-        upper_bounds={"asset-a": 0.7, "asset-b": 0.7, "asset-c": 0.7},
-        retention_scores={"asset-a": 0.9, "asset-b": 0.7, "asset-c": 0.6},
+        asset_ids=("asset-a", "asset-b", "asset-c", "asset-d", "asset-e"),
+        expected_returns={"asset-a": 0.10, "asset-b": 0.08, "asset-c": 0.06, "asset-d": 0.07, "asset-e": 0.05},
+        covariance=(
+            (0.04, 0.016, 0.0, 0.0, 0.004),
+            (0.016, 0.04, -0.012, 0.0, 0.0),
+            (0.0, -0.012, 0.04, 0.014, 0.0),
+            (0.0, 0.0, 0.014, 0.04, 0.012),
+            (0.004, 0.0, 0.0, 0.012, 0.04),
+        ),
+        lower_bounds={asset: 0.0 for asset in ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")},
+        upper_bounds={asset: 0.7 for asset in ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")},
+        retention_scores={"asset-a": 0.9, "asset-b": 0.7, "asset-c": 0.8, "asset-d": 0.6, "asset-e": 0.5},
         risk_aversion=1.0,
     )
     config = ResolvedRunConfig(
@@ -92,8 +98,10 @@ def portfolio_example() -> dict[str, object]:
         ),
         artifacts=ArtifactOptions("notebook-portfolio", "1.0", "0.1.0", "caller_supplied", True),
     )
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("notebook-policy", "1", 0.25))
+    policy = PortfolioGraphPolicy("notebook-policy", "1", 0.25)
+    adapter = MeanVariancePortfolioAdapter(policy)
     graph = adapter.build_conflict_graph(problem)
+    correlation = [[problem.correlation(left, right) for right in problem.asset_ids] for left in problem.asset_ids]
     result = run_single_pass(problem, adapter, config)
     retained = list(result.retained_item_ids) if result.fixing_manifest is not None else None
     nodes = [{"asset": node, "retention_score": graph.node_weights[node]} for node in graph.node_ids]
@@ -102,4 +110,5 @@ def portfolio_example() -> dict[str, object]:
     domain = [{"asset": node, "retained": None if retained is None else node in retained}
               for node in graph.node_ids]
     return {"assets": list(problem.asset_ids), "graph": graph, "result": result.to_dict(),
-            "retained_ids": retained, "nodes": nodes, "edges": edges, "domain": domain}
+            "retained_ids": retained, "nodes": nodes, "edges": edges, "domain": domain,
+            "correlation": correlation, "correlation_threshold": policy.correlation_absolute_threshold}
