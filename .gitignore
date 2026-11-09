@@ -9,6 +9,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .venv/
+.ipynb_checkpoints/
 dist/
 build/
 *.egg-info/

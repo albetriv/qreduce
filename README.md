@@ -97,4 +97,26 @@ Esempi di adapter previsti: D-Wave, IBM Qiskit/Quantum, AWS Braket e Pasqal/Puls
 
 ## Documentazione
 
+### Notebook di visualizzazione
+
+I notebook in `notebooks/tasks/` mostrano esempi sintetici in memoria: grafo
+MWIS, equivalenza QUBO/Ising e pipeline single-pass portfolio. La logica degli
+esempi risiede in `src/qreduce/notebook_examples.py`; i notebook non esportano
+artifact e non sono benchmark o raccomandazioni di policy.
+I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare
+illustrativo, non coordinate geometriche del problema. Nel notebook portfolio
+il colore evidenzia il dominio mantenuto, non la selezione finale.
+
+```bash
+poetry install --with notebooks
+poetry run jupyter lab
+```
+
+Aprire i notebook dal repository. Per eseguire anche il solve classico reale,
+installare inoltre con `poetry install --with notebooks --extras cplex` e
+disporre di una licenza CPLEX utilizzabile. In assenza di CPLEX il notebook
+portfolio mostra la failure effettiva e gli eventuali risultati intermedi,
+senza sostituire il solver. Le selezioni MWIS non sono la soluzione finale e
+non certificano l'ottimo del problema originale.
+
 La specifica completa e normativa e` disponibile in [`docs/specifications.md`](./docs/specifications.md).
