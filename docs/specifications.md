@@ -139,7 +139,7 @@ Applicazione esterna
   2. seleziona una policy esplicita di grafo, MIS, repair e riduzione;
   3. costruisce adapter di dominio, backend MIS e backend classico;
   4. invoca QReduce con tali dipendenze e con la configurazione risolta;
-  5. riceve risultato, fixing manifest, post-check e artifact;
+  5. riceve risultato, fixing manifest e post-check;
   6. applica decisioni di business o metriche di dominio esterne.
 
 Adapter di dominio
@@ -170,7 +170,7 @@ original_problem
   + reduction_policy
   + mis_solver_id
   + classical_solver_id
-  + artifact_configuration
+  + run_identity
   -> QReduce.run(...)
   -> reduction_result
 
@@ -180,7 +180,7 @@ reduction_result
   -> residual_classical_result
   -> postcheck_result
   -> in-memory run summary, metrics and diagnostics
-  -> optional caller-owned export of manifests and artifacts
+  -> risultato in memoria senza effetti su filesystem
 ```
 
 La firma `QReduce.run(...)` e` concettuale e non costituisce ancora un'API Python pubblica. L'API concreta deve mantenere gli stessi confini di responsabilita`.
@@ -401,7 +401,7 @@ P_0 = problema originale
 V_0 = dominio completo delle decisioni riducibili
 ```
 
-Il budget end-to-end inizia prima della validazione iniziale e termina dopo la scrittura degli artifact terminali. Include validazione, costruzione del grafo, sampling, repair, solve classico, post-check e serializzazione obbligatoria; non include soltanto attese esterne non attribuibili al processo, che devono comunque essere registrate separatamente quando misurabili.
+Il budget end-to-end del kernel inizia prima della validazione iniziale e termina dopo il post-check o la failure terminale. Include validazione, costruzione del grafo, sampling, repair, solve classico e post-check; non include la serializzazione del runner interno, ne` attese esterne non attribuibili al processo, che devono comunque essere registrate separatamente quando misurabili.
 
 ### 9.2 Round t
 
@@ -1033,53 +1033,21 @@ Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benc
 6. collegare gli artifact esterni alla configurazione e al run QReduce tramite identificatori e hash.
 ```
 
-## 17. Risultato in memoria, artifact opzionali e riproducibilita`
+## 17. Risultato in memoria, esperimenti interni e riproducibilita`
 
 L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
 
-Il chiamante puo` persistere, trasmettere o scartare il risultato in memoria secondo le proprie esigenze. Un exporter opzionale puo` produrre JSON, CSV, database record, object storage o altri formati; non e` un prerequisito per usare il kernel. Ogni artifact JSON o CSV strutturato prodotto da un exporter deve dichiarare, direttamente o nel relativo manifest, `schema_version`, `producer_version`, `run_id`, `created_at`, `config_hash` e, quando applicabile, `input_hash`, `policy_hash` e `content_hash`.
+Il chiamante della libreria puo` persistere, trasmettere o scartare il risultato in memoria secondo le proprie esigenze; il kernel non fornisce un exporter pubblico. Il repository include un runner interno, non distribuito con la libreria, che esegue esperimenti e salva obbligatoriamente artifact JSON per l'analisi successiva nei notebook. Ogni artifact strutturato prodotto dal runner deve dichiarare, direttamente o nel relativo manifest, `artifact_schema_version`, `producer_version`, `run_id`, `created_at`, `config_hash` e un content hash per ciascun file pubblicato.
 
-Se il chiamante seleziona l'export su filesystem, la seguente e` una struttura minima raccomandata:
+Per ogni run pubblicato dal runner interno, la struttura minima e`:
 
 ```text
-outputs/{run_id}/
+outputs/{experiment_id}/{run_id}/
   config_used.json
+  problem.json
+  canonical_mwis_problem.json       # presente se la compilation MIS e` disponibile
+  run_result.json
   run_manifest.json
-  problem/
-    original_problem_manifest.json
-  rounds/
-    round_000/
-      graph.json
-      node_weights.csv
-      edge_reasons.csv
-      qubo.json
-      bqm.*
-      ising.json
-      mis_backend_capabilities.json
-      mis_compilation_request.json
-      mis_compilation_result.json
-      mis_execution_request.json
-      mis_execution_result.json
-      raw_provider_result.*
-      raw_samples.json
-      repaired_samples.json
-      scored_candidates.csv
-      candidate_domain.json
-      candidate_domain_items.csv
-      fixed_variables.csv
-      fixing_manifest.json
-      reduction_metrics.json
-    round_001/
-      ...
-  classical/
-    residual_problem_manifest.json
-    solver_result.json
-    model_export.*
-  validation/
-    postcheck.json
-  reports/
-    run_summary.json
-    diagnostics.md
 ```
 
 Il fixing manifest deve includere almeno:
@@ -1097,9 +1065,9 @@ policy version
 proof or user-request reference, if applicable
 ```
 
-Il risultato in memoria deve preservare failure e candidate non adottate fino allo stage raggiunto; non e` ammesso eliminare risultati negativi per produrre statistiche apparentemente migliori. Quando viene selezionato un exporter, i formati `qubo.json`, `bqm.*`, `ising.json`, gli artifact di compilation/esecuzione MIS, `raw_samples.json` e `solver_result.json` devono avere schema e versione dichiarati. I formati concreti degli artifact provider-specifici devono essere registrati nel manifest; un consumer non puo` dedurli dall'estensione del file. Per ogni esecuzione MIS esportata devono essere disponibili provider e backend richiesti/effettivi, famiglia del backend, modalita` locale/remota, device se applicabile, capability risolte, rappresentazione compilata, mapping/embedding/transpilation se applicabili, parametri effettivi, stato di completion e decisione di fallback. I metadata serializzati devono essere redatti da credenziali, token, segreti e dati personali.
+Il risultato in memoria deve preservare failure e candidate non adottate fino allo stage raggiunto; non e` ammesso eliminare risultati negativi per produrre statistiche apparentemente migliori. Il runner deve serializzare `config_used.json`, `problem.json`, `run_result.json` e `run_manifest.json`; deve serializzare anche `canonical_mwis_problem.json` quando la pipeline ha completato la compilation MIS. I formati concreti degli artifact provider-specifici devono essere registrati nel manifest; un consumer non puo` dedurli dall'estensione del file. Per ogni esecuzione MIS esportata devono essere disponibili provider e backend richiesti/effettivi, famiglia del backend, modalita` locale/remota, device se applicabile, capability risolte, rappresentazione compilata, mapping/embedding/transpilation se applicabili, parametri effettivi, stato di completion e decisione di fallback. I metadata serializzati devono essere redatti da credenziali, token, segreti e dati personali.
 
-Riferimenti a benchmark, calibration run, validation run o policy selection eseguiti esternamente possono essere registrati nel risultato in memoria e, se richiesto, nel `run_manifest.json` come provenance opaca. Il kernel li conserva e li collega a `config_hash` e `policy_hash`, ma non legge dataset esterni, non aggrega risultati di piu` run e non determina la policy migliore.
+Riferimenti a benchmark, calibration run, validation run o policy selection eseguiti esternamente possono essere registrati nel risultato in memoria e nel `run_manifest.json` come provenance opaca. Il kernel li conserva e li collega a `config_hash` e `policy_hash`, ma non legge dataset esterni, non aggrega risultati di piu` run e non determina la policy migliore. I notebook di esperimento devono leggere gli artifact pubblicati dal filesystem e non rieseguire la pipeline.
 
 ## 18. Configurazione
 
@@ -1116,7 +1084,8 @@ candidate and repair configuration
 candidate-domain reduction configuration
 iteration and stopping configuration
 classical backend configuration
-artifact and reproducibility configuration
+run identity and reproducibility configuration
+internal experiment artifact configuration
 ```
 
 Parametri minimi di riduzione:
@@ -1203,15 +1172,11 @@ objective_recomputation_relative_tolerance
 postcheck_mode
 ```
 
-Parametri minimi di artifact e riproducibilita`:
+Parametri minimi di identita` del run e riproducibilita`:
 
 ```text
 run_id or run_id_generation_policy
-artifact_schema_version
-software_version
 resolved_config_hash
-input_hash_policy
-metadata_redaction_enabled
 policy_id
 policy_version
 policy_source
@@ -1220,6 +1185,8 @@ policy_selection_status
 external_policy_selection_reference
 external_evaluation_reference
 ```
+
+`artifact_schema_version`, `producer_version`, `created_at`, content hash e redazione sono responsabilita` del runner interno e del relativo formato di file, non opzioni della configurazione pubblica del kernel.
 
 I riferimenti esterni di policy sono metadata di provenance e non abilitano comportamenti adattivi. Una run QReduce non puo` modificare la configurazione risolta ne` selezionare una policy differente in base ai propri risultati, salvo futura funzionalita` esplicita, versionata e disabilitata per default.
 

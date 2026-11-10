@@ -33,7 +33,7 @@ ResolvedRunConfig
 ReductionPolicy
 MISExecutionOptions
 ClassicalSolveOptions
-ArtifactOptions
+RunIdentity
 PolicyProvenance
 RuntimeCapabilities
 RunResult
@@ -111,7 +111,7 @@ Le eccezioni Python possono essere usate internamente, ma non devono sostituire 
 
 ## Identita`, hash e artifact
 
-Ogni run deve avere un `run_id` immutabile e una configurazione risolta serializzata. Il meccanismo esatto per generazione di ID e hashing sara` definito quando verranno implementati artifact e input manifests; dovra` pero`:
+Ogni run deve avere un `run_id` immutabile e una configurazione risolta serializzata. `RunIdentity` appartiene al kernel in memoria; schema, versione del producer, timestamp, hash dei file e redazione appartengono al runner interno `qreduce.experiments`. Il meccanismo deve:
 
 - produrre JSON canonico o un equivalente deterministico per il calcolo hash;
 - distinguere `config_hash`, `input_hash` e `policy_hash` quando applicabili;
@@ -129,6 +129,7 @@ src/qreduce/solvers.py
 src/qreduce/mis/registry.py
 src/qreduce/classical/registry.py
 src/qreduce/artifacts/metadata.py
+src/qreduce/experiments/
 ```
 
 Questa struttura e` una proposta iniziale, non un'API pubblica congelata.

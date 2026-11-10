@@ -10,12 +10,12 @@ from qreduce.domains.portfolio import (
     PortfolioProblem,
 )
 from qreduce.models import (
-    ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
     MISExecutionOptions,
     ReductionPolicy,
     ResolvedRunConfig,
+    RunIdentity,
 )
 from qreduce.pipeline import run_single_pass
 from qreduce.status import (
@@ -27,7 +27,10 @@ from qreduce.status import (
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.requires_cplex,
-    pytest.mark.skipif(importlib.util.find_spec("cplex") is None, reason="Optional CPLEX binding is not installed."),
+    pytest.mark.skipif(
+        importlib.util.find_spec("cplex") is None,
+        reason="Optional CPLEX binding is not installed.",
+    ),
 ]
 
 
@@ -55,22 +58,36 @@ def make_live_config() -> ResolvedRunConfig:
             postcheck_mode=PostcheckMode.SOLVER_TOLERANCE_ALIGNED,
             random_seed=7,
         ),
-        artifacts=ArtifactOptions("cplex-integration", "1.0", "0.1.0", "caller_supplied", True),
+        run_identity=RunIdentity("cplex-integration"),
     )
 
 
-def test_cplex_solves_portfolio_after_local_greedy_reduction(portfolio_problem: PortfolioProblem) -> None:
+def test_cplex_solves_portfolio_after_local_greedy_reduction(
+    portfolio_problem: PortfolioProblem,
+) -> None:
     """Run only where a CPLEX binding and usable local license are available."""
 
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
         make_live_config(),
     )
 
-    if result.classical_result is not None and result.classical_result.classical_solver_status is ClassicalSolverStatus.UNAVAILABLE:
-        pytest.skip(result.classical_result.diagnostic_message or "CPLEX runtime is unavailable, likely due to licensing.")
-    assert result.run_result.run_status in {RunStatus.SUCCESS, RunStatus.PARTIAL_SUCCESS}
+    if (
+        result.classical_result is not None
+        and result.classical_result.classical_solver_status
+        is ClassicalSolverStatus.UNAVAILABLE
+    ):
+        pytest.skip(
+            result.classical_result.diagnostic_message
+            or "CPLEX runtime is unavailable, likely due to licensing."
+        )
+    assert result.run_result.run_status in {
+        RunStatus.SUCCESS,
+        RunStatus.PARTIAL_SUCCESS,
+    }
     assert result.run_result.adoption_status.value == "adopted"
     assert result.retained_item_ids
     assert result.classical_result is not None

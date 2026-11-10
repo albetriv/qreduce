@@ -6,13 +6,13 @@ import pytest
 
 from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.models import (
-    ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
     MISExecutionOptions,
     PolicyProvenance,
     ReductionPolicy,
     ResolvedRunConfig,
+    RunIdentity,
     RunResult,
 )
 from qreduce.status import (
@@ -72,13 +72,7 @@ def make_config(**changes: object) -> ResolvedRunConfig:
             objective_recomputation_relative_tolerance=1e-7,
             postcheck_mode=PostcheckMode.STRICT,
         ),
-        artifacts=ArtifactOptions(
-            run_id="run-001",
-            artifact_schema_version="1.0",
-            producer_version="0.1.0",
-            input_hash_policy="caller_supplied",
-            metadata_redaction_enabled=True,
-        ),
+        run_identity=RunIdentity(run_id="run-001"),
         policy_provenance=PolicyProvenance(
             policy_id="portfolio-policy",
             policy_version="2026-11",
@@ -105,12 +99,30 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
 @pytest.mark.parametrize(
     ("config", "expected_code"),
     [
-        (make_config(reduction=replace(make_config().reduction, max_reduction_rounds=2)), "single_pass_only"),
-        (make_config(reduction=replace(make_config().reduction, candidate_domain_min_items=6)), "candidate_domain_bounds_inverted"),
-        (make_config(reduction=replace(make_config().reduction, target_binary_variables=1.5)), "integer_below_minimum"),
+        (
+            make_config(
+                reduction=replace(make_config().reduction, max_reduction_rounds=2)
+            ),
+            "single_pass_only",
+        ),
+        (
+            make_config(
+                reduction=replace(make_config().reduction, candidate_domain_min_items=6)
+            ),
+            "candidate_domain_bounds_inverted",
+        ),
+        (
+            make_config(
+                reduction=replace(make_config().reduction, target_binary_variables=1.5)
+            ),
+            "integer_below_minimum",
+        ),
         (make_config(lambda_edge=None, lambda_edge_policy=None), "missing_lambda_edge"),
         (
-            make_config(lambda_edge=None, lambda_edge_policy=LambdaEdgePolicy("standard", "1", None)),
+            make_config(
+                lambda_edge=None,
+                lambda_edge_policy=LambdaEdgePolicy("standard", "1", None),
+            ),
             "missing_effective_lambda_edge",
         ),
         (
@@ -145,7 +157,10 @@ def test_nonpositive_budget_forbids_backend_invocation() -> None:
     timeout = effective_timeout(5.0, 0.0)
 
     assert timeout.timeout_seconds is None
-    assert timeout.validation.terminal_reason is TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED
+    assert (
+        timeout.validation.terminal_reason
+        is TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED
+    )
 
 
 def test_effective_timeout_never_exceeds_residual_budget() -> None:

@@ -85,14 +85,10 @@ class ClassicalSolveOptions:
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactOptions:
-    """Artifact identity and reproducibility controls fixed before execution."""
+class RunIdentity:
+    """Immutable caller-supplied identity for one in-memory QReduce run."""
 
     run_id: str
-    artifact_schema_version: str
-    producer_version: str
-    input_hash_policy: str
-    metadata_redaction_enabled: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +118,7 @@ class ResolvedRunConfig:
     mis_solver_id: str
     mis_execution: MISExecutionOptions
     classical_solve: ClassicalSolveOptions
-    artifacts: ArtifactOptions
+    run_identity: RunIdentity
     policy_provenance: PolicyProvenance = field(default_factory=PolicyProvenance)
 
     def to_dict(self) -> dict[str, object]:
@@ -195,14 +191,21 @@ class RunResult:
                 raise ValueError("A successful run must have an adopted solution.")
             if self.postcheck_status is not PostcheckStatus.PASSED:
                 raise ValueError("A successful run must have a passed post-check.")
-            if self.classical_solver_status is ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT:
-                raise ValueError("A time-limited incumbent can only produce partial_success.")
+            if (
+                self.classical_solver_status
+                is ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT
+            ):
+                raise ValueError(
+                    "A time-limited incumbent can only produce partial_success."
+                )
         if (
             self.run_status is RunStatus.FAILED
             and self.adoption_status is AdoptionStatus.ADOPTED
             and self.terminal_reason is not TerminalReason.ARTIFACT_WRITE_FAILED
         ):
-            raise ValueError("A failed run cannot adopt a solution except after artifact failure.")
+            raise ValueError(
+                "A failed run cannot adopt a solution except after artifact failure."
+            )
         if (
             self.postcheck_status is PostcheckStatus.FAILED
             and self.adoption_status is AdoptionStatus.ADOPTED

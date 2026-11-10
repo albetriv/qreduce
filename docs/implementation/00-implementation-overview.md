@@ -23,6 +23,7 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | Percorso completo | Riduzione single-pass |
 | Provider quantistici/remoti | Non richiesti dal kernel |
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
+| Esperimenti repository | `qreduce.experiments` salva artifact e resta escluso dalla distribuzione |
 
 Il solver `cplex` e l'adapter di portafoglio rendono dimostrabile il requisito
 di un solve residuo MIQP con variabili binarie e continue. Non rendono
@@ -43,7 +44,10 @@ portfolio problem
   -> CPLEX residual MIQP solve
   -> adapter post-check
   -> complete in-memory run result and run summary
-  -> optional caller-owned artifact export
+
+repository experiment runner
+  -> persists complete artifacts under outputs/{experiment_id}/{run_id}/
+  -> notebooks load artifacts without rerunning the pipeline
 ```
 
 Il risultato MWIS restringe il dominio delle decisioni binarie. Non e` il
@@ -59,7 +63,8 @@ problema originale dopo fixing euristico.
 | Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook |
 | Test permanenti | `tests/` | Ogni milestone aggiunge test proporzionati |
 | Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem |
-| Export opzionale | `outputs/{run_id}/` o destinazione caller-owned | Attivato esplicitamente dal chiamante, non usato come file temporaneo |
+| Esperimenti interni | `src/qreduce/experiments/` | Runner interno, escluso dal wheel, che pubblica artifact completi in `outputs/{experiment_id}/{run_id}/` |
+| Notebook experiments | `notebooks/experiments/` | Leggono gli artifact dal filesystem e non invocano la pipeline |
 | File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo |
 
 ## Sequenza implementativa proposta
@@ -72,7 +77,8 @@ problema originale dopo fixing euristico.
 | 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS e backend locale concreto |
 | 05 | `05-mean-variance-portfolio-domain-adapter.md` | Adapter MIQP, CPLEX, fixing e post-check |
 | 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta e test di integrazione portfolio + local_greedy + CPLEX |
-| 07 | Estensioni opzionali | Exporter di artifact, multi-round, recovery e adapter remoti/provider-specifici |
+| 07 | Esperimenti interni | Runner, artifact JSON, loader filesystem e notebook di analisi |
+| 08 | Estensioni opzionali | Multi-round, recovery e adapter remoti/provider-specifici |
 
 ## Rappresentazioni MWIS e indipendenza dal provider
 

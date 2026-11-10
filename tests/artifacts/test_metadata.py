@@ -9,12 +9,12 @@ from qreduce.artifacts.metadata import (
     utc_created_at,
 )
 from qreduce.models import (
-    ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
     MISExecutionOptions,
     ReductionPolicy,
     ResolvedRunConfig,
+    RunIdentity,
 )
 from qreduce.status import (
     PostcheckMode,
@@ -35,7 +35,7 @@ def make_config() -> ResolvedRunConfig:
         classical_solve=ClassicalSolveOptions(
             "cplex", 30.0, 0.01, 1, False, 1e-6, 1e-6, 1e-7, 1e-7, PostcheckMode.STRICT
         ),
-        artifacts=ArtifactOptions("run-001", "1.0", "0.1.0", "caller_supplied", True),
+        run_identity=RunIdentity("run-001"),
     )
 
 
@@ -54,7 +54,9 @@ def test_config_serializes_nested_dataclasses_and_enums() -> None:
 
     serialized_config = make_config().to_dict()
 
-    assert json.loads(canonical_json(serialized_config))["mis_solver_id"] == "local_greedy"
+    assert (
+        json.loads(canonical_json(serialized_config))["mis_solver_id"] == "local_greedy"
+    )
 
 
 def test_redaction_removes_secrets_recursively_and_from_url_queries() -> None:

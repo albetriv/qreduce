@@ -36,6 +36,7 @@ target-version = "py312"
 
 [tool.poetry]
 packages = [{ include = "qreduce", from = "src" }]
+exclude = ["src/qreduce/experiments/**"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

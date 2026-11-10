@@ -13,3 +13,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Repository experiment artifacts are reproducible outputs, not source files.
+outputs/

@@ -3,7 +3,12 @@
 from types import SimpleNamespace
 
 from qreduce.mis.contracts import RawMISSample
-from qreduce.mwis import CanonicalMWISProblem, ReductionGraph, build_mwis_qubo, qubo_to_ising
+from qreduce.mwis import (
+    CanonicalMWISProblem,
+    ReductionGraph,
+    build_mwis_qubo,
+    qubo_to_ising,
+)
 from qreduce.pipeline.single_pass import (
     _candidate_domain_item_ids,
     _repair_sample,
@@ -15,7 +20,9 @@ def make_selection_config() -> SimpleNamespace:
     """Build only the configuration fields consumed by candidate helper tests."""
 
     return SimpleNamespace(
-        reduction=SimpleNamespace(candidate_domain_max_items=1, num_source_mis_candidates=2),
+        reduction=SimpleNamespace(
+            candidate_domain_max_items=1, num_source_mis_candidates=2
+        ),
         mis_execution=SimpleNamespace(minimum_candidate_jaccard_distance=0.5),
     )
 
@@ -35,7 +42,9 @@ def make_problem() -> CanonicalMWISProblem:
     return CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
 
 
-def test_repair_removes_lexically_larger_endpoint_after_weight_and_degree_ties() -> None:
+def test_repair_removes_lexically_larger_endpoint_after_weight_and_degree_ties() -> (
+    None
+):
     """The repair rule removes b from the equal-weight, equal-degree violated edge a-b."""
 
     problem = make_problem()
@@ -87,7 +96,12 @@ def test_diversity_ranking_and_domain_cap_use_declared_keys() -> None:
     )
 
     selected = _select_diverse_samples(samples, config)
-    retained = _candidate_domain_item_ids(problem.graph.node_ids, problem.graph.node_weights, selected, config)
+    retained = _candidate_domain_item_ids(
+        problem.graph.node_ids, problem.graph.node_weights, selected, config
+    )
 
-    assert tuple(sample.raw_sample_id for sample in selected) == ("candidate-a", "candidate-b")
+    assert tuple(sample.raw_sample_id for sample in selected) == (
+        "candidate-a",
+        "candidate-b",
+    )
     assert retained == ("c",)

@@ -14,12 +14,16 @@ from qreduce.classical import (
     builtin_classical_solver_registry,
 )
 from qreduce.config import validate_resolved_run_config
-from qreduce.domains import FinalSolutionValidationResult, FixingManifest, ReducibleProblemAdapter
+from qreduce.domains import (
+    FinalSolutionValidationResult,
+    FixingManifest,
+    ReducibleProblemAdapter,
+)
 from qreduce.mis import (
-    MISBackendResult,
-    MISCompilationResult,
     MISBackendRequest,
+    MISBackendResult,
     MISCompilationRequest,
+    MISCompilationResult,
     MISCompletionStatus,
     RawMISSample,
     UnknownMISSolverError,
@@ -59,7 +63,9 @@ class SinglePassRunResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "retained_item_ids", tuple(self.retained_item_ids))
-        object.__setattr__(self, "selected_mis_samples", tuple(self.selected_mis_samples))
+        object.__setattr__(
+            self, "selected_mis_samples", tuple(self.selected_mis_samples)
+        )
         object.__setattr__(self, "metrics", MappingProxyType(dict(self.metrics)))
 
     def to_dict(self) -> dict[str, object]:
@@ -77,12 +83,22 @@ def run_single_pass(
 
     validation = validate_resolved_run_config(config)
     if not validation.is_valid:
-        return _failed(config, PipelineStage.VALIDATION, validation.terminal_reason, _issues_message(validation))
+        return _failed(
+            config,
+            PipelineStage.VALIDATION,
+            validation.terminal_reason,
+            _issues_message(validation),
+        )
     started_at = perf_counter()
     try:
         mis_solver = builtin_mis_solver_registry().create(config.mis_solver_id)
     except UnknownMISSolverError as error:
-        return _failed(config, PipelineStage.VALIDATION, TerminalReason.INVALID_CONFIGURATION, str(error))
+        return _failed(
+            config,
+            PipelineStage.VALIDATION,
+            TerminalReason.INVALID_CONFIGURATION,
+            str(error),
+        )
     try:
         graph = adapter.build_conflict_graph(problem)
         qubo = build_mwis_qubo(
@@ -92,10 +108,17 @@ def run_single_pass(
         )
         canonical_problem = CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
     except Exception as error:  # noqa: BLE001 - Domain errors become normalized outcomes.
-        return _failed(config, PipelineStage.GRAPH, TerminalReason.GRAPH_CONSTRUCTION_FAILED, str(error))
+        return _failed(
+            config,
+            PipelineStage.GRAPH,
+            TerminalReason.GRAPH_CONSTRUCTION_FAILED,
+            str(error),
+        )
 
     capabilities = mis_solver.capabilities()
-    capability_validation = validate_backend_compatibility(config.mis_execution, capabilities, ProblemForm.MIS_GRAPH)
+    capability_validation = validate_backend_compatibility(
+        config.mis_execution, capabilities, ProblemForm.MIS_GRAPH
+    )
     if not capability_validation.is_valid:
         return _failed(
             config,
@@ -109,7 +132,7 @@ def run_single_pass(
     compilation = mis_solver.compile(
         canonical_problem,
         MISCompilationRequest(
-            run_id=config.artifacts.run_id,
+            run_id=config.run_identity.run_id,
             round_index=0,
             node_order=graph.node_ids,
             residual_time_budget_seconds=remaining_budget,
@@ -131,11 +154,13 @@ def run_single_pass(
         )
     remaining_budget = _remaining_budget_seconds(config, started_at)
     if remaining_budget is None:
-        return _budget_exhausted(config, PipelineStage.MIS, mis_compilation_result=compilation)
+        return _budget_exhausted(
+            config, PipelineStage.MIS, mis_compilation_result=compilation
+        )
     execution = mis_solver.solve(
         compilation.compiled_job,
         MISBackendRequest(
-            run_id=config.artifacts.run_id,
+            run_id=config.run_identity.run_id,
             round_index=0,
             compiled_job_id=compilation.compiled_job.compiled_job_id,
             node_order=graph.node_ids,
@@ -144,7 +169,10 @@ def run_single_pass(
             residual_time_budget_seconds=remaining_budget,
         ),
     )
-    if execution.completion_status not in {MISCompletionStatus.COMPLETED, MISCompletionStatus.TIME_LIMITED}:
+    if execution.completion_status not in {
+        MISCompletionStatus.COMPLETED,
+        MISCompletionStatus.TIME_LIMITED,
+    }:
         return _failed(
             config,
             PipelineStage.MIS,
@@ -152,7 +180,11 @@ def run_single_pass(
             execution.diagnostic_message,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_run_metrics(started_at, mis_compilation_result=compilation, mis_execution_result=execution),
+            metrics=_run_metrics(
+                started_at,
+                mis_compilation_result=compilation,
+                mis_execution_result=execution,
+            ),
         )
     normalized = normalize_backend_result(canonical_problem, execution)
     if normalized.terminal_reason is not None:
@@ -163,10 +195,18 @@ def run_single_pass(
             normalized.diagnostic_message,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_run_metrics(started_at, mis_compilation_result=compilation, mis_execution_result=execution),
+            metrics=_run_metrics(
+                started_at,
+                mis_compilation_result=compilation,
+                mis_execution_result=execution,
+            ),
         )
-    deduplicated = deduplicate_raw_mis_samples(normalized.samples, config.mis_execution.max_distinct_samples)
-    valid_samples = _valid_or_repaired_samples(canonical_problem, deduplicated.samples, config)
+    deduplicated = deduplicate_raw_mis_samples(
+        normalized.samples, config.mis_execution.max_distinct_samples
+    )
+    valid_samples = _valid_or_repaired_samples(
+        canonical_problem, deduplicated.samples, config
+    )
     selected_samples = _select_diverse_samples(valid_samples, config)
     if not selected_samples:
         return _failed(
@@ -185,7 +225,9 @@ def run_single_pass(
                 mis_execution_result=execution,
             ),
         )
-    retained_item_ids = _candidate_domain_item_ids(graph.node_ids, graph.node_weights, selected_samples, config)
+    retained_item_ids = _candidate_domain_item_ids(
+        graph.node_ids, graph.node_weights, selected_samples, config
+    )
     if len(retained_item_ids) < config.reduction.candidate_domain_min_items:
         return _failed(
             config,
@@ -218,11 +260,21 @@ def run_single_pass(
             selected_mis_samples=selected_samples,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_candidate_metrics(started_at, execution, compilation, deduplicated.samples, valid_samples, selected_samples, retained_item_ids),
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
         )
     try:
         fixing_manifest = adapter.build_fixing_manifest(problem, retained_item_ids)
-        reduced_problem = adapter.restrict_problem(problem, retained_item_ids, fixing_manifest)
+        reduced_problem = adapter.restrict_problem(
+            problem, retained_item_ids, fixing_manifest
+        )
     except Exception as error:  # noqa: BLE001 - Adapter restriction failures are normalized.
         return _failed(
             config,
@@ -234,10 +286,20 @@ def run_single_pass(
             fixing_manifest=fixing_manifest if "fixing_manifest" in locals() else None,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_candidate_metrics(started_at, execution, compilation, deduplicated.samples, valid_samples, selected_samples, retained_item_ids),
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
         )
     try:
-        classical_solver = builtin_classical_solver_registry().create(config.classical_solve.classical_solver_id)
+        classical_solver = builtin_classical_solver_registry().create(
+            config.classical_solve.classical_solver_id
+        )
     except UnknownClassicalSolverError as error:
         return _failed(
             config,
@@ -249,7 +311,15 @@ def run_single_pass(
             fixing_manifest=fixing_manifest,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_candidate_metrics(started_at, execution, compilation, deduplicated.samples, valid_samples, selected_samples, retained_item_ids),
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
         )
     remaining_budget = _remaining_budget_seconds(config, started_at)
     if remaining_budget is None:
@@ -261,12 +331,20 @@ def run_single_pass(
             fixing_manifest=fixing_manifest,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
-            metrics=_candidate_metrics(started_at, execution, compilation, deduplicated.samples, valid_samples, selected_samples, retained_item_ids),
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
         )
     classical_result = classical_solver.solve(
         reduced_problem,
         ClassicalSolveRequest(
-            run_id=config.artifacts.run_id,
+            run_id=config.run_identity.run_id,
             round_index=0,
             time_limit_seconds=config.classical_solve.time_limit_seconds,
             remaining_end_to_end_seconds=remaining_budget,
@@ -310,7 +388,7 @@ def run_single_pass(
     if not postcheck.postcheck_feasible:
         return SinglePassRunResult(
             run_result=RunResult(
-                run_id=config.artifacts.run_id,
+                run_id=config.run_identity.run_id,
                 run_status=RunStatus.FAILED,
                 stage=PipelineStage.POSTCHECK,
                 terminal_reason=TerminalReason.POSTCHECK_FAILED,
@@ -340,10 +418,14 @@ def run_single_pass(
                 postcheck,
             ),
         )
-    run_status = RunStatus.PARTIAL_SUCCESS if classical_result.is_time_limited else RunStatus.SUCCESS
+    run_status = (
+        RunStatus.PARTIAL_SUCCESS
+        if classical_result.is_time_limited
+        else RunStatus.SUCCESS
+    )
     return SinglePassRunResult(
         run_result=RunResult(
-            run_id=config.artifacts.run_id,
+            run_id=config.run_identity.run_id,
             run_status=run_status,
             stage=PipelineStage.POSTCHECK,
             terminal_reason=classical_result.terminal_reason,
@@ -390,12 +472,14 @@ def _failed(
 ) -> SinglePassRunResult:
     return SinglePassRunResult(
         run_result=RunResult(
-            run_id=config.artifacts.run_id,
+            run_id=config.run_identity.run_id,
             run_status=RunStatus.FAILED,
             stage=stage,
             terminal_reason=terminal_reason or TerminalReason.ADAPTER_FAILURE,
             classical_solver_status=(
-                classical_result.classical_solver_status if classical_result is not None else ClassicalSolverStatus.NOT_RUN
+                classical_result.classical_solver_status
+                if classical_result is not None
+                else ClassicalSolverStatus.NOT_RUN
             ),
             postcheck_status=PostcheckStatus.NOT_RUN,
             adoption_status=AdoptionStatus.NOT_ADOPTED,
@@ -428,10 +512,14 @@ def _resolved_lambda_edge(config: ResolvedRunConfig) -> float:
     return config.lambda_edge_policy.effective_lambda_edge
 
 
-def _remaining_budget_seconds(config: ResolvedRunConfig, started_at: float) -> float | None:
+def _remaining_budget_seconds(
+    config: ResolvedRunConfig, started_at: float
+) -> float | None:
     """Return the positive end-to-end budget available at the current pipeline stage."""
 
-    remaining = config.reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
+    remaining = config.reduction.max_end_to_end_runtime_seconds - (
+        perf_counter() - started_at
+    )
     return remaining if remaining > 0 else None
 
 
@@ -495,7 +583,9 @@ def _run_metrics(
 ) -> dict[str, object]:
     """Build metrics that callers may inspect or persist without filesystem side effects."""
 
-    metrics: dict[str, object] = {"end_to_end_runtime_seconds": perf_counter() - started_at}
+    metrics: dict[str, object] = {
+        "end_to_end_runtime_seconds": perf_counter() - started_at
+    }
     if raw_sample_count is not None:
         metrics["raw_sample_count"] = raw_sample_count
     if unique_sample_count is not None:
@@ -507,13 +597,16 @@ def _run_metrics(
     if candidate_domain_size is not None:
         metrics["candidate_domain_size"] = candidate_domain_size
     if mis_compilation_result is not None:
-        metrics["mis_compilation_runtime_seconds"] = mis_compilation_result.runtime_seconds
+        metrics["mis_compilation_runtime_seconds"] = (
+            mis_compilation_result.runtime_seconds
+        )
     if mis_execution_result is not None:
         metrics["mis_execution_runtime_seconds"] = mis_execution_result.runtime_seconds
         metrics["mis_runtime_seconds"] = (
-            (mis_compilation_result.runtime_seconds if mis_compilation_result is not None else 0.0)
-            + mis_execution_result.runtime_seconds
-        )
+            mis_compilation_result.runtime_seconds
+            if mis_compilation_result is not None
+            else 0.0
+        ) + mis_execution_result.runtime_seconds
         metrics["mis_provider_id"] = mis_execution_result.effective_provider_id
         metrics["mis_backend_id"] = mis_execution_result.effective_backend_id
         metrics["mis_backend_family"] = mis_execution_result.backend_family
@@ -521,7 +614,9 @@ def _run_metrics(
         metrics["mis_device_id"] = mis_execution_result.effective_device_id
     if classical_result is not None:
         metrics["classical_runtime_seconds"] = classical_result.runtime_seconds
-        metrics["classical_solver_claimed_feasible"] = classical_result.solver_claimed_feasible
+        metrics["classical_solver_claimed_feasible"] = (
+            classical_result.solver_claimed_feasible
+        )
         metrics["objective_value"] = classical_result.objective_value
         metrics["best_bound"] = classical_result.best_bound
         metrics["solver_gap"] = classical_result.gap
@@ -543,7 +638,9 @@ def _valid_or_repaired_samples(
         if sample.is_independent_set:
             valid_samples.append(sample)
         elif config.mis_execution.repair_enabled:
-            repaired = _repair_sample(problem, sample, config.mis_execution.repair_max_iterations)
+            repaired = _repair_sample(
+                problem, sample, config.mis_execution.repair_max_iterations
+            )
             if repaired is not None:
                 valid_samples.append(repaired)
     return tuple(valid_samples)
@@ -578,9 +675,19 @@ def _repair_endpoint_to_remove(
 ) -> str:
     """Choose an endpoint by weight, induced degree, then descending item ID."""
 
-    selected = {node_id for node_id, value in zip(problem.graph.node_ids, delta, strict=True) if value == 1}
+    selected = {
+        node_id
+        for node_id, value in zip(problem.graph.node_ids, delta, strict=True)
+        if value == 1
+    }
     induced_degree = {
-        node_id: sum(1 for edge_left, edge_right in problem.graph.edges if node_id in (edge_left, edge_right) and edge_left in selected and edge_right in selected)
+        node_id: sum(
+            1
+            for edge_left, edge_right in problem.graph.edges
+            if node_id in (edge_left, edge_right)
+            and edge_left in selected
+            and edge_right in selected
+        )
         for node_id in (left, right)
     }
     return min(
@@ -619,7 +726,9 @@ def _recomputed_sample(
     )
 
 
-def _select_diverse_samples(samples: tuple[RawMISSample, ...], config: ResolvedRunConfig) -> tuple[RawMISSample, ...]:
+def _select_diverse_samples(
+    samples: tuple[RawMISSample, ...], config: ResolvedRunConfig
+) -> tuple[RawMISSample, ...]:
     """Rank valid samples and retain up to the configured number under Jaccard diversity."""
 
     ranked_samples = sorted(
@@ -627,14 +736,17 @@ def _select_diverse_samples(samples: tuple[RawMISSample, ...], config: ResolvedR
         key=lambda sample: (
             -(sample.selection_weight or 0.0),
             -(sample.num_selected or 0),
-            sample.canonical_qubo_energy if sample.canonical_qubo_energy is not None else float("inf"),
+            sample.canonical_qubo_energy
+            if sample.canonical_qubo_energy is not None
+            else float("inf"),
             sample.raw_sample_id,
         ),
     )
     selected: list[RawMISSample] = []
     for sample in ranked_samples:
         if all(
-            _jaccard_distance(sample.delta, accepted.delta) >= config.mis_execution.minimum_candidate_jaccard_distance
+            _jaccard_distance(sample.delta, accepted.delta)
+            >= config.mis_execution.minimum_candidate_jaccard_distance
             for accepted in selected
         ):
             selected.append(sample)
@@ -643,7 +755,9 @@ def _select_diverse_samples(samples: tuple[RawMISSample, ...], config: ResolvedR
     return tuple(selected)
 
 
-def _jaccard_distance(left_delta: tuple[int, ...], right_delta: tuple[int, ...]) -> float:
+def _jaccard_distance(
+    left_delta: tuple[int, ...], right_delta: tuple[int, ...]
+) -> float:
     """Return set Jaccard distance, defining two empty selections as distance zero."""
 
     left = {index for index, value in enumerate(left_delta) if value == 1}

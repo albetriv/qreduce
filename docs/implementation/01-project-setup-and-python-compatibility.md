@@ -61,9 +61,12 @@ disponibili in ogni ambiente.
 
 ```text
 src/qreduce/        package applicativo
+src/qreduce/experiments/ runner interno al repository, escluso dal wheel
 tests/              test permanenti
 docs/               specifiche e decisioni di implementazione
-outputs/{run_id}/   artifact della pipeline
+notebooks/tasks/    notebook didattici in memoria
+notebooks/experiments/ notebook di analisi di artifact persistiti
+outputs/{experiment_id}/{run_id}/ artifact prodotti dal runner interno
 .cline-tmp/         file temporanei dell'agente, ignorati da Git
 ```
 

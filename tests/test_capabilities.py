@@ -4,12 +4,12 @@ from dataclasses import replace
 
 from qreduce.capabilities import RuntimeCapabilities, validate_backend_compatibility
 from qreduce.models import (
-    ArtifactOptions,
     ClassicalSolveOptions,
     LambdaEdgePolicy,
     MISExecutionOptions,
     ReductionPolicy,
     ResolvedRunConfig,
+    RunIdentity,
 )
 from qreduce.status import (
     BackendFamily,
@@ -30,11 +30,13 @@ def make_config(**changes: object) -> ResolvedRunConfig:
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,
         mis_solver_id="local_greedy",
-        mis_execution=MISExecutionOptions(2, 17, 4, True, 3, 0.25, 20, provider_parameters={"temperature": 0.5}),
+        mis_execution=MISExecutionOptions(
+            2, 17, 4, True, 3, 0.25, 20, provider_parameters={"temperature": 0.5}
+        ),
         classical_solve=ClassicalSolveOptions(
             "cplex", 30.0, 0.01, 1, False, 1e-6, 1e-6, 1e-7, 1e-7, PostcheckMode.STRICT
         ),
-        artifacts=ArtifactOptions("run-001", "1.0", "0.1.0", "caller_supplied", True),
+        run_identity=RunIdentity("run-001"),
     )
     return replace(config, **changes)
 
@@ -64,7 +66,9 @@ def make_capabilities(**changes: object) -> RuntimeCapabilities:
 def test_matching_capability_is_accepted_before_compilation() -> None:
     """An available backend accepting all requested features validates successfully."""
 
-    result = validate_backend_compatibility(make_config().mis_execution, make_capabilities(), ProblemForm.QUBO)
+    result = validate_backend_compatibility(
+        make_config().mis_execution, make_capabilities(), ProblemForm.QUBO
+    )
 
     assert result.is_valid is True
 
@@ -85,7 +89,9 @@ def test_unsupported_backend_parameter_is_rejected() -> None:
         )
     )
 
-    result = validate_backend_compatibility(config.mis_execution, make_capabilities(), ProblemForm.QUBO)
+    result = validate_backend_compatibility(
+        config.mis_execution, make_capabilities(), ProblemForm.QUBO
+    )
 
     assert result.is_valid is False
     assert result.terminal_reason is TerminalReason.MIS_BACKEND_CAPABILITY_MISMATCH
@@ -111,13 +117,19 @@ def test_unavailable_backend_produces_explicit_failure_without_fallback() -> Non
 def test_unsupported_problem_form_is_rejected_before_compilation() -> None:
     """A configured form cannot be silently converted to another representation."""
 
-    result = validate_backend_compatibility(make_config().mis_execution, make_capabilities(), ProblemForm.ISING)
+    result = validate_backend_compatibility(
+        make_config().mis_execution, make_capabilities(), ProblemForm.ISING
+    )
 
     assert result.is_valid is False
-    assert result.terminal_reason is TerminalReason.MIS_PROBLEM_REPRESENTATION_UNSUPPORTED
+    assert (
+        result.terminal_reason is TerminalReason.MIS_PROBLEM_REPRESENTATION_UNSUPPORTED
+    )
 
 
-def test_exact_solver_diagnostic_limit_does_not_constrain_heuristic_backend_capability() -> None:
+def test_exact_solver_diagnostic_limit_does_not_constrain_heuristic_backend_capability() -> (
+    None
+):
     """The exact diagnostic limit is unrelated to an operational backend size limit."""
 
     result = validate_backend_compatibility(

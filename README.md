@@ -4,7 +4,7 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: e` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico, con risultato auditabile in memoria. Exporter di artifact, recovery e multi-round non sono inclusi.
+> **Stato**: e` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico, con risultato auditabile in memoria. Il repository include inoltre un runner interno per esperimenti persistiti, non distribuito con la libreria. Recovery e multi-round non sono inclusi.
 
 ## Sviluppo
 
@@ -67,7 +67,7 @@ applicazione esterna
   -> decisione dell'applicazione
 ```
 
-L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e restituisce un risultato auditabile in memoria; il chiamante decide se e come persisterlo. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
+L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e restituisce un risultato auditabile in memoria senza scrivere file. Il runner interno `qreduce.experiments` persiste invece ogni esperimento completato per l'analisi successiva; non e` incluso nella distribuzione della libreria. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
 
 ## Flusso
 
@@ -93,16 +93,29 @@ Esempi di adapter previsti: D-Wave, IBM Qiskit/Quantum, AWS Braket e Pasqal/Puls
 - MWIS propone una riduzione del dominio; non e` la soluzione finale del problema originale.
 - Un fixing derivato euristicamente non certifica l'ottimalita` globale dell'originale.
 - Ogni soluzione residua deve superare un post-check rispetto ai fixing e ai vincoli del problema originale.
-- Configuration, risultati intermedi, failure e provenance del backend sono disponibili nel risultato in memoria e possono essere esportati dal chiamante.
+- Configuration, risultati intermedi, failure e provenance del backend sono disponibili nel risultato in memoria; il runner interno del repository li serializza per gli esperimenti.
+
+## Esperimenti interni e notebook
+
+Il runner interno salva sempre gli artifact sotto:
+
+```text
+outputs/{experiment_id}/{run_id}/
+```
+
+Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
+
+I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare `run_single_pass`.
 
 ## Documentazione
 
 ### Notebook di visualizzazione
 
-I notebook in `notebooks/tasks/` mostrano esempi sintetici in memoria: grafo
+I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria: grafo
 MWIS, equivalenza QUBO/Ising e pipeline single-pass portfolio. La logica degli
-esempi risiede in `src/qreduce/notebook_examples.py`; i notebook non esportano
-artifact e non sono benchmark o raccomandazioni di policy.
+esempi risiede in `src/qreduce/notebook_examples.py`; questi notebook non esportano
+artifact e non sono benchmark o raccomandazioni di policy. I notebook in
+`notebooks/experiments/` sono invece dedicati all'analisi degli artifact gia` prodotti.
 I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare
 illustrativo, non coordinate geometriche del problema. Nel notebook portfolio
 il caso sintetico usa cinque asset; la matrice delle correlazioni evidenzia gli
