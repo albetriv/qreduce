@@ -75,11 +75,27 @@ L'integrazione deve almeno:
 - dichiarare indisponibilita` del binding o della licenza senza fallback.
 
 I binding Python CPLEX, PySCIPOpt e Ocean vengono installati tramite il gruppo
-Poetry `experiments`. Il test live CPLEX richiede inoltre una licenza locale
-utilizzabile e deve essere marcato come integrazione opzionale. Il simulatore MIS
-`dwave_simulated_annealing` e` locale e non richiede credenziali o una QPU; il
-percorso portfolio predefinito continua a usare `local_greedy` per mantenere la
-configurazione dimostrativa dependency-free.
+Poetry `experiments`. Il percorso portfolio predefinito usa `local_greedy` e
+`scip`; SCIP richiede il binding PySCIPOpt. Il test live CPLEX richiede inoltre
+una licenza locale utilizzabile e deve essere marcato come integrazione opzionale.
+Il simulatore MIS `dwave_simulated_annealing` e` locale e non richiede credenziali
+o una QPU.
+
+Il runner dell'esperimento accetta inoltre ID built-in espliciti e parametri
+Ocean `num_reads` e `num_sweeps`. Un run con D-Wave locale e CPLEX puo` essere
+pubblicato con:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id dwave-cplex-001 \
+  --mis-solver-id dwave_simulated_annealing \
+  --classical-solver-id cplex \
+  --mis-num-reads 100 \
+  --mis-num-sweeps 1000
+```
+
+Il notebook `02_synthetic_portfolio_single_pass.ipynb`
+analizza esclusivamente gli artifact del run pubblicato e non invoca la pipeline.
 
 ## Post-check indipendente
 
@@ -104,9 +120,9 @@ Test minimi:
 - mapping stabile asset/item/variabili;
 - fixing di asset esclusi applica `delta_i = 0` e `x_i = 0`;
 - problema residuo conserva obiettivo e vincoli globali;
-- CPLEX indisponibile restituisce failure esplicita;
-- il percorso single-pass usa `local_greedy`, costruisce fixing e richiede `cplex`;
-- soluzione CPLEX feasible supera il post-check;
+- SCIP indisponibile restituisce failure esplicita;
+- il percorso single-pass predefinito usa `local_greedy`, costruisce fixing e richiede `scip`;
+- soluzione SCIP feasible supera il post-check;
 - soluzione che viola fixing, integrality o budget non e` adottata;
 - il solver puo` scegliere un sottoinsieme fattibile di `C_effective` che non coincide con una candidate MWIS sorgente.
 
@@ -128,8 +144,10 @@ I moduli finanziari restano confinati negli esperimenti e possono evolvere senza
 
 ## Criteri di completamento
 
-- L'esperimento portfolio percorre `local_greedy`, restriction, solve `cplex` o
-  `scip` e post-check tramite cataloghi solver built-in QReduce.
+- L'esperimento portfolio predefinito percorre `local_greedy`, restriction, solve
+  `scip` e post-check tramite cataloghi solver built-in QReduce. CPLEX resta
+  selezionabile esplicitamente, incluso nel notebook D-Wave + CPLEX.
 - L'adapter fornisce mapping completo e auditabile fra item e variabili fissate.
 - Il fixing euristico non viene presentato come preservazione dell'ottimo originale.
-- L'indisponibilita` CPLEX e le infeasibility sono serializzate come esiti espliciti.
+- L'indisponibilita` del backend selezionato e le infeasibility sono serializzate
+  come esiti espliciti.

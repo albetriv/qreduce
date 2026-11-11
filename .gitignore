@@ -15,4 +15,6 @@ build/
 *.egg-info/
 
 # Repository experiment artifacts are reproducible outputs, not source files.
-outputs/
+# Track only the placeholder so the output root exists in fresh clones.
+outputs/*
+!outputs/.gitkeep

@@ -123,12 +123,34 @@ Un esperimento interno disponibile e` il portfolio sintetico single-pass. Per
 produrre un run da analizzare:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio --run-id run-001
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id scip-run-001 \
+  --mis-solver-id local_greedy \
+  --classical-solver-id scip
 ```
 
 Il notebook corrispondente e`
 `notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` e carica
-`outputs/synthetic-portfolio-single-pass/run-001/`.
+`outputs/synthetic-portfolio-single-pass/scip-run-001/`. Il percorso predefinito
+usa `local_greedy` per MIS e `scip` per il solve classico residuo.
+
+Per analizzare il percorso con simulatore MIS D-Wave Ocean locale e solve
+classico CPLEX, produrre prima artifact distinti:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id dwave-cplex-001 \
+  --mis-solver-id dwave_simulated_annealing \
+  --classical-solver-id cplex \
+  --mis-num-reads 100 \
+  --mis-num-sweeps 1000
+```
+
+Il notebook `notebooks/experiments/02_synthetic_portfolio_single_pass.ipynb`
+carica `outputs/synthetic-portfolio-single-pass/dwave-cplex-001/`. Il simulatore
+Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
+licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
+artifact analizzabile.
 
 Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
 

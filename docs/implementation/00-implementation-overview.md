@@ -27,15 +27,18 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 Un esperimento interno disponibile e` il portfolio sintetico single-pass:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio --run-id run-001
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id scip-run-001 \
+  --mis-solver-id local_greedy \
+  --classical-solver-id scip
 ```
 
 Il runner pubblica il run in
-`outputs/synthetic-portfolio-single-pass/run-001/`; il notebook
+`outputs/synthetic-portfolio-single-pass/scip-run-001/`; il notebook
 `notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` lo analizza
 dal filesystem senza invocare la pipeline.
 
-L'esperimento portfolio seleziona i solver built-in `local_greedy` e `cplex` per
+L'esperimento portfolio seleziona i solver built-in `local_greedy` e `scip` per
 dimostrare un solve residuo MIQP con variabili binarie e continue. Il catalogo MIS
 built-in include anche `dwave_simulated_annealing`, un simulatore Ocean locale
 opzionale. L'esperimento resta escluso dal wheel; CPLEX, PySCIPOpt e Ocean sono

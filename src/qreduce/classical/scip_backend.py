@@ -115,14 +115,24 @@ def _build_scip_model(scip_module: Any, generic_model: ClassicalOptimizationMode
         )
         for variable in generic_model.variables
     }
-    objective = sum(coefficient * variables[name] for name, coefficient in generic_model.linear_objective.items())
-    objective += sum(
+    linear_objective = sum(
+        coefficient * variables[name]
+        for name, coefficient in generic_model.linear_objective.items()
+    )
+    quadratic_objective = sum(
         term.coefficient
         * variables[term.left_variable]
         * variables[term.right_variable]
         for term in generic_model.quadratic_objective
     )
-    model.setObjective(objective, sense="minimize")
+    if generic_model.quadratic_objective:
+        _set_quadratic_objective_via_epigraph(
+            model,
+            linear_objective + quadratic_objective,
+            variables,
+        )
+    else:
+        model.setObjective(linear_objective, sense="minimize")
     for constraint in generic_model.linear_constraints:
         expression = sum(coefficient * variables[name] for name, coefficient in constraint.coefficients.items())
         if constraint.sense is LinearConstraintSense.EQUAL:
@@ -132,6 +142,29 @@ def _build_scip_model(scip_module: Any, generic_model: ClassicalOptimizationMode
         else:
             model.addCons(expression >= constraint.right_hand_side, name=constraint.name)
     return model, variables
+
+
+def _set_quadratic_objective_via_epigraph(
+    model: Any,
+    objective_expression: Any,
+    variables: dict[str, Any],
+) -> None:
+    """Represent a quadratic minimization objective with SCIP's linear objective API."""
+
+    epigraph_name = "__qreduce_objective_epigraph"
+    while epigraph_name in variables:
+        epigraph_name = f"_{epigraph_name}"
+    epigraph_variable = model.addVar(
+        name=epigraph_name,
+        vtype="C",
+        lb=-model.infinity(),
+        obj=1.0,
+    )
+    model.addCons(
+        objective_expression <= epigraph_variable,
+        name="__qreduce_objective_epigraph_constraint",
+    )
+    model.setMinimize()
 
 
 def _configure_model(model: Any, request: ClassicalSolveRequest) -> dict[str, object]:

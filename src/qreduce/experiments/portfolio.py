@@ -3,7 +3,7 @@
 import argparse
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from qreduce.experiments.artifacts import (
@@ -85,8 +85,15 @@ class SyntheticPortfolioAnalysis:
         ]
 
 
-def build_synthetic_portfolio_inputs(run_id: str) -> SyntheticPortfolioInputs:
-    """Build deterministic inputs for the synthetic portfolio experiment."""
+def build_synthetic_portfolio_inputs(
+    run_id: str,
+    *,
+    mis_solver_id: str = "local_greedy",
+    classical_solver_id: str = "scip",
+    mis_num_reads: int | None = None,
+    mis_num_sweeps: int | None = None,
+) -> SyntheticPortfolioInputs:
+    """Build deterministic inputs with explicit optional solver selections."""
 
     asset_ids = ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")
     problem = PortfolioProblem(
@@ -123,10 +130,10 @@ def build_synthetic_portfolio_inputs(run_id: str) -> SyntheticPortfolioInputs:
         lambda_edge=2.0,
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,
-        mis_solver_id="local_greedy",
+        mis_solver_id=mis_solver_id,
         mis_execution=MISExecutionOptions(1, 17, 1, False, 0, 0.0, 20),
         classical_solve=ClassicalSolveOptions(
-            classical_solver_id="cplex",
+            classical_solver_id=classical_solver_id,
             time_limit_seconds=10.0,
             mip_gap_tolerance=None,
             threads=1,
@@ -140,6 +147,26 @@ def build_synthetic_portfolio_inputs(run_id: str) -> SyntheticPortfolioInputs:
         ),
         run_identity=RunIdentity(run_id),
     )
+    if mis_num_reads is not None or mis_num_sweeps is not None:
+        if mis_solver_id != "dwave_simulated_annealing":
+            raise ValueError(
+                "mis_num_reads and mis_num_sweeps require "
+                "mis_solver_id='dwave_simulated_annealing'."
+            )
+        provider_parameters: dict[str, object] = {}
+        if mis_num_reads is not None:
+            _require_positive_int(mis_num_reads, "mis_num_reads")
+            provider_parameters["num_reads"] = mis_num_reads
+        if mis_num_sweeps is not None:
+            _require_positive_int(mis_num_sweeps, "mis_num_sweeps")
+            provider_parameters["num_sweeps"] = mis_num_sweeps
+        config = replace(
+            config,
+            mis_execution=replace(
+                config.mis_execution,
+                provider_parameters=provider_parameters,
+            ),
+        )
     return SyntheticPortfolioInputs(
         problem=problem,
         graph_policy=graph_policy,
@@ -152,10 +179,20 @@ def run_synthetic_portfolio_experiment(
     run_id: str,
     *,
     output_root: str | Path = "outputs",
+    mis_solver_id: str = "local_greedy",
+    classical_solver_id: str = "scip",
+    mis_num_reads: int | None = None,
+    mis_num_sweeps: int | None = None,
 ) -> ExperimentRun:
     """Run and persist the deterministic synthetic portfolio experiment."""
 
-    inputs = build_synthetic_portfolio_inputs(run_id)
+    inputs = build_synthetic_portfolio_inputs(
+        run_id,
+        mis_solver_id=mis_solver_id,
+        classical_solver_id=classical_solver_id,
+        mis_num_reads=mis_num_reads,
+        mis_num_sweeps=mis_num_sweeps,
+    )
     return run_experiment(
         SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
         inputs.problem,
@@ -296,12 +333,46 @@ def _finite_float(value: object, field: str) -> float:
     return float(value)
 
 
+def _require_positive_int(value: int, field: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{field} must be an integer greater than zero.")
+
+
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Run the synthetic portfolio QReduce experiment.")
     parser.add_argument("--run-id", required=True, help="Unique run identifier used under the experiment output directory.")
     parser.add_argument("--output-root", default="outputs", help="Root directory for repository experiment artifacts.")
+    parser.add_argument(
+        "--mis-solver-id",
+        choices=("local_greedy", "dwave_simulated_annealing"),
+        default="local_greedy",
+        help="Built-in MIS solver ID.",
+    )
+    parser.add_argument(
+        "--classical-solver-id",
+        choices=("cplex", "scip"),
+        default="scip",
+        help="Built-in residual classical solver ID.",
+    )
+    parser.add_argument(
+        "--mis-num-reads",
+        type=int,
+        help="Optional D-Wave simulated-annealing num_reads parameter.",
+    )
+    parser.add_argument(
+        "--mis-num-sweeps",
+        type=int,
+        help="Optional D-Wave simulated-annealing num_sweeps parameter.",
+    )
     arguments = parser.parse_args()
-    run = run_synthetic_portfolio_experiment(arguments.run_id, output_root=arguments.output_root)
+    run = run_synthetic_portfolio_experiment(
+        arguments.run_id,
+        output_root=arguments.output_root,
+        mis_solver_id=arguments.mis_solver_id,
+        classical_solver_id=arguments.classical_solver_id,
+        mis_num_reads=arguments.mis_num_reads,
+        mis_num_sweeps=arguments.mis_num_sweeps,
+    )
     print(run.run_directory)
 
 
