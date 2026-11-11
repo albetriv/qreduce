@@ -50,6 +50,15 @@ x_i = 0
 
 Il secondo fixing puo` essere ottenuto dalle linking constraints gia` presenti, ma l'adapter deve dimostrarne e verificarne l'effetto. Obiettivo e tutti i vincoli globali devono restare nel modello residuo.
 
+Prima del cap, la pipeline single-pass consulta il precheck dell'adapter anche per
+gli eventuali `protected_items`: tali ID devono appartenere al grafo canonico,
+sono mantenuti in ordine canonico e hanno precedenza sugli item MWIS ordinari.
+Se il loro numero supera `candidate_domain_max_items`, il run termina con
+`protected_items_exceed_candidate_domain_cap`, senza creare un fixing manifest.
+Il contratto corrente espone una sola categoria di protezione; le categorie e le
+policy specifiche previste dalle sezioni 8.3 e 9.4 restano un completamento di
+M05.
+
 ## Policy iniziale del grafo
 
 La policy di costruzione del grafo e` esterna/versionata e non e` una legge finanziaria universale. Per la prima implementazione puo` usare dati sintetici e una regola semplice, auditabile e sostituibile, per esempio:
@@ -125,6 +134,8 @@ Test minimi:
 - soluzione SCIP feasible supera il post-check;
 - soluzione che viola fixing, integrality o budget non e` adottata;
 - il solver puo` scegliere un sottoinsieme fattibile di `C_effective` che non coincide con una candidate MWIS sorgente.
+- un item protetto dichiarato dall'adapter ha precedenza sul cap; protezioni oltre
+  il cap o esterne al grafo falliscono prima del fixing.
 
 ## Moduli Python indicativi
 

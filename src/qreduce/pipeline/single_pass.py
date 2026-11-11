@@ -241,8 +241,81 @@ def run_single_pass(
                 mis_execution_result=execution,
             ),
         )
+    raw_candidate_item_ids = _candidate_domain_item_ids(
+        graph.node_ids, graph.node_weights, selected_samples, config, apply_cap=False
+    )
+    try:
+        protection_declaration = adapter.validate_candidate_domain(
+            problem, raw_candidate_item_ids
+        )
+    except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.ADAPTER_FAILURE,
+            f"The adapter failed while declaring protected candidate-domain items: {error}",
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                (),
+            ),
+        )
+    protected_item_ids = protection_declaration.protected_items
+    unknown_protected_item_ids = tuple(
+        item_id for item_id in protected_item_ids if item_id not in graph.node_weights
+    )
+    if unknown_protected_item_ids:
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.ADAPTER_FAILURE,
+            "The adapter declared protected item IDs outside the reduction graph: "
+            + ", ".join(unknown_protected_item_ids),
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                (),
+            ),
+        )
+    if len(protected_item_ids) > config.reduction.candidate_domain_max_items:
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.PROTECTED_ITEMS_EXCEED_CANDIDATE_DOMAIN_CAP,
+            "The number of protected candidate-domain items exceeds candidate_domain_max_items.",
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                (),
+            ),
+        )
     retained_item_ids = _candidate_domain_item_ids(
-        graph.node_ids, graph.node_weights, selected_samples, config
+        graph.node_ids,
+        graph.node_weights,
+        selected_samples,
+        config,
+        protected_item_ids=protected_item_ids,
     )
     if len(retained_item_ids) < config.reduction.candidate_domain_min_items:
         return _failed(
@@ -265,7 +338,28 @@ def run_single_pass(
                 mis_execution_result=execution,
             ),
         )
-    domain_validation = adapter.validate_candidate_domain(problem, retained_item_ids)
+    try:
+        domain_validation = adapter.validate_candidate_domain(problem, retained_item_ids)
+    except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.ADAPTER_FAILURE,
+            f"The adapter failed while validating the candidate domain: {error}",
+            retained_item_ids,
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
+        )
     if not domain_validation.is_valid:
         return _failed(
             config,
@@ -801,8 +895,11 @@ def _candidate_domain_item_ids(
     node_weights: Mapping[str, float],
     selected_samples: tuple[RawMISSample, ...],
     config: ResolvedRunConfig,
+    *,
+    protected_item_ids: tuple[str, ...] = (),
+    apply_cap: bool = True,
 ) -> tuple[str, ...]:
-    """Aggregate candidate votes, rank items, and enforce the configured domain cap."""
+    """Aggregate candidate votes and apply declared protection before the domain cap."""
 
     frequencies = {node_id: 0 for node_id in node_ids}
     quality_sums = {node_id: 0.0 for node_id in node_ids}
@@ -812,7 +909,7 @@ def _candidate_domain_item_ids(
             if value == 1:
                 frequencies[node_id] += 1
                 quality_sums[node_id] += quality
-    ranked_item_ids = sorted(
+    ranked_item_ids = tuple(sorted(
         (node_id for node_id in node_ids if frequencies[node_id] > 0),
         key=lambda node_id: (
             -frequencies[node_id],
@@ -820,5 +917,17 @@ def _candidate_domain_item_ids(
             -node_weights[node_id],
             node_id,
         ),
+    ))
+    if not apply_cap:
+        return ranked_item_ids
+    protected_item_id_set = set(protected_item_ids)
+    protected_in_canonical_order = tuple(
+        node_id for node_id in node_ids if node_id in protected_item_id_set
     )
-    return tuple(ranked_item_ids[: config.reduction.candidate_domain_max_items])
+    ranked_unprotected_item_ids = tuple(
+        node_id for node_id in ranked_item_ids if node_id not in protected_item_id_set
+    )
+    remaining_capacity = (
+        config.reduction.candidate_domain_max_items - len(protected_in_canonical_order)
+    )
+    return protected_in_canonical_order + ranked_unprotected_item_ids[:remaining_capacity]

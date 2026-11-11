@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 
+from qreduce.domains import DomainValidationResult
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
@@ -108,6 +109,119 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     assert serialized_result["fixing_manifest"] is not None
     assert serialized_result["mis_execution_result"] is not None
     json.dumps(serialized_result)
+
+
+def test_pipeline_retains_declared_protected_items_before_applying_cap(
+    monkeypatch, portfolio_problem: PortfolioProblem
+) -> None:
+    """A protected asset absent from the MIS sample takes precedence over the cap."""
+
+    def raise_missing_binding(module_name: str):
+        assert module_name == "cplex"
+        raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
+
+    class ProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def validate_candidate_domain(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ) -> DomainValidationResult:
+            validation = super().validate_candidate_domain(problem, retained_item_ids)
+            return DomainValidationResult(
+                validation.is_valid,
+                validation.minimum_required_items,
+                protected_items=("asset-b",),
+                failure_reasons=validation.failure_reasons,
+            )
+
+    monkeypatch.setattr(
+        "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
+    )
+    config = replace(
+        make_config(),
+        reduction=replace(make_config().reduction, candidate_domain_max_items=2),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        ProtectedPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        config,
+    )
+
+    assert result.retained_item_ids == ("asset-b", "asset-a")
+    assert result.fixing_manifest is not None
+    assert result.fixing_manifest.excluded_item_ids == ("asset-c",)
+    assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE
+
+
+def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """The pipeline never silently drops protected assets or builds a partial manifest."""
+
+    class TooManyProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def validate_candidate_domain(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ) -> DomainValidationResult:
+            validation = super().validate_candidate_domain(problem, retained_item_ids)
+            return DomainValidationResult(
+                validation.is_valid,
+                validation.minimum_required_items,
+                protected_items=("asset-a", "asset-b"),
+                failure_reasons=validation.failure_reasons,
+            )
+
+    config = replace(
+        make_config(),
+        reduction=replace(make_config().reduction, candidate_domain_max_items=1),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        TooManyProtectedPortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
+        config,
+    )
+
+    assert result.run_result.run_status is RunStatus.FAILED
+    assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
+    assert (
+        result.run_result.terminal_reason
+        is TerminalReason.PROTECTED_ITEMS_EXCEED_CANDIDATE_DOMAIN_CAP
+    )
+    assert result.retained_item_ids == ()
+    assert result.fixing_manifest is None
+    assert result.classical_result is None
+
+
+def test_pipeline_rejects_protected_item_outside_reduction_graph(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """Adapter-declared protections must be members of the canonical graph domain."""
+
+    class UnknownProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def validate_candidate_domain(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ) -> DomainValidationResult:
+            validation = super().validate_candidate_domain(problem, retained_item_ids)
+            return DomainValidationResult(
+                validation.is_valid,
+                validation.minimum_required_items,
+                protected_items=("unknown-asset",),
+                failure_reasons=validation.failure_reasons,
+            )
+
+    result = run_single_pass(
+        portfolio_problem,
+        UnknownProtectedPortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
+        make_config(),
+    )
+
+    assert result.run_result.run_status is RunStatus.FAILED
+    assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.fixing_manifest is None
 
 
 def test_pipeline_supports_explicit_extension_registries(

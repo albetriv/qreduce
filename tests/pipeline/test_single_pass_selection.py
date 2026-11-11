@@ -105,3 +105,31 @@ def test_diversity_ranking_and_domain_cap_use_declared_keys() -> None:
         "candidate-b",
     )
     assert retained == ("c",)
+
+
+def test_candidate_domain_protection_precedes_cap_in_canonical_order() -> None:
+    """Protected IDs survive the cap before ranked MWIS-derived items are considered."""
+
+    problem = make_problem()
+    config = make_selection_config()
+    samples = (
+        RawMISSample(
+            "candidate",
+            problem.graph.node_ids,
+            (0, 0, 1),
+            canonical_qubo_energy=-2.0,
+            selection_weight=2.0,
+            num_selected=1,
+            is_independent_set=True,
+        ),
+    )
+
+    retained = _candidate_domain_item_ids(
+        problem.graph.node_ids,
+        problem.graph.node_weights,
+        samples,
+        config,
+        protected_item_ids=("b",),
+    )
+
+    assert retained == ("b",)

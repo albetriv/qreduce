@@ -12,7 +12,12 @@ from qreduce.mwis import ReductionGraph
 
 @dataclass(frozen=True, slots=True)
 class DomainValidationResult:
-    """Serializable domain precheck result for a proposed candidate domain."""
+    """Serializable domain precheck result for a proposed candidate domain.
+
+    ``protected_items`` declares IDs that the pipeline must retain before it
+    applies the candidate-domain cap. Declared IDs must belong to the round's
+    canonical reduction graph.
+    """
 
     is_valid: bool
     minimum_required_items: int | None
