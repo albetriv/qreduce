@@ -37,11 +37,18 @@ Ogni adapter deve dichiarare almeno:
 
 Il framework usa `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
 
-## Solver locale concreto
+## Solver built-in e registry di estensione
 
-QReduce espone il solver ID `local_greedy`, risolto internamente dal registry verso
-`LocalGreedyMISBackend`. Il suo dettaglio operativo resta `provider_id = local`
-e `backend_id = greedy_mis`. Il solver deve:
+QReduce include `local_greedy` e `dwave_simulated_annealing` nel catalogo MIS
+standard. Il chiamante seleziona uno dei due ID nella configurazione e la pipeline
+costruisce il backend tramite la factory built-in. Il secondo usa il simulatore
+locale Ocean `dwave.samplers.SimulatedAnnealingSampler` sulla rappresentazione
+QUBO, supporta `num_reads`, `num_sweeps`, `beta_range` e `beta_schedule_type` in
+`provider_parameters`, e richiede lazy `dimod` + `dwave-samplers`. Non usa Leap,
+QPU, credenziali o embedding. Le `MISSolverRegistry` possono estendere il catalogo
+in modo esplicito, ma nessun ID non noto puo` attivare un fallback.
+
+Ogni backend deve:
 
 - essere operativo senza provider remoto;
 - rispettare il contratto capability/compile/solve;
@@ -78,6 +85,7 @@ Campi come `num_reads`, `shots`, `embedding_policy`, `transpiler_options` o para
 src/qreduce/mis/contracts.py
 src/qreduce/mis/capabilities.py
 src/qreduce/mis/local_backend.py
+src/qreduce/mis/dwave_simulated_annealing_backend.py
 src/qreduce/mis/registry.py
 src/qreduce/mis/normalization.py
 src/qreduce/mis/compilation.py
@@ -98,7 +106,8 @@ Questi nomi non fissano l'API pubblica finale.
 
 ## Criteri di completamento
 
-- Esiste il solver `local_greedy`, utilizzabile nella pipeline tramite registry.
+- La pipeline usa il backend associato all'ID built-in configurato, oppure un ID
+  presente in una registry di estensione esplicitamente passata.
 - Il core non importa classi di provider o formati runtime proprietari.
 - Compilation, execution e normalizzazione sono osservabili separatamente.
 - Ogni cambio di backend o modalita` richiede una configurazione esplicita.

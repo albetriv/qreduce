@@ -1,10 +1,8 @@
-"""Registry mapping public classical solver IDs to QReduce implementations."""
+"""Factory registry for QReduce-provided and application-provided classical solvers."""
 
 from collections.abc import Callable
 
 from qreduce.classical.contracts import ClassicalBackend
-from qreduce.classical.cplex_backend import CplexClassicalBackend
-from qreduce.solvers import BuiltinClassicalSolverId
 
 
 class UnknownClassicalSolverError(ValueError):
@@ -12,10 +10,12 @@ class UnknownClassicalSolverError(ValueError):
 
 
 class ClassicalSolverRegistry:
-    """Explicit classical-solver registry without automatic solver substitution."""
+    """Resolve bundled solver IDs and allow explicit application extensions."""
 
-    def __init__(self) -> None:
-        self._factories: dict[str, Callable[[], ClassicalBackend]] = {}
+    def __init__(self, *, include_builtins: bool = True) -> None:
+        self._factories: dict[str, Callable[[], ClassicalBackend]] = (
+            _builtin_factories() if include_builtins else {}
+        )
 
     def register(self, solver_id: str, factory: Callable[[], ClassicalBackend]) -> None:
         if not solver_id.strip():
@@ -36,8 +36,19 @@ class ClassicalSolverRegistry:
 
 
 def builtin_classical_solver_registry() -> ClassicalSolverRegistry:
-    """Return the registry of classical solver integrations bundled by QReduce."""
+    """Create the standard QReduce classical solver catalog."""
 
-    registry = ClassicalSolverRegistry()
-    registry.register(BuiltinClassicalSolverId.CPLEX.value, CplexClassicalBackend)
-    return registry
+    return ClassicalSolverRegistry()
+
+
+def _builtin_factories() -> dict[str, Callable[[], ClassicalBackend]]:
+    """Keep optional bindings lazy by importing backend modules, not their SDKs."""
+
+    from qreduce.classical.cplex_backend import CplexClassicalBackend
+    from qreduce.classical.scip_backend import ScipClassicalBackend
+    from qreduce.solvers import BuiltinClassicalSolverId
+
+    return {
+        BuiltinClassicalSolverId.CPLEX: CplexClassicalBackend,
+        BuiltinClassicalSolverId.SCIP: ScipClassicalBackend,
+    }

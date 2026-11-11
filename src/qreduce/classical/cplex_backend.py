@@ -1,4 +1,4 @@
-"""Lazy IBM ILOG CPLEX backend for demonstrative portfolio residual MIQPs."""
+"""Lazy IBM ILOG CPLEX backend for generic residual MILP and MIQP models."""
 
 from importlib import import_module as _import_module
 from time import perf_counter
@@ -7,15 +7,19 @@ from typing import Any
 from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
 from qreduce.classical.contracts import ClassicalSolveRequest, ClassicalSolveResult
 from qreduce.classical.cplex_capability import cplex_classical_capabilities
-from qreduce.domains.portfolio.models import PortfolioResidualProblem
-from qreduce.solvers import BuiltinClassicalSolverId
+from qreduce.classical.model import (
+    ClassicalModelProvider,
+    ClassicalOptimizationModel,
+    ClassicalVariableType,
+    LinearConstraintSense,
+)
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
 class CplexClassicalBackend:
-    """Solve supported residual portfolio MIQPs without importing CPLEX at module load."""
+    """Solve residual problems compiled by a domain adapter into a generic model."""
 
-    solver_id = BuiltinClassicalSolverId.CPLEX.value
+    solver_id = "cplex"
 
     def capabilities(self) -> ClassicalRuntimeCapabilities:
         """Report binding availability without creating a CPLEX model."""
@@ -47,7 +51,7 @@ class CplexClassicalBackend:
                 diagnostic_message="No positive end-to-end time budget remains for the classical backend.",
                 requested_solver_id=request.requested_solver_id,
             )
-        if not isinstance(reduced_problem, PortfolioResidualProblem):
+        if not isinstance(reduced_problem, ClassicalModelProvider):
             return ClassicalSolveResult(
                 classical_solver_status=ClassicalSolverStatus.FAILED,
                 terminal_reason=TerminalReason.UNSUPPORTED_PROBLEM_STRUCTURE,
@@ -59,7 +63,7 @@ class CplexClassicalBackend:
                 is_time_limited=False,
                 runtime_seconds=0.0,
                 remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
-                diagnostic_message="CplexClassicalBackend only supports PortfolioResidualProblem.",
+                diagnostic_message="CplexClassicalBackend requires a ClassicalModelProvider residual problem.",
                 requested_solver_id=request.requested_solver_id,
             )
         try:
@@ -81,7 +85,9 @@ class CplexClassicalBackend:
             )
         started_at = perf_counter()
         try:
-            model, variable_names = _build_portfolio_model(cplex_module, reduced_problem)
+            generic_model = reduced_problem.build_classical_model()
+            model = _build_cplex_model(cplex_module, generic_model)
+            variable_names = generic_model.variable_names
             effective_parameters = _configure_model(model, request)
             if request.model_export_enabled:
                 model.write(request.model_export_path)
@@ -113,55 +119,6 @@ class CplexClassicalBackend:
                 diagnostic_message=f"CPLEX solve failed: {type(error).__name__}: {error}",
                 requested_solver_id=request.requested_solver_id,
             )
-
-
-def _build_portfolio_model(cplex_module: Any, residual_problem: PortfolioResidualProblem) -> tuple[Any, tuple[str, ...]]:
-    problem = residual_problem.original_problem
-    mapping = residual_problem.variable_mapping
-    model = cplex_module.Cplex()
-    model.objective.set_sense(model.objective.sense.minimize)
-    asset_ids = problem.asset_ids
-    delta_names = [mapping.delta_variable_by_asset[asset_id] for asset_id in asset_ids]
-    x_names = [mapping.x_variable_by_asset[asset_id] for asset_id in asset_ids]
-    model.variables.add(names=delta_names, types=[model.variables.type.binary] * len(asset_ids))
-    model.variables.add(names=x_names, lb=[0.0] * len(asset_ids))
-    model.objective.set_linear([(x_names[index], -problem.expected_returns[asset_id]) for index, asset_id in enumerate(asset_ids)])
-    quadratic_coefficients = [
-        (x_names[left_index], x_names[right_index], 2.0 * problem.risk_aversion * problem.covariance[left_index][right_index])
-        for left_index in range(len(asset_ids))
-        for right_index in range(left_index, len(asset_ids))
-    ]
-    model.objective.set_quadratic_coefficients(quadratic_coefficients)
-    model.linear_constraints.add(
-        lin_expr=[cplex_module.SparsePair(ind=x_names, val=[1.0] * len(asset_ids))],
-        senses=["E"],
-        rhs=[1.0],
-        names=["budget"],
-    )
-    for asset_id in asset_ids:
-        delta_name = mapping.delta_variable_by_asset[asset_id]
-        x_name = mapping.x_variable_by_asset[asset_id]
-        model.linear_constraints.add(
-            lin_expr=[cplex_module.SparsePair(ind=[x_name, delta_name], val=[1.0, -problem.lower_bounds[asset_id]])],
-            senses=["G"],
-            rhs=[0.0],
-            names=[f"lower_link__{asset_id}"],
-        )
-        model.linear_constraints.add(
-            lin_expr=[cplex_module.SparsePair(ind=[x_name, delta_name], val=[1.0, -problem.upper_bounds[asset_id]])],
-            senses=["L"],
-            rhs=[0.0],
-            names=[f"upper_link__{asset_id}"],
-        )
-    for entry in residual_problem.fixing_manifest.entries:
-        for variable_name, value in entry.variable_values.items():
-            model.linear_constraints.add(
-                lin_expr=[cplex_module.SparsePair(ind=[variable_name], val=[1.0])],
-                senses=["E"],
-                rhs=[value],
-                names=[f"fix__{entry.item_id}__{variable_name}"],
-            )
-    return model, tuple(delta_names + x_names)
 
 
 def _configure_model(model: Any, request: ClassicalSolveRequest) -> dict[str, object]:
@@ -232,7 +189,7 @@ def _result_from_model(
         remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
         diagnostic_message=None if normalized_status is not ClassicalSolverStatus.FAILED else f"CPLEX status: {status_text}",
         requested_solver_id=request.requested_solver_id,
-        effective_solver_id=BuiltinClassicalSolverId.CPLEX.value,
+        effective_solver_id="cplex",
     )
 
 
@@ -256,6 +213,52 @@ def _failure_result(
         diagnostic_message=diagnostic_message,
         requested_solver_id=request.requested_solver_id,
     )
+
+
+def _build_cplex_model(cplex_module: Any, generic_model: ClassicalOptimizationModel) -> Any:
+    """Translate the solver-independent polynomial model into the CPLEX API."""
+
+    model = cplex_module.Cplex()
+    model.objective.set_sense(model.objective.sense.minimize)
+    type_by_variable = {
+        ClassicalVariableType.BINARY: model.variables.type.binary,
+        ClassicalVariableType.CONTINUOUS: model.variables.type.continuous,
+        ClassicalVariableType.INTEGER: model.variables.type.integer,
+    }
+    model.variables.add(
+        names=list(generic_model.variable_names),
+        types=[type_by_variable[variable.variable_type] for variable in generic_model.variables],
+        lb=[variable.lower_bound if variable.lower_bound is not None else -cplex_module.infinity for variable in generic_model.variables],
+        ub=[variable.upper_bound if variable.upper_bound is not None else cplex_module.infinity for variable in generic_model.variables],
+    )
+    model.objective.set_linear(list(generic_model.linear_objective.items()))
+    model.objective.set_quadratic_coefficients(
+        [
+            (
+                term.left_variable,
+                term.right_variable,
+                2.0 * term.coefficient
+                if term.left_variable == term.right_variable
+                else term.coefficient,
+            )
+            for term in generic_model.quadratic_objective
+        ]
+    )
+    sense_by_constraint = {
+        LinearConstraintSense.EQUAL: "E",
+        LinearConstraintSense.LESS_EQUAL: "L",
+        LinearConstraintSense.GREATER_EQUAL: "G",
+    }
+    model.linear_constraints.add(
+        lin_expr=[
+            cplex_module.SparsePair(ind=list(constraint.coefficients), val=list(constraint.coefficients.values()))
+            for constraint in generic_model.linear_constraints
+        ],
+        senses=[sense_by_constraint[constraint.sense] for constraint in generic_model.linear_constraints],
+        rhs=[constraint.right_hand_side for constraint in generic_model.linear_constraints],
+        names=[constraint.name for constraint in generic_model.linear_constraints],
+    )
+    return model
 
 
 def _optional_solution_value(target: Any, method_name: str) -> float | None:

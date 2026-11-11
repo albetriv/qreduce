@@ -56,6 +56,18 @@ def canonical_json(value: object) -> str:
     )
 
 
+def pretty_json(value: object) -> str:
+    """Serialize a contract as deterministic, human-readable UTF-8-safe JSON text."""
+
+    return json.dumps(
+        to_primitive(value),
+        ensure_ascii=False,
+        allow_nan=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def canonical_json_bytes(value: object) -> bytes:
     """Return canonical JSON encoded as UTF-8 bytes."""
 

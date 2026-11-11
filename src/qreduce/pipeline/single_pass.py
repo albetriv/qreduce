@@ -10,6 +10,7 @@ from qreduce.capabilities import validate_backend_compatibility
 from qreduce.classical import (
     ClassicalSolveRequest,
     ClassicalSolveResult,
+    ClassicalSolverRegistry,
     UnknownClassicalSolverError,
     builtin_classical_solver_registry,
 )
@@ -25,6 +26,7 @@ from qreduce.mis import (
     MISCompilationRequest,
     MISCompilationResult,
     MISCompletionStatus,
+    MISSolverRegistry,
     RawMISSample,
     UnknownMISSolverError,
     builtin_mis_solver_registry,
@@ -78,8 +80,11 @@ def run_single_pass(
     problem: object,
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,
+    *,
+    mis_solver_registry: MISSolverRegistry | None = None,
+    classical_solver_registry: ClassicalSolverRegistry | None = None,
 ) -> SinglePassRunResult:
-    """Run one MWIS reduction, one residual classical solve, and one post-check."""
+    """Run one reduction using built-in solver factories and optional extensions."""
 
     validation = validate_resolved_run_config(config)
     if not validation.is_valid:
@@ -90,8 +95,10 @@ def run_single_pass(
             _issues_message(validation),
         )
     started_at = perf_counter()
+    mis_solver_registry = mis_solver_registry or builtin_mis_solver_registry()
+    classical_solver_registry = classical_solver_registry or builtin_classical_solver_registry()
     try:
-        mis_solver = builtin_mis_solver_registry().create(config.mis_solver_id)
+        mis_solver = mis_solver_registry.create(config.mis_solver_id)
     except UnknownMISSolverError as error:
         return _failed(
             config,
@@ -116,8 +123,16 @@ def run_single_pass(
         )
 
     capabilities = mis_solver.capabilities()
+    required_problem_form = _select_problem_form(capabilities.supported_problem_forms)
+    if required_problem_form is None:
+        return _failed(
+            config,
+            PipelineStage.MIS,
+            TerminalReason.MIS_PROBLEM_REPRESENTATION_UNSUPPORTED,
+            "The selected MIS solver does not support a canonical QReduce problem representation.",
+        )
     capability_validation = validate_backend_compatibility(
-        config.mis_execution, capabilities, ProblemForm.MIS_GRAPH
+        config.mis_execution, capabilities, required_problem_form
     )
     if not capability_validation.is_valid:
         return _failed(
@@ -140,7 +155,7 @@ def run_single_pass(
             requested_backend_id=capabilities.backend_id,
             requested_backend_family=capabilities.backend_family,
             requested_execution_mode=capabilities.execution_mode,
-            required_problem_form=ProblemForm.MIS_GRAPH,
+            required_problem_form=required_problem_form,
         ),
     )
     if compilation.compiled_job is None:
@@ -167,6 +182,7 @@ def run_single_pass(
             random_seed=config.mis_execution.random_seed,
             requested_solution_count=config.mis_execution.requested_solution_count,
             residual_time_budget_seconds=remaining_budget,
+            execution_parameters=config.mis_execution.provider_parameters,
         ),
     )
     if execution.completion_status not in {
@@ -297,7 +313,7 @@ def run_single_pass(
             ),
         )
     try:
-        classical_solver = builtin_classical_solver_registry().create(
+        classical_solver = classical_solver_registry.create(
             config.classical_solve.classical_solver_id
         )
     except UnknownClassicalSolverError as error:
@@ -500,6 +516,20 @@ def _failed(
 def _issues_message(validation: object) -> str:
     issues = getattr(validation, "issues", ())
     return "; ".join(issue.message for issue in issues)
+
+
+def _select_problem_form(supported_forms: frozenset[ProblemForm]) -> ProblemForm | None:
+    """Choose the first canonical form accepted by the selected MIS backend."""
+
+    for problem_form in (
+        ProblemForm.MIS_GRAPH,
+        ProblemForm.QUBO,
+        ProblemForm.BQM,
+        ProblemForm.ISING,
+    ):
+        if problem_form in supported_forms:
+            return problem_form
+    return None
 
 
 def _resolved_lambda_edge(config: ResolvedRunConfig) -> float:

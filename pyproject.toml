@@ -9,9 +9,6 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 
-[project.optional-dependencies]
-cplex = ["cplex (>=22.2.0.0,<23.0.0.0)"]
-
 [dependency-groups]
 dev = [
     "pytest (>=8.0)",
@@ -23,12 +20,18 @@ notebooks = [
     "matplotlib (>=3.8,<4)",
     "pandas (>=2.2,<4)",
 ]
+experiments = [
+    "cplex (>=22.2.0.0,<23.0.0.0)",
+    "dwave-samplers (>=1.7,<2)",
+    "pyscipopt (>=5.0,<6.0)",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
     "integration: exercises multiple QReduce components together.",
     "requires_cplex: requires the optional CPLEX binding and a usable license.",
+    "requires_dwave_simulator: requires the optional dimod and dwave-samplers packages.",
 ]
 
 [tool.ruff]

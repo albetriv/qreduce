@@ -8,14 +8,16 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from qreduce.artifacts.metadata import (
-    canonical_json,
+    pretty_json,
     redact_metadata,
     sha256_hex,
     to_primitive,
     utc_created_at,
 )
+from qreduce.classical import ClassicalSolverRegistry
 from qreduce.domains import ReducibleProblemAdapter
 from qreduce.experiments.artifacts import ARTIFACT_SCHEMA_VERSION
+from qreduce.mis import MISSolverRegistry
 from qreduce.models import ResolvedRunConfig
 from qreduce.pipeline import SinglePassRunResult, run_single_pass
 
@@ -35,6 +37,8 @@ def run_experiment(
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,
     *,
+    mis_solver_registry: MISSolverRegistry | None = None,
+    classical_solver_registry: ClassicalSolverRegistry | None = None,
     output_root: str | Path = "outputs",
     experiment_metadata: Mapping[str, object] | None = None,
 ) -> ExperimentRun:
@@ -53,7 +57,13 @@ def run_experiment(
             f"Experiment artifact directory already exists: {destination}"
         )
 
-    result = run_single_pass(problem, adapter, config)
+    result = run_single_pass(
+        problem,
+        adapter,
+        config,
+        mis_solver_registry=mis_solver_registry,
+        classical_solver_registry=classical_solver_registry,
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_root = Path(mkdtemp(prefix=f".{run_id}.", dir=destination.parent))
     try:
@@ -114,7 +124,9 @@ def _write_artifacts(
 
 
 def _write_json(path: Path, contents: object) -> None:
-    path.write_text(canonical_json(contents) + "\n", encoding="utf-8")
+    """Write readable JSON while content hashes use compact canonical JSON."""
+
+    path.write_text(pretty_json(contents) + "\n", encoding="utf-8")
 
 
 def _producer_version() -> str:

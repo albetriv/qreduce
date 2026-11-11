@@ -14,8 +14,8 @@ l'indipendenza del kernel QReduce.
 ## Decisioni applicate
 
 - QReduce supporta Python `>=3.12,<3.13`.
-- `local_greedy` e` il MIS solver built-in.
-- IBM ILOG CPLEX e` il solver classico opzionale del percorso reference.
+- Il kernel non impone ne` include un solver MIS o classico concreto.
+- Gli esperimenti interni possono scegliere solver e dipendenze opzionali proprie.
 - Il kernel non importa direttamente SDK di provider MIS.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
 
@@ -34,11 +34,11 @@ la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
 |---|---|---|
 | Core | Librerie strettamente necessarie al kernel | Provider-agnostic |
 | Development | pytest, ruff | Qualita` e test |
-| Optional classical solver | Binding Python CPLEX | Extra `qreduce[cplex]`, isolato dal core |
-| MIS solver | Algoritmo locale o SDK provider | Selezionato da solver ID e dichiarato tramite capability |
-| Domain adapter | Librerie numeriche per il portfolio | Isolate dal kernel |
+| Experimental classical solver | Binding Python CPLEX o PySCIPOpt | Gruppo Poetry `experiments`, import lazy dai backend core |
+| MIS solver | `local_greedy`, `dwave_simulated_annealing` o SDK provider | i due ID locali sono built-in; D-Wave Ocean e` nel gruppo `experiments` e importato lazy; provider ulteriori tramite registry e capability |
+| Domain adapter | Librerie di dominio | Fornito dal chiamante o confinato negli esperimenti |
 
-## CPLEX come capability runtime
+## CPLEX come capability sperimentale
 
 La scelta di CPLEX non autorizza fallback automatici. Il runtime dovra` rilevare
 in modo esplicito almeno:
@@ -51,11 +51,12 @@ MIQP support available: true | false | unknown
 effective solver: cplex | unavailable
 ```
 
-Il binding Python CPLEX e` dichiarato nell'extra `cplex` con vincolo
-`cplex (>=22.2.0.0,<23.0.0.0)`. Rimane isolato dal kernel tramite import lazy
-nel backend concreto. L'installazione dell'extra rende riproducibile il runtime
-richiesto dal solver `cplex`, ma non implica che licenza e capacita` MIQP siano
 disponibili in ogni ambiente.
+I binding Python CPLEX e PySCIPOpt sono dichiarati nel gruppo Poetry
+`experiments`. Sono importati lazy dai backend core `cplex` e `scip`, quindi non
+sono richiesti per importare QReduce. L'installazione del gruppo rende disponibili
+i binding opzionali, ma non implica che la licenza CPLEX o le capacita` MIQP siano
+utilizzabili in ogni ambiente.
 
 ## Convenzioni di progetto
 
@@ -81,7 +82,8 @@ logic.
 - Configurazione test e lint riproducibile tramite Poetry.
 - Meccanismo per dichiarare capability installate senza importarle dal core.
 - Verifica controllata del binding CPLEX prima di dichiarare operativo il backend.
-- Registry dei solver built-in e regole di packaging per dipendenze core, development e opzionali.
+- Cataloghi solver built-in, registry di estensione espliciti e regole di
+  packaging per dipendenze core, development ed esperimenti opzionali.
 
 ## Criteri di completamento
 
@@ -89,6 +91,6 @@ logic.
 - README, `pyproject.toml` e CI dichiarano la stessa versione supportata.
 - Nessuna dipendenza provider-specifica e` richiesta dal package core soltanto
   per importare `qreduce`.
-- L'indisponibilita` di CPLEX puo` essere rappresentata come capability/failure
-  esplicita e non come selezione automatica di un solver alternativo.
+- Un solver richiesto e non disponibile puo` essere rappresentato come
+  capability/failure esplicita e non come selezione automatica di un'alternativa.
 - `.cline-tmp/` continua a essere ignorata e non contiene codice applicativo.

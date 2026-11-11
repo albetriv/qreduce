@@ -1,8 +1,8 @@
-# 05 - Mean-variance portfolio domain adapter
+# 05 - Synthetic mean-variance portfolio experiment
 
 ## Scopo
 
-Definire l'adapter reference: un problema di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo. La combinazione dimostrativa usa `local_greedy` per il MWIS e il solver opzionale `cplex` per il MIQP, senza rendere il kernel dipendente da finanza, CPLEX o da una rappresentazione universale dei problemi.
+Definire un esperimento interno di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo solver-agnostico. Il portfolio resta confinato negli esperimenti; i solver built-in `local_greedy`, `cplex` e `scip` appartengono invece alla libreria e non importano il dominio portfolio.
 
 ## Riferimenti alle specifiche
 
@@ -32,10 +32,9 @@ Questa e` una forma iniziale per dati sintetici e test. Vincoli ulteriori, limit
 
 | Componente | Responsabilita` |
 |---|---|
-| Portfolio adapter | Item ID, pesi, archi, fixing, modello residuo e post-check di dominio |
-| QReduce core | Pipeline MWIS, candidate domain, manifest, tempi e artifact comuni |
-| Classical solver registry | Risoluzione del solver ID richiesto senza fallback implicito |
-| CPLEX backend | Implementazione interna del solver `cplex` per il MIQP ristretto |
+| Esperimento portfolio | Item ID, pesi, archi, fixing, compilazione MIQP generica e post-check di dominio |
+| QReduce core | Pipeline MWIS, cataloghi solver, modello classico generico, traduzione backend, tempi e artifact comuni |
+| Backend classici built-in | Traduzione lazy del modello generico verso CPLEX o SCIP senza dipendenza dal portfolio |
 | Chiamante | Policy, dati/istanza, adozione di business e valutazione esterna |
 
 Il core riceve problemi opachi costruiti dall'adapter. Non deve conoscere classi CPLEX, formule finanziarie o strutture dati dell'istanza.
@@ -61,11 +60,13 @@ La policy di costruzione del grafo e` esterna/versionata e non e` una legge fina
 
 La policy deve registrare input, formula, soglie, versione e qualunque normalizzazione. Il grafo di riduzione non sostituisce Sigma, il modello MIQP o i vincoli hard di portafoglio.
 
-## Solver classico CPLEX
+## Solver classici built-in
 
-Il solver ID `cplex` e` opzionale e viene risolto dal registry verso
-`CplexClassicalBackend`. L'implementazione deve esporre il contratto classico
-delle specifiche e almeno:
+Nell'esperimento gli ID classici `cplex` e `scip` sono risolti dalle factory
+built-in QReduce. Il residual problem portfolio implementa
+`build_classical_model()` e restituisce variabili, obiettivo MIQP e vincoli in
+forma solver-agnostica; il backend selezionato effettua la traduzione nativa.
+L'integrazione deve almeno:
 
 - configurare time limit, mip gap, seed e threads quando supportati;
 - restituire status, feasible, objective, bound/gap quando disponibili e runtime;
@@ -73,9 +74,9 @@ delle specifiche e almeno:
 - esportare il modello se richiesto;
 - dichiarare indisponibilita` del binding o della licenza senza fallback.
 
-Il binding Python CPLEX viene installato tramite l'extra `qreduce[cplex]`. Il test
-live richiede inoltre una licenza locale utilizzabile e deve essere marcato come
-integrazione opzionale.
+I binding Python CPLEX e PySCIPOpt vengono installati tramite il gruppo Poetry
+`experiments`. Il test live CPLEX richiede inoltre una licenza locale utilizzabile
+e deve essere marcato come integrazione opzionale.
 
 ## Post-check indipendente
 
@@ -109,20 +110,23 @@ Test minimi:
 ## Moduli Python indicativi
 
 ```text
-src/qreduce/domains/portfolio/models.py
-src/qreduce/domains/portfolio/adapter.py
+src/qreduce/experiments/portfolio_domain/models.py
+src/qreduce/experiments/portfolio_domain/adapter.py
+src/qreduce/classical/model.py
 src/qreduce/classical/contracts.py
-src/qreduce/classical/cplex_backend.py
 src/qreduce/classical/registry.py
+src/qreduce/classical/cplex_backend.py
+src/qreduce/classical/scip_backend.py
 src/qreduce/pipeline/single_pass.py
-src/qreduce/domains/portfolio/postcheck.py
+src/qreduce/experiments/portfolio_domain/postcheck.py
 ```
 
-I moduli finanziari restano separati dal core e possono evolvere senza cambiare il contratto di `ReducibleProblemAdapter`.
+I moduli finanziari restano confinati negli esperimenti e possono evolvere senza cambiare il contratto di `ReducibleProblemAdapter`.
 
 ## Criteri di completamento
 
-- Una piccola istanza MIQP media-varianza percorre `local_greedy`, restriction, solve `cplex` e post-check.
+- L'esperimento portfolio percorre `local_greedy`, restriction, solve `cplex` o
+  `scip` e post-check tramite cataloghi solver built-in QReduce.
 - L'adapter fornisce mapping completo e auditabile fra item e variabili fissate.
 - Il fixing euristico non viene presentato come preservazione dell'ottimo originale.
 - L'indisponibilita` CPLEX e le infeasibility sono serializzate come esiti espliciti.

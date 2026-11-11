@@ -4,6 +4,7 @@ import json
 
 from qreduce.artifacts.metadata import (
     canonical_json,
+    pretty_json,
     redact_metadata,
     sha256_hex,
     utc_created_at,
@@ -47,6 +48,16 @@ def test_canonical_json_and_hash_ignore_mapping_insertion_order() -> None:
 
     assert canonical_json(left) == canonical_json(right)
     assert sha256_hex(left) == sha256_hex(right)
+
+
+def test_pretty_json_is_deterministic_and_human_readable() -> None:
+    """Readable artifact text preserves deterministic ordering without changing data."""
+
+    serialized = pretty_json({"z": [1, {"b": True}], "a": {"x": 3}})
+
+    assert serialized.startswith("{\n")
+    assert '\n  "a": {' in serialized
+    assert json.loads(serialized) == {"a": {"x": 3}, "z": [1, {"b": True}]}
 
 
 def test_config_serializes_nested_dataclasses_and_enums() -> None:

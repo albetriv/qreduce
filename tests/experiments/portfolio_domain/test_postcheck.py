@@ -2,12 +2,12 @@
 
 from dataclasses import replace
 
-from qreduce.domains.portfolio import (
+from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,
 )
-from qreduce.domains.portfolio.postcheck import validate_portfolio_solution
+from qreduce.experiments.portfolio_domain.postcheck import validate_portfolio_solution
 from qreduce.models import ClassicalSolveOptions
 from qreduce.status import PostcheckMode
 

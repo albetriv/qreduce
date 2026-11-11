@@ -4,12 +4,14 @@ from enum import StrEnum
 
 
 class BuiltinMISSolverId(StrEnum):
-    """Built-in solvers for the MWIS reduction problem."""
+    """MIS solvers included with QReduce."""
 
     LOCAL_GREEDY = "local_greedy"
+    DWAVE_SIMULATED_ANNEALING = "dwave_simulated_annealing"
 
 
 class BuiltinClassicalSolverId(StrEnum):
-    """Built-in solvers for the residual classical optimization problem."""
+    """Classical solver integrations included with QReduce."""
 
     CPLEX = "cplex"
+    SCIP = "scip"

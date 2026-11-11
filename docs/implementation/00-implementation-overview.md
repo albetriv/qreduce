@@ -17,15 +17,14 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | Tema | Decisione |
 |---|---|
 | Runtime supportato | Python 3.12 |
-| MIS solver built-in | `local_greedy` |
-| Solver classico opzionale | `cplex` tramite extra `qreduce[cplex]` |
-| Adapter dimostrativo obbligatorio | Ottimizzazione media-varianza di portafoglio |
+| Solver MIS e classico | Scelti e registrati esplicitamente dal chiamante |
+| Adapter di dominio | Fornito dall'applicazione o confinato in un esperimento interno |
 | Percorso completo | Riduzione single-pass |
 | Provider quantistici/remoti | Non richiesti dal kernel |
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
 | Esperimenti repository | `qreduce.experiments` salva artifact e resta escluso dalla distribuzione |
 
-L'esperimento di riferimento e` il portfolio sintetico single-pass:
+Un esperimento interno disponibile e` il portfolio sintetico single-pass:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio --run-id run-001
@@ -36,23 +35,24 @@ Il runner pubblica il run in
 `notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` lo analizza
 dal filesystem senza invocare la pipeline.
 
-Il solver `cplex` e l'adapter di portafoglio rendono dimostrabile il requisito
-di un solve residuo MIQP con variabili binarie e continue. Non rendono
-il kernel dipendente da CPLEX o dal dominio finanziario: CPLEX e` un extra
-opzionale e il suo binding viene importato lazy.
+L'esperimento portfolio seleziona i solver built-in `local_greedy` e `cplex` per
+dimostrare un solve residuo MIQP con variabili binarie e continue. Il catalogo MIS
+built-in include anche `dwave_simulated_annealing`, un simulatore Ocean locale
+opzionale. L'esperimento resta escluso dal wheel; CPLEX, PySCIPOpt e Ocean sono
+dipendenze opzionali importate lazy.
 
 ## Principio di progettazione
 
 L'implementazione deve produrre un percorso locale e auditabile:
 
 ```text
-portfolio problem
-  -> domain adapter builds ReductionGraph
+application problem
+  -> application domain adapter builds ReductionGraph
   -> canonical MWIS/QUBO
-  -> local_greedy MIS solver
+  -> built-in or caller-registered MIS solver
   -> sample normalization and candidate domain
   -> explicit fixing manifest
-  -> CPLEX residual MIQP solve
+  -> built-in or caller-registered residual classical solve
   -> adapter post-check
   -> complete in-memory run result and run summary
 
@@ -85,9 +85,9 @@ problema originale dopo fixing euristico.
 | 01 | `01-project-setup-and-python-compatibility.md` | Ambiente Python 3.12 e convenzioni allineati |
 | 02 | `02-core-domain-models-and-configuration.md` | Configurazione, stati, metadata e contratti serializzabili |
 | 03 | `03-canonical-mwis-graph-and-qubo.md` | Grafo, QUBO, energia, Ising ed exact diagnostics |
-| 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS e backend locale concreto |
-| 05 | `05-mean-variance-portfolio-domain-adapter.md` | Adapter MIQP, CPLEX, fixing e post-check |
-| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta e test di integrazione portfolio + local_greedy + CPLEX |
+| 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS, registry e adapter forniti dal chiamante |
+| 05 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio interno, fixing e post-check specifici |
+| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta con registry MIS e classico iniettati |
 | 07 | Esperimenti interni | Runner, artifact JSON, loader filesystem e notebook di analisi |
 | 08 | Estensioni opzionali | Multi-round, recovery e adapter remoti/provider-specifici |
 
@@ -117,7 +117,7 @@ definizione concreta:
 
 - libreria per dataclass/configurazione e validazione;
 - formato interno definitivo delle strutture QUBO e Ising;
-- ulteriori solver MIS e classici oltre a `local_greedy` e `cplex`;
+- cataloghi o package opzionali di solver MIS e classici;
 - schema esatto di tutti i file JSON e CSV;
 - verifica della licenza CPLEX nell'ambiente che esegue i test live;
 - API pubblica finale di `QReduce.run(...)`;

@@ -1,10 +1,10 @@
-"""Optional live end-to-end test for portfolio, local greedy MWIS, and CPLEX."""
+"""Optional live test for the portfolio experiment's local MIS and CPLEX choices."""
 
 import importlib.util
 
 import pytest
 
-from qreduce.domains.portfolio import (
+from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,
@@ -35,7 +35,7 @@ pytestmark = [
 
 
 def make_live_config() -> ResolvedRunConfig:
-    """Build the deterministic configuration for the reference live integration path."""
+    """Build the deterministic configuration for this live experiment path."""
 
     return ResolvedRunConfig(
         schema_version="1.0",

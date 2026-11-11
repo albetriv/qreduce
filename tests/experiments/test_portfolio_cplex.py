@@ -1,7 +1,7 @@
 """Tests for lazy CPLEX backend failure behavior without requiring CPLEX."""
 
 from qreduce.classical import ClassicalSolveRequest, CplexClassicalBackend
-from qreduce.domains.portfolio import (
+from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,
@@ -10,7 +10,7 @@ from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
 def make_request(*, remaining_budget: float = 10.0) -> ClassicalSolveRequest:
-    return ClassicalSolveRequest("run-001", 0, 10.0, remaining_budget, None, 7, 1, False)
+    return ClassicalSolveRequest("run-001", 0, 10.0, remaining_budget, None, 7, 1, False, requested_solver_id="cplex")
 
 
 def make_residual_problem(problem: PortfolioProblem):

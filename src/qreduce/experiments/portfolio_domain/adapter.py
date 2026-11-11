@@ -1,4 +1,4 @@
-"""Adapter from synthetic mean-variance data to QReduce domain contracts."""
+"""Synthetic mean-variance portfolio adapter used only by repository experiments."""
 
 from qreduce.domains.contracts import (
     DomainValidationResult,
@@ -6,13 +6,13 @@ from qreduce.domains.contracts import (
     FixingEntry,
     FixingManifest,
 )
-from qreduce.domains.portfolio.models import (
+from qreduce.experiments.portfolio_domain.models import (
     PortfolioGraphPolicy,
     PortfolioProblem,
     PortfolioResidualProblem,
     PortfolioVariableMapping,
 )
-from qreduce.domains.portfolio.postcheck import validate_portfolio_solution
+from qreduce.experiments.portfolio_domain.postcheck import validate_portfolio_solution
 from qreduce.models import ClassicalSolveOptions
 from qreduce.mwis import ReductionGraph
 

@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from qreduce.domains.portfolio import (
-    MeanVariancePortfolioAdapter,
-    PortfolioGraphPolicy,
-    PortfolioProblem,
-)
 from qreduce.experiments import (
     ExperimentArtifactError,
     load_experiment_run,
     run_experiment,
+)
+from qreduce.experiments.portfolio_domain import (
+    MeanVariancePortfolioAdapter,
+    PortfolioGraphPolicy,
+    PortfolioProblem,
 )
 from qreduce.models import (
     ClassicalSolveOptions,
@@ -88,6 +88,9 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     assert loaded.manifest["experiment_id"] == "portfolio-reference"
     assert loaded.manifest["run_id"] == "run-001"
     assert loaded.result["run_result"]["run_status"] == "failed"
+    assert "\n  \"run_result\":" in (run.run_directory / "run_result.json").read_text(
+        encoding="utf-8"
+    )
     assert loaded.canonical_mwis_problem is not None
     assert loaded.canonical_mwis_problem["graph"]["node_ids"] == [
         "asset-a",
@@ -111,10 +114,16 @@ def test_runner_refuses_to_overwrite_a_published_experiment(
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25)),
         _config("run-001"),
     )
-    run_experiment(*arguments, output_root=tmp_path)
+    run_experiment(
+        *arguments,
+        output_root=tmp_path,
+    )
 
     with pytest.raises(FileExistsError, match="already exists"):
-        run_experiment(*arguments, output_root=tmp_path)
+        run_experiment(
+            *arguments,
+            output_root=tmp_path,
+        )
 
 
 def test_loader_rejects_incomplete_directories(tmp_path: Path) -> None:

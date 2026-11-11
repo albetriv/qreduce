@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.domains.portfolio import (
+from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

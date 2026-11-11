@@ -6,15 +6,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from qreduce.domains.portfolio import (
-    MeanVariancePortfolioAdapter,
-    PortfolioGraphPolicy,
-    PortfolioProblem,
-)
 from qreduce.experiments.artifacts import (
     ExperimentArtifactError,
     ExperimentRunArtifacts,
     load_experiment_run,
+)
+from qreduce.experiments.portfolio_domain import (
+    MeanVariancePortfolioAdapter,
+    PortfolioGraphPolicy,
+    PortfolioProblem,
 )
 from qreduce.experiments.runner import ExperimentRun, run_experiment
 from qreduce.models import (
@@ -86,7 +86,7 @@ class SyntheticPortfolioAnalysis:
 
 
 def build_synthetic_portfolio_inputs(run_id: str) -> SyntheticPortfolioInputs:
-    """Build the deterministic five-asset portfolio inputs used by the reference experiment."""
+    """Build deterministic inputs for the synthetic portfolio experiment."""
 
     asset_ids = ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")
     problem = PortfolioProblem(
@@ -153,7 +153,7 @@ def run_synthetic_portfolio_experiment(
     *,
     output_root: str | Path = "outputs",
 ) -> ExperimentRun:
-    """Run and persist the deterministic synthetic portfolio reference experiment."""
+    """Run and persist the deterministic synthetic portfolio experiment."""
 
     inputs = build_synthetic_portfolio_inputs(run_id)
     return run_experiment(
@@ -174,7 +174,7 @@ def load_synthetic_portfolio_analysis(
     artifacts = load_experiment_run(run_directory)
     if artifacts.manifest["experiment_id"] != SYNTHETIC_PORTFOLIO_EXPERIMENT_ID:
         raise ExperimentArtifactError(
-            "Artifact directory does not contain the synthetic portfolio reference experiment."
+            "Artifact directory does not contain the synthetic portfolio experiment."
         )
     graph_data = artifacts.canonical_mwis_problem
     if graph_data is None:

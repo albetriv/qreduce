@@ -4,7 +4,7 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: e` disponibile una pipeline single-pass dimostrativa per il portfolio sintetico, con risultato auditabile in memoria. Il repository include inoltre un runner interno per esperimenti persistiti, non distribuito con la libreria. Recovery e multi-round non sono inclusi.
+> **Stato**: e` disponibile una pipeline single-pass domain- e solver-agnostica, con risultato auditabile in memoria. Il repository include un esperimento sintetico di portfolio persistito, non distribuito con la libreria. Recovery e multi-round non sono inclusi.
 
 ## Sviluppo
 
@@ -19,38 +19,53 @@ poetry run pytest
 poetry run ruff check .
 ```
 
-Per installare il solver classico opzionale CPLEX:
+I backend classici built-in usano binding opzionali. Per installare CPLEX e
+PySCIPOpt per gli esperimenti o per l'esecuzione dei backend corrispondenti:
 
 ```powershell
-poetry install --extras cplex
+poetry install --with experiments
 ```
 
 `poetry lock` risolve le dipendenze e crea o rigenera il file `poetry.lock`, che
 e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
 package in modalita` editable insieme alle dipendenze gia` risolte.
 
-Le dipendenze core restano provider-agnostic. Test e lint appartengono al gruppo
-di sviluppo. Il binding Python CPLEX appartiene all'extra `cplex`, perche` e`
-richiesto soltanto dal solver classico opzionale `cplex`. Il binding e` importato
-lazy da `CplexClassicalBackend`, quindi `import qreduce` non lo carica. Se il
-binding, la licenza o l'ambiente CPLEX non sono utilizzabili, QReduce produce una
-failure esplicita e non seleziona automaticamente un solver alternativo.
+Le dipendenze core restano provider-agnostic. I binding Python `cplex` e
+`pyscipopt` sono opzionali e vengono importati lazy dai backend QReduce;
+`import qreduce` non li carica. Se il binding, il runtime o una licenza richiesta
+non sono disponibili, QReduce produce una failure esplicita e non seleziona
+automaticamente un'alternativa.
 
 ## Selezione dei solver
 
-L'applicazione seleziona i solver tramite ID pubblici e serializzabili; QReduce
-risolve internamente il relativo backend Python attraverso registry espliciti.
+L'applicazione seleziona i solver tramite ID pubblici e serializzabili. La pipeline
+risolve automaticamente gli ID forniti da QReduce; non richiede registry popolati
+dal chiamante per usare i backend standard.
 
 ```text
 mis_solver_id = "local_greedy"
+# oppure: mis_solver_id = "dwave_simulated_annealing"
 classical_solver_id = "cplex"
+# oppure: classical_solver_id = "scip"
 ```
 
-`local_greedy` risolve il MWIS usato per la riduzione del dominio. `cplex`
-risolve il MILP/MIQP residuo dopo l'applicazione dei fixing. Le classi interne
-`LocalGreedyMISBackend` e `CplexClassicalBackend` non sono la scelta primaria
-dell'utente. Un ID sconosciuto, non disponibile o incompatibile fallisce in modo
-esplicito; non e` previsto fallback silenzioso.
+Il catalogo iniziale QReduce contiene `local_greedy` e
+`dwave_simulated_annealing` per MWIS, oltre a `cplex` e `scip` per il solve
+classico residuo. `dwave_simulated_annealing` usa il simulatore locale Ocean
+`dwave.samplers.SimulatedAnnealingSampler` sul QUBO canonico; richiede le
+dipendenze opzionali `dimod` e `dwave-samplers`, non credenziali Leap, QPU o
+embedding. Puoi impostare `num_reads`, `num_sweeps`, `beta_range` e
+`beta_schedule_type` in `mis_execution.provider_parameters`. Un ID sconosciuto
+e` un errore esplicito di configurazione; un ID noto con binding, runtime o
+licenza non disponibile produce un failure esplicito del backend. Non e` previsto
+fallback silenzioso. Le registry restano disponibili soltanto come estensione
+esplicita per backend applicativi.
+
+Per installare i binding opzionali dei solver inclusi nel repository:
+
+```bash
+poetry install --with experiments
+```
 
 ## Policy e valutazione esterna
 
@@ -61,7 +76,7 @@ QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e 
 ```text
 applicazione esterna
   -> problema originale + policy esplicita
-  -> adapter di dominio + MIS solver + solver classico
+  -> adapter di dominio + solver ID configurati
   -> QReduce
   -> candidate domain + fixing manifest + solve residuo + post-check
   -> decisione dell'applicazione
@@ -103,8 +118,8 @@ Il runner interno salva sempre gli artifact sotto:
 outputs/{experiment_id}/{run_id}/
 ```
 
-Il caso di riferimento e` il portfolio sintetico single-pass. Per produrre un
-run da analizzare:
+Un esperimento interno disponibile e` il portfolio sintetico single-pass. Per
+produrre un run da analizzare:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio --run-id run-001
@@ -138,12 +153,11 @@ vincoli hard del problema originale.
 poetry install --with notebooks
 poetry run jupyter lab
 ```
-
-Aprire i notebook dal repository. Per eseguire il runner portfolio con il solve
-classico reale, installare inoltre con `poetry install --with notebooks --extras
-cplex` e disporre di una licenza CPLEX utilizzabile. In assenza di CPLEX il runner
-salva la failure effettiva e gli eventuali risultati intermedi, senza sostituire
-il solver. Le selezioni MWIS non sono la soluzione finale e non certificano
-l'ottimo del problema originale.
+Per eseguire il runner portfolio con un solve classico reale, installare inoltre
+`poetry install --with notebooks,experiments` e configurare `cplex` o `scip`.
+CPLEX richiede una licenza utilizzabile; SCIP usa il binding PySCIPOpt. In assenza
+del binding selezionato il runner salva la failure effettiva e gli eventuali
+risultati intermedi, senza sostituire il solver. Le selezioni MWIS non sono la
+soluzione finale e non certificano l'ottimo del problema originale.
 
 La specifica completa e normativa e` disponibile in [`docs/specifications.md`](./docs/specifications.md).

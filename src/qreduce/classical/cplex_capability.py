@@ -5,7 +5,6 @@ from importlib import import_module as _import_module
 from typing import Literal
 
 from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
-from qreduce.solvers import BuiltinClassicalSolverId
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +67,7 @@ def cplex_classical_capabilities() -> ClassicalRuntimeCapabilities:
 
     observed = probe_cplex_runtime()
     return ClassicalRuntimeCapabilities(
-        solver_id=BuiltinClassicalSolverId.CPLEX.value,
+        solver_id="cplex",
         runtime_available=observed.binding_importable,
         supports_milp=True,
         supports_miqp=True,

@@ -24,7 +24,7 @@ class ClassicalSolveRequest:
     model_export_enabled: bool
     model_export_path: str | None = None
     solver_parameters: Mapping[str, object] = field(default_factory=dict)
-    requested_solver_id: str = "cplex"
+    requested_solver_id: str = "unspecified"
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -75,7 +75,7 @@ class ClassicalSolveResult:
     model_export_path: str | None = None
     remaining_time_budget_at_start_seconds: float | None = None
     diagnostic_message: str | None = None
-    requested_solver_id: str = "cplex"
+    requested_solver_id: str = "unspecified"
     effective_solver_id: str | None = None
 
     def __post_init__(self) -> None:

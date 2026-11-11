@@ -20,7 +20,7 @@ La configurazione deve distinguere tre concetti:
 |---|---|---|
 | Configurazione di run risolta | Richiesta validata e serializzata | Budget, seed, cap, lambda, solver richiesto |
 | Policy e provenance | Decisioni esterne applicate senza adattamento implicito | ID, versione, hash, selection status |
-| Capability runtime | Cio` che un adapter/backend puo` realmente fare | Forme supportate, CPLEX disponibile, seed supportato |
+| Capability runtime | Cio` che un adapter/backend puo` realmente fare | Forme supportate, solver disponibile, seed supportato |
 
 Una capability non cambia la configurazione richiesta. Se una richiesta e` incompatibile con capability o ambiente, il run deve fallire esplicitamente.
 
@@ -91,7 +91,10 @@ I valori iniziali, i default concreti e il canale di caricamento della configura
 - `max_reduction_rounds = 1` e` la configurazione supportata dalla pipeline single-pass; il contratto puo` contenere il campo multi-round.
 - Un timeout effettivo non puo` superare il budget end-to-end residuo.
 - Una policy MWIS standard richiede `lambda_edge > max_i(w_i)` per il grafo del round, salvo esplicita policy non certificante consentita dalle specifiche.
-- Gli ID pubblici `mis_solver_id` e `classical_solver_id` devono essere risolti da registry espliciti; ID sconosciuti sono errori di configurazione e non attivano fallback.
+- Gli ID pubblici `mis_solver_id` e `classical_solver_id` sono risolti dai
+  cataloghi built-in QReduce; una registry passata esplicitamente puo` estendere
+  il catalogo. ID sconosciuti sono errori di configurazione e non attivano
+  fallback.
 - I parametri specifici di un backend sono validi soltanto se la capability dell'implementazione selezionata li dichiara supportati.
 
 ## Stati, failure e adozione
@@ -125,7 +128,6 @@ src/qreduce/config.py
 src/qreduce/models.py
 src/qreduce/status.py
 src/qreduce/capabilities.py
-src/qreduce/solvers.py
 src/qreduce/mis/registry.py
 src/qreduce/classical/registry.py
 src/qreduce/artifacts/metadata.py

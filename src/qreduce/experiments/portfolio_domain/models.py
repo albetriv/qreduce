@@ -1,4 +1,4 @@
-"""Immutable synthetic mean-variance portfolio contracts."""
+"""Immutable contracts for the synthetic portfolio experiment."""
 
 import math
 from collections.abc import Mapping
@@ -6,12 +6,20 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
+from qreduce.classical import (
+    ClassicalOptimizationModel,
+    ClassicalVariable,
+    ClassicalVariableType,
+    LinearConstraint,
+    LinearConstraintSense,
+    QuadraticObjectiveTerm,
+)
 from qreduce.domains.contracts import FixingManifest
 
 
 @dataclass(frozen=True, slots=True)
 class PortfolioGraphPolicy:
-    """Versioned, explicit graph policy for the demonstrative portfolio adapter."""
+    """Versioned, explicit graph policy for the portfolio experiment."""
 
     policy_id: str
     policy_version: str
@@ -156,6 +164,88 @@ class PortfolioResidualProblem:
     @property
     def constraint_count(self) -> int:
         return 1 + 2 * len(self.original_problem.asset_ids) + 2 * len(self.fixing_manifest.entries)
+
+    def build_classical_model(self) -> ClassicalOptimizationModel:
+        """Compile the portfolio residual problem without importing a solver binding."""
+
+        problem = self.original_problem
+        mapping = self.variable_mapping
+        asset_ids = problem.asset_ids
+        delta_variables = tuple(
+            ClassicalVariable(
+                mapping.delta_variable_by_asset[asset_id],
+                ClassicalVariableType.BINARY,
+                0.0,
+                1.0,
+            )
+            for asset_id in asset_ids
+        )
+        x_variables = tuple(
+            ClassicalVariable(
+                mapping.x_variable_by_asset[asset_id],
+                ClassicalVariableType.CONTINUOUS,
+                0.0,
+                None,
+            )
+            for asset_id in asset_ids
+        )
+        constraints: list[LinearConstraint] = [
+            LinearConstraint(
+                "budget",
+                {mapping.x_variable_by_asset[asset_id]: 1.0 for asset_id in asset_ids},
+                LinearConstraintSense.EQUAL,
+                1.0,
+            )
+        ]
+        for asset_id in asset_ids:
+            delta_name = mapping.delta_variable_by_asset[asset_id]
+            x_name = mapping.x_variable_by_asset[asset_id]
+            constraints.extend(
+                (
+                    LinearConstraint(
+                        f"lower_link__{asset_id}",
+                        {x_name: 1.0, delta_name: -problem.lower_bounds[asset_id]},
+                        LinearConstraintSense.GREATER_EQUAL,
+                        0.0,
+                    ),
+                    LinearConstraint(
+                        f"upper_link__{asset_id}",
+                        {x_name: 1.0, delta_name: -problem.upper_bounds[asset_id]},
+                        LinearConstraintSense.LESS_EQUAL,
+                        0.0,
+                    ),
+                )
+            )
+        for entry in self.fixing_manifest.entries:
+            constraints.extend(
+                LinearConstraint(
+                    f"fix__{entry.item_id}__{variable_name}",
+                    {variable_name: 1.0},
+                    LinearConstraintSense.EQUAL,
+                    value,
+                )
+                for variable_name, value in entry.variable_values.items()
+            )
+        quadratic_terms = tuple(
+            QuadraticObjectiveTerm(
+                mapping.x_variable_by_asset[left_asset_id],
+                mapping.x_variable_by_asset[right_asset_id],
+                problem.risk_aversion
+                * problem.covariance[left_index][right_index]
+                * (1.0 if left_index == right_index else 2.0),
+            )
+            for left_index, left_asset_id in enumerate(asset_ids)
+            for right_index, right_asset_id in enumerate(asset_ids[left_index:], start=left_index)
+        )
+        return ClassicalOptimizationModel(
+            variables=delta_variables + x_variables,
+            linear_objective={
+                mapping.x_variable_by_asset[asset_id]: -problem.expected_returns[asset_id]
+                for asset_id in asset_ids
+            },
+            quadratic_objective=quadratic_terms,
+            linear_constraints=tuple(constraints),
+        )
 
     def to_dict(self) -> dict[str, object]:
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]

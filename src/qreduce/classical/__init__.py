@@ -3,27 +3,37 @@
 from .capabilities import ClassicalRuntimeCapabilities
 from .contracts import ClassicalBackend, ClassicalSolveRequest, ClassicalSolveResult
 from .cplex_backend import CplexClassicalBackend
-from .cplex_capability import (
-    CplexRuntimeCapability,
-    cplex_classical_capabilities,
-    probe_cplex_runtime,
+from .model import (
+    ClassicalModelProvider,
+    ClassicalOptimizationModel,
+    ClassicalVariable,
+    ClassicalVariableType,
+    LinearConstraint,
+    LinearConstraintSense,
+    QuadraticObjectiveTerm,
 )
 from .registry import (
     ClassicalSolverRegistry,
     UnknownClassicalSolverError,
     builtin_classical_solver_registry,
 )
+from .scip_backend import ScipClassicalBackend
 
 __all__ = [
     "ClassicalBackend",
+    "ClassicalModelProvider",
+    "ClassicalOptimizationModel",
     "ClassicalRuntimeCapabilities",
     "ClassicalSolveRequest",
     "ClassicalSolveResult",
     "ClassicalSolverRegistry",
+    "ClassicalVariable",
+    "ClassicalVariableType",
     "CplexClassicalBackend",
-    "CplexRuntimeCapability",
+    "LinearConstraint",
+    "LinearConstraintSense",
+    "QuadraticObjectiveTerm",
+    "ScipClassicalBackend",
     "UnknownClassicalSolverError",
     "builtin_classical_solver_registry",
-    "cplex_classical_capabilities",
-    "probe_cplex_runtime",
 ]

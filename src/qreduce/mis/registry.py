@@ -1,10 +1,8 @@
-"""Registry mapping public MWIS solver IDs to QReduce implementations."""
+"""Factory registry for QReduce-provided and application-provided MWIS solvers."""
 
 from collections.abc import Callable
 
 from qreduce.mis.compilation import MISExecutionAdapter
-from qreduce.mis.local_backend import LocalGreedyMISBackend
-from qreduce.solvers import BuiltinMISSolverId
 
 
 class UnknownMISSolverError(ValueError):
@@ -12,10 +10,12 @@ class UnknownMISSolverError(ValueError):
 
 
 class MISSolverRegistry:
-    """Small explicit registry; external registration can be added without API changes."""
+    """Resolve bundled solver IDs and allow explicit application extensions."""
 
-    def __init__(self) -> None:
-        self._factories: dict[str, Callable[[], MISExecutionAdapter]] = {}
+    def __init__(self, *, include_builtins: bool = True) -> None:
+        self._factories: dict[str, Callable[[], MISExecutionAdapter]] = (
+            _builtin_factories() if include_builtins else {}
+        )
 
     def register(self, solver_id: str, factory: Callable[[], MISExecutionAdapter]) -> None:
         if not solver_id.strip():
@@ -36,8 +36,21 @@ class MISSolverRegistry:
 
 
 def builtin_mis_solver_registry() -> MISSolverRegistry:
-    """Return a registry with dependency-free solvers bundled by QReduce."""
+    """Create the standard QReduce MWIS solver catalog."""
 
-    registry = MISSolverRegistry()
-    registry.register(BuiltinMISSolverId.LOCAL_GREEDY.value, LocalGreedyMISBackend)
-    return registry
+    return MISSolverRegistry()
+
+
+def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
+    """Import local implementations only while constructing the built-in catalog."""
+
+    from qreduce.mis.dwave_simulated_annealing_backend import (
+        DWaveSimulatedAnnealingMISBackend,
+    )
+    from qreduce.mis.local_backend import LocalGreedyMISBackend
+    from qreduce.solvers import BuiltinMISSolverId
+
+    return {
+        BuiltinMISSolverId.LOCAL_GREEDY: LocalGreedyMISBackend,
+        BuiltinMISSolverId.DWAVE_SIMULATED_ANNEALING: DWaveSimulatedAnnealingMISBackend,
+    }

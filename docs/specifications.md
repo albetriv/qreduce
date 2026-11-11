@@ -62,20 +62,22 @@ QReduce non deve:
 QReduce implementa il percorso end-to-end con i componenti obbligatori seguenti:
 
 | Componente | Stato |
-|---|---|
 | Adapter di dominio dimostrativo | obbligatorio |
 | Rappresentazione MWIS canonica: grafo, QUBO e conversione BQM/Ising quando applicabile; validazione, repair e candidate domain | obbligatorio |
-| Contratto di compilation/esecuzione MIS provider-agnostic con dichiarazione delle capability | obbligatorio |
 | Backend MIS locale concreto, euristico o simulato | obbligatorio; non deve rendere il kernel dipendente da uno specifico provider o SDK |
-| Exact MIS/QUBO solver | obbligatorio, solo per diagnostica e test sotto una soglia configurabile |
-| Backend classico SCIP **oppure** CPLEX | obbligatorio: almeno una integrazione concreta deve essere operativa |
-| Secondo backend classico | interfaccia predisposta; implementazione opzionale |
-| Adapter annealing/BQM, ad esempio D-Wave Ocean | opzionale; se implementato, puo` supportare simulatore locale, hybrid o QPU secondo capability dichiarate |
+| Cataloghi/factory built-in per solver MIS e classico | obbligatorio: QReduce risolve gli ID standard senza registry forniti dal chiamante |
+| Backend MIS locale `local_greedy` | obbligatorio: euristico dependency-free, selezionato solo con ID esplicito |
+| Backend MIS locale `dwave_simulated_annealing` | obbligatorio: integrazione lazy con Ocean `dimod` + `dwave-samplers`, QUBO e simulated annealing locale senza credenziali, QPU o embedding |
+| Backend classici `cplex` e `scip` | obbligatorio: integrazioni lazy con failure esplicita se binding, runtime o licenza non sono disponibili |
+| Adapter annealing/BQM D-Wave Ocean remoto | opzionale; Leap Hybrid o QPU restano adapter distinti con capability, credenziali, device ed embedding dichiarati |
 | Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale; contratto predisposto |
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
 | QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
 
-La configurazione deve rifiutare esplicitamente un backend dichiarato ma non implementato o non disponibile. Uno stub o un contratto predisposto non costituisce un backend utilizzabile.
+La configurazione deve rifiutare esplicitamente un ID backend non noto. Un ID noto
+ma non disponibile per binding, runtime o licenza deve produrre una failure
+normalizzata del backend selezionato. Non sono ammessi fallback impliciti. Le
+registry possono essere usate soltanto come meccanismo esplicito di estensione.
 
 ## 4. Classe di problemi supportata
 
@@ -711,7 +713,7 @@ Il vettore binario deve essere validato rispetto al `node_order` serializzato ne
 QReduce implementa almeno:
 
 ```text
-un backend MIS locale concreto, euristico o simulato
+backend MIS built-in local_greedy e dwave_simulated_annealing, selezionati da ID esplicito
 un exact MIS/QUBO solver per diagnostica su istanze piccole
 la rappresentazione e i contratti provider-agnostic definiti in questa sezione
 ```
@@ -722,7 +724,7 @@ I contratti possono supportare adapter operativi o futuri, inclusi ma non limita
 
 ```text
 local classical heuristic or simulated annealing solver
-D-Wave Ocean local sampler, Leap Hybrid sampler or QPU sampler with embedding management
+D-Wave Ocean local simulated annealing sampler (built-in ID dwave_simulated_annealing), Leap Hybrid sampler or QPU sampler with embedding management
 IBM Qiskit local simulator or IBM Quantum gate-based QPU
 AWS Braket local/managed simulator, gate-based QPU or annealing target when disponibile
 Pasqal/Pulser local emulator or neutral-atom QPU/service
@@ -875,7 +877,10 @@ class ReducibleProblemAdapter:
         ...
 ```
 
-La risoluzione classica appartiene al `ClassicalBackend`; l'adapter puo` preparare, esportare o ispezionare il proprio modello, ma non deve duplicare il contratto di solve del backend.
+La risoluzione classica appartiene al `ClassicalBackend`. L'adapter compila il
+proprio problema residuale in un modello solver-agnostico e non deve importare o
+configurare binding di solver. Il backend selezionato traduce quel modello nel
+runtime nativo senza conoscere il tipo concreto del dominio.
 
 L'adapter e` responsabile di:
 
@@ -902,6 +907,19 @@ class ClassicalBackend:
         ...
 ```
 
+Il confine minimo tra adapter e backend e` un `ClassicalModelProvider` che espone
+un `ClassicalOptimizationModel` di minimizzazione, composto da variabili tipate,
+obiettivo lineare, termini quadratici espansi e vincoli lineari. Il coefficiente
+di ogni termine quadratico rappresenta il polinomio effettivo, non la matrice
+quadratica di una API specifica. La conversione alle convenzioni native,
+incluse forme quadratiche con coefficienti diagonali in convenzione dimezzata,
+e` responsabilita` del backend.
+
+I solver ID classici built-in iniziali sono `cplex` e `scip`. Entrambi usano
+import lazy e non possono importare moduli di dominio sperimentali. Il backend
+deve rifiutare un residual problem che non fornisce il contratto del modello
+generico con `unsupported_problem_structure`.
+
 `ClassicalSolveRequest` deve includere almeno `run_id`, `round_index`, `time_limit_seconds`, `remaining_end_to_end_seconds`, `mip_gap_tolerance`, `random_seed`, `threads` e le opzioni di export. Il tempo effettivo assegnato al backend e` il minimo positivo tra `time_limit_seconds` e `remaining_end_to_end_seconds`; se non esiste tempo residuo positivo il backend non deve essere invocato e il run termina con `end_to_end_time_budget_exhausted`.
 
 Il risultato deve includere almeno:
@@ -922,7 +940,11 @@ model export path, if requested
 remaining time budget at solve start
 ```
 
-QReduce implementa almeno uno tra SCIP e CPLEX. Il secondo backend puo` essere supportato dal contratto ma non deve essere dichiarato operativo se non implementato. L'indisponibilita` del backend richiesto deve produrre failure esplicita; non e` ammesso il fallback silenzioso da CPLEX a SCIP o viceversa.
+QReduce definisce il contratto per il backend classico ma non impone ne` distribuisce
+un solver specifico. Il chiamante registra il backend coerente con il proprio
+`classical_solver_id`; un esperimento interno puo` registrare integrazioni concrete
+per il proprio solo scopo. L'indisponibilita` del backend richiesto deve produrre
+failure esplicita; non e` ammesso fallback silenzioso verso un solver differente.
 
 ## 15. Post-check della soluzione finale
 
@@ -1339,14 +1361,14 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 
 QReduce soddisfa i criteri di accettazione quando:
 
-1. Esiste un adapter di dominio dimostrativo per un problema MIQP o MIQCP con variabili binarie e continue, contratti serializzabili e mapping completo item/variabili.
+1. Il kernel usa esclusivamente il contratto `ReducibleProblemAdapter`; adapter, modelli residui e post-check di dominio sono forniti dall'applicazione chiamante o confinati negli esperimenti interni.
 2. Il framework esegue il percorso completo `graph -> MIS -> candidate domain -> restricted classical solve -> post-check`.
 3. Il kernel non dipende da SDK, provider, QPU, simulatore o formato di job specifico e la rappresentazione MWIS canonica e` serializzabile.
-4. E` operativo almeno un backend MIS locale concreto; un adapter D-Wave Ocean, IBM Qiskit, AWS Braket, Pasqal/Pulser o altro backend compatibile puo` costituire un'implementazione, ma non una dipendenza del kernel.
+4. La pipeline accetta registry MIS espliciti forniti dal chiamante; un backend locale, D-Wave Ocean, IBM Qiskit, AWS Braket, Pasqal/Pulser o altro backend compatibile puo` essere registrato senza diventare una dipendenza del kernel.
 5. Il backend exact e` disponibile solo per test diagnostici piccoli.
 6. La configurazione valida capability, rappresentazione, parametri e modalita` di esecuzione prima della compilation e rifiuta esplicitamente adapter o capability non disponibili.
 7. Il framework normalizza i risultati del backend in sample binarie canoniche e ricalcola le metriche strutturali necessarie all'audit.
-8. Il framework supporta concretamente almeno uno tra SCIP e CPLEX per il residual solve; l'interfaccia e` predisposta per entrambi.
+8. La pipeline accetta un registry classico esplicito fornito dal chiamante; qualsiasi solver compatibile con il contratto puo` eseguire il residual solve senza diventare un requisito della libreria.
 9. La riduzione applica fixing espliciti e rende disponibile un fixing manifest serializzabile nel risultato in memoria.
 10. Il framework distingue origine e garanzia di fixing euristico, sicuro e imposto dall'utente.
 11. La configurazione standard impone la condizione certificante `lambda_edge > max_i(w_i)` e i test piccoli ne verificano la proprieta`.
@@ -1360,7 +1382,7 @@ QReduce soddisfa i criteri di accettazione quando:
 Le estensioni non incluse includono:
 
 - implementazione di ulteriori adapter per D-Wave Leap Hybrid e QPU, IBM Quantum/Qiskit, AWS Braket, Pasqal/Pulser e altri provider;
-- portfolio e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
+- esperimenti di portfolio o di altri domini e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
 - politiche di graph construction apprese o data-driven;
 - integrazione con certificate di presolve e reduced-cost fixing;
 - adaptive selection del numero di round e della dimensione di `C`;

@@ -1,10 +1,13 @@
-"""Independent arithmetic validation for portfolio residual solutions."""
+"""Independent arithmetic validation for portfolio experiment solutions."""
 
 import math
 from collections.abc import Mapping
 
 from qreduce.domains.contracts import FinalSolutionValidationResult, FixingManifest
-from qreduce.domains.portfolio.models import PortfolioProblem, PortfolioVariableMapping
+from qreduce.experiments.portfolio_domain.models import (
+    PortfolioProblem,
+    PortfolioVariableMapping,
+)
 from qreduce.models import ClassicalSolveOptions
 
 

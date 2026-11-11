@@ -13,7 +13,6 @@ from qreduce.mis.contracts import (
     MISNormalizationResult,
     RawMISSample,
 )
-from qreduce.mis.local_backend import LocalGreedyMISBackend
 from qreduce.mis.normalization import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
@@ -28,7 +27,6 @@ __all__ = [
     "BackendReportedScoreKind",
     "CompiledMISJob",
     "DeduplicationResult",
-    "LocalGreedyMISBackend",
     "MISBackendRequest",
     "MISBackendResult",
     "MISCompilationRequest",
