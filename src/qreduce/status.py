@@ -21,7 +21,6 @@ class PipelineStage(StrEnum):
     RESTRICTION = "restriction"
     CLASSICAL = "classical"
     POSTCHECK = "postcheck"
-    ARTIFACTS = "artifacts"
 
 
 class TerminalReason(StrEnum):
@@ -61,7 +60,6 @@ class TerminalReason(StrEnum):
     CLASSICAL_SOLVER_INFEASIBLE = "classical_solver_infeasible"
     CLASSICAL_SOLVER_TIME_LIMITED = "classical_solver_time_limited"
     POSTCHECK_FAILED = "postcheck_failed"
-    ARTIFACT_WRITE_FAILED = "artifact_write_failed"
     UNSUPPORTED_PROBLEM_STRUCTURE = "unsupported_problem_structure"
 
 

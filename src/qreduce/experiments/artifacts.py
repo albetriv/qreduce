@@ -10,6 +10,7 @@ from qreduce.artifacts.metadata import sha256_hex
 ARTIFACT_SCHEMA_VERSION = "1.0"
 _REQUIRED_ARTIFACT_FILES = (
     "config_used.json",
+    "experiment_metadata.json",
     "problem.json",
     "run_result.json",
     "run_manifest.json",
@@ -27,6 +28,7 @@ class ExperimentRunArtifacts:
     run_directory: Path
     manifest: Mapping[str, object]
     config: Mapping[str, object]
+    experiment_metadata: Mapping[str, object]
     problem: object
     result: Mapping[str, object]
     canonical_mwis_problem: Mapping[str, object] | None
@@ -61,6 +63,7 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
 
     canonical_path = directory / "canonical_mwis_problem.json"
     config = _read_json_object(directory / "config_used.json")
+    experiment_metadata = _read_json_object(directory / "experiment_metadata.json")
     problem = _read_json(directory / "problem.json")
     result = _read_json_object(directory / "run_result.json")
     canonical_mwis_problem = (
@@ -70,6 +73,7 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
         manifest,
         {
             "config_used.json": config,
+            "experiment_metadata.json": experiment_metadata,
             "problem.json": problem,
             "run_result.json": result,
             **(
@@ -83,6 +87,7 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
         run_directory=directory,
         manifest=manifest,
         config=config,
+        experiment_metadata=experiment_metadata,
         problem=problem,
         result=result,
         canonical_mwis_problem=canonical_mwis_problem,

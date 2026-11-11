@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import mkdtemp
@@ -35,6 +36,7 @@ def run_experiment(
     config: ResolvedRunConfig,
     *,
     output_root: str | Path = "outputs",
+    experiment_metadata: Mapping[str, object] | None = None,
 ) -> ExperimentRun:
     """Run QReduce once and persist a complete artifact directory for notebook loading.
 
@@ -55,7 +57,13 @@ def run_experiment(
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_root = Path(mkdtemp(prefix=f".{run_id}.", dir=destination.parent))
     try:
-        _write_artifacts(temporary_root, experiment_id, problem, result)
+        _write_artifacts(
+            temporary_root,
+            experiment_id,
+            problem,
+            result,
+            experiment_metadata or {},
+        )
         os.replace(temporary_root, destination)
     except Exception:
         shutil.rmtree(temporary_root, ignore_errors=True)
@@ -70,12 +78,14 @@ def _write_artifacts(
     experiment_id: str,
     problem: object,
     result: SinglePassRunResult,
+    experiment_metadata: Mapping[str, object],
 ) -> None:
     config = result.resolved_config.to_dict()
     problem_data = redact_metadata(to_primitive(problem))
     result_data = result.to_dict()
     files: dict[str, object] = {
         "config_used.json": config,
+        "experiment_metadata.json": redact_metadata(to_primitive(experiment_metadata)),
         "problem.json": problem_data,
         "run_result.json": result_data,
     }

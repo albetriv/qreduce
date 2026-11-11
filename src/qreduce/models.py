@@ -198,14 +198,8 @@ class RunResult:
                 raise ValueError(
                     "A time-limited incumbent can only produce partial_success."
                 )
-        if (
-            self.run_status is RunStatus.FAILED
-            and self.adoption_status is AdoptionStatus.ADOPTED
-            and self.terminal_reason is not TerminalReason.ARTIFACT_WRITE_FAILED
-        ):
-            raise ValueError(
-                "A failed run cannot adopt a solution except after artifact failure."
-            )
+        if self.run_status is RunStatus.FAILED and self.adoption_status is AdoptionStatus.ADOPTED:
+            raise ValueError("A failed run cannot adopt a solution.")
         if (
             self.postcheck_status is PostcheckStatus.FAILED
             and self.adoption_status is AdoptionStatus.ADOPTED

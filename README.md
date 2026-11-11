@@ -103,6 +103,17 @@ Il runner interno salva sempre gli artifact sotto:
 outputs/{experiment_id}/{run_id}/
 ```
 
+Il caso di riferimento e` il portfolio sintetico single-pass. Per produrre un
+run da analizzare:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio --run-id run-001
+```
+
+Il notebook corrispondente e`
+`notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` e carica
+`outputs/synthetic-portfolio-single-pass/run-001/`.
+
 Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
 
 I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare `run_single_pass`.
@@ -112,13 +123,13 @@ I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal 
 ### Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria: grafo
-MWIS, equivalenza QUBO/Ising e pipeline single-pass portfolio. La logica degli
-esempi risiede in `src/qreduce/notebook_examples.py`; questi notebook non esportano
-artifact e non sono benchmark o raccomandazioni di policy. I notebook in
-`notebooks/experiments/` sono invece dedicati all'analisi degli artifact gia` prodotti.
+MWIS ed equivalenza QUBO/Ising. La logica degli esempi risiede in
+`src/qreduce/notebook_examples.py`; questi notebook non esportano artifact e non
+sono benchmark o raccomandazioni di policy. I notebook in `notebooks/experiments/`
+sono invece dedicati all'analisi degli artifact gia` prodotti.
 I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare
-illustrativo, non coordinate geometriche del problema. Nel notebook portfolio
-il caso sintetico usa cinque asset; la matrice delle correlazioni evidenzia gli
+illustrativo, non coordinate geometriche del problema. Nell'esperimento portfolio
+sintetico il caso usa cinque asset; la matrice delle correlazioni evidenzia gli
 archi generati dalla soglia assoluta. Nel grafo del risultato il colore
 evidenzia il dominio mantenuto, non la selezione finale. Gli archi non sono
 vincoli hard del problema originale.
@@ -128,11 +139,11 @@ poetry install --with notebooks
 poetry run jupyter lab
 ```
 
-Aprire i notebook dal repository. Per eseguire anche il solve classico reale,
-installare inoltre con `poetry install --with notebooks --extras cplex` e
-disporre di una licenza CPLEX utilizzabile. In assenza di CPLEX il notebook
-portfolio mostra la failure effettiva e gli eventuali risultati intermedi,
-senza sostituire il solver. Le selezioni MWIS non sono la soluzione finale e
-non certificano l'ottimo del problema originale.
+Aprire i notebook dal repository. Per eseguire il runner portfolio con il solve
+classico reale, installare inoltre con `poetry install --with notebooks --extras
+cplex` e disporre di una licenza CPLEX utilizzabile. In assenza di CPLEX il runner
+salva la failure effettiva e gli eventuali risultati intermedi, senza sostituire
+il solver. Le selezioni MWIS non sono la soluzione finale e non certificano
+l'ottimo del problema originale.
 
 La specifica completa e normativa e` disponibile in [`docs/specifications.md`](./docs/specifications.md).

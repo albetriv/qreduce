@@ -25,6 +25,17 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
 | Esperimenti repository | `qreduce.experiments` salva artifact e resta escluso dalla distribuzione |
 
+L'esperimento di riferimento e` il portfolio sintetico single-pass:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio --run-id run-001
+```
+
+Il runner pubblica il run in
+`outputs/synthetic-portfolio-single-pass/run-001/`; il notebook
+`notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` lo analizza
+dal filesystem senza invocare la pipeline.
+
 Il solver `cplex` e l'adapter di portafoglio rendono dimostrabile il requisito
 di un solve residuo MIQP con variabili binarie e continue. Non rendono
 il kernel dipendente da CPLEX o dal dominio finanziario: CPLEX e` un extra

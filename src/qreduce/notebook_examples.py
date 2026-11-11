@@ -5,27 +5,12 @@ These examples are illustrative, not a benchmark or a policy recommendation.
 
 from itertools import product
 
-from qreduce.domains.portfolio import (
-    MeanVariancePortfolioAdapter,
-    PortfolioGraphPolicy,
-    PortfolioProblem,
-)
-from qreduce.models import (
-    ClassicalSolveOptions,
-    LambdaEdgePolicy,
-    MISExecutionOptions,
-    ReductionPolicy,
-    ResolvedRunConfig,
-    RunIdentity,
-)
 from qreduce.mwis.energy import ising_energy, qubo_energy
 from qreduce.mwis.exact import solve_exact_mwis
 from qreduce.mwis.graph import ReductionGraph
 from qreduce.mwis.ising import delta_to_spin, qubo_to_ising
 from qreduce.mwis.qubo import build_mwis_qubo
 from qreduce.mwis.validation import validate_binary_selection
-from qreduce.pipeline import run_single_pass
-from qreduce.status import PostcheckMode
 
 
 def graph_example() -> dict[str, object]:
@@ -86,98 +71,4 @@ def energy_example() -> dict[str, object]:
         "qubo": qubo.to_dict(),
         "ising": ising.to_dict(),
         "energies": energies,
-    }
-
-
-def portfolio_example() -> dict[str, object]:
-    """Run the real single-pass pipeline, retaining failures and partial output."""
-    problem = PortfolioProblem(
-        asset_ids=("asset-a", "asset-b", "asset-c", "asset-d", "asset-e"),
-        expected_returns={
-            "asset-a": 0.10,
-            "asset-b": 0.08,
-            "asset-c": 0.06,
-            "asset-d": 0.07,
-            "asset-e": 0.05,
-        },
-        covariance=(
-            (0.04, 0.016, 0.0, 0.0, 0.004),
-            (0.016, 0.04, -0.012, 0.0, 0.0),
-            (0.0, -0.012, 0.04, 0.014, 0.0),
-            (0.0, 0.0, 0.014, 0.04, 0.012),
-            (0.004, 0.0, 0.0, 0.012, 0.04),
-        ),
-        lower_bounds={
-            asset: 0.0
-            for asset in ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")
-        },
-        upper_bounds={
-            asset: 0.7
-            for asset in ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")
-        },
-        retention_scores={
-            "asset-a": 0.9,
-            "asset-b": 0.7,
-            "asset-c": 0.8,
-            "asset-d": 0.6,
-            "asset-e": 0.5,
-        },
-        risk_aversion=1.0,
-    )
-    config = ResolvedRunConfig(
-        schema_version="1.0",
-        reduction=ReductionPolicy(1, 1, 3, 1, 0.1, 3, 60.0),
-        lambda_edge=2.0,
-        lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
-        allow_noncertifying_penalty=False,
-        mis_solver_id="local_greedy",
-        mis_execution=MISExecutionOptions(1, 17, 1, False, 0, 0.0, 20),
-        classical_solve=ClassicalSolveOptions(
-            classical_solver_id="cplex",
-            time_limit_seconds=10.0,
-            mip_gap_tolerance=None,
-            threads=1,
-            model_export_enabled=False,
-            primal_feasibility_tolerance=1e-6,
-            integrality_tolerance=1e-6,
-            objective_recomputation_absolute_tolerance=1e-6,
-            objective_recomputation_relative_tolerance=1e-6,
-            postcheck_mode=PostcheckMode.STRICT,
-            random_seed=7,
-        ),
-        run_identity=RunIdentity("notebook-portfolio"),
-    )
-    policy = PortfolioGraphPolicy("notebook-policy", "1", 0.25)
-    adapter = MeanVariancePortfolioAdapter(policy)
-    graph = adapter.build_conflict_graph(problem)
-    correlation = [
-        [problem.correlation(left, right) for right in problem.asset_ids]
-        for left in problem.asset_ids
-    ]
-    result = run_single_pass(problem, adapter, config)
-    retained = (
-        list(result.retained_item_ids) if result.fixing_manifest is not None else None
-    )
-    nodes = [
-        {"asset": node, "retention_score": graph.node_weights[node]}
-        for node in graph.node_ids
-    ]
-    edges = [
-        {"source": left, "target": right, "reason": graph.edge_reasons[(left, right)]}
-        for left, right in graph.edges
-    ]
-    domain = [
-        {"asset": node, "retained": None if retained is None else node in retained}
-        for node in graph.node_ids
-    ]
-    return {
-        "assets": list(problem.asset_ids),
-        "graph": graph,
-        "result": result.to_dict(),
-        "retained_ids": retained,
-        "nodes": nodes,
-        "edges": edges,
-        "domain": domain,
-        "correlation": correlation,
-        "correlation_threshold": policy.correlation_absolute_threshold,
     }

@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.notebook_examples import energy_example, graph_example, portfolio_example
+from qreduce.notebook_examples import energy_example, graph_example
 
 
 def test_graph_example_certifies_small_mwis() -> None:
@@ -17,64 +17,6 @@ def test_energy_example_preserves_all_energies() -> None:
     assert len(energies) == 8
     for row in energies:
         assert row["qubo_energy"] == pytest.approx(row["ising_energy"])
-
-
-def test_portfolio_example_reports_missing_cplex_without_fallback(monkeypatch) -> None:
-    def missing(name: str):
-        raise ModuleNotFoundError(name)
-
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", missing)
-    example = portfolio_example()
-    assert example["graph"].node_ids == tuple(example["assets"])
-    assert len(example["assets"]) == 5
-    assert example["graph"].edges == (("asset-a", "asset-b"), ("asset-b", "asset-c"),
-                                     ("asset-c", "asset-d"), ("asset-d", "asset-e"))
-    assert [row["retention_score"] for row in example["nodes"]] == [0.9, 0.7, 0.8, 0.6, 0.5]
-    assert example["correlation"][1][2] == pytest.approx(-0.3)
-    for i, left in enumerate(example["assets"]):
-        assert example["correlation"][i][i] == pytest.approx(1)
-        for j, right in enumerate(example["assets"]):
-            assert example["correlation"][i][j] == pytest.approx(example["correlation"][j][i])
-            if i != j:
-                assert (tuple(sorted((left, right))) in example["graph"].edges) == (
-                    abs(example["correlation"][i][j]) >= example["correlation_threshold"]
-                )
-    assert [row["asset"] for row in example["domain"] if row["retained"]] == example["retained_ids"]
-    result = example["result"]
-    assert result["run_result"]["run_status"] == "failed"
-    assert result["run_result"]["terminal_reason"] == "classical_backend_unavailable"
-    assert result["retained_item_ids"]
-    assert result["fixing_manifest"] is not None
-
-
-def test_correlation_plot_highlights_graph_edges() -> None:
-    pytest.importorskip("matplotlib")
-    import matplotlib.pyplot as plt
-
-    from qreduce.notebook_plots import plot_correlation_matrix
-
-    example = portfolio_example()
-    fig, ax = plot_correlation_matrix(
-        example["assets"], example["correlation"], example["graph"], example["correlation_threshold"]
-    )
-    try:
-        assert len(ax.patches) == 2 * len(example["graph"].edges)
-        assert len(ax.texts) == 25
-        assert len(ax.images) == 1
-    finally:
-        plt.close(fig)
-
-
-def test_portfolio_example_distinguishes_unavailable_domain(monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    monkeypatch.setattr(
-        "qreduce.notebook_examples.run_single_pass",
-        lambda *args: SimpleNamespace(retained_item_ids=(), fixing_manifest=None, to_dict=dict),
-    )
-    example = portfolio_example()
-    assert example["retained_ids"] is None
-    assert all(row["retained"] is None for row in example["domain"])
 
 
 def test_plot_reduction_graph_renders_nodes_edges_and_selection() -> None:

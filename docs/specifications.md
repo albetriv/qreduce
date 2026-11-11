@@ -37,7 +37,7 @@ QReduce deve:
 - mantenere il solve finale dei vincoli hard e dell'obiettivo originale in un backend classico;
 - supportare riduzione single-pass e multi-round;
 - distinguere in modo esplicito riduzione euristica, fixing sicuro e fixing imposto dall'utente;
-- produrre artifact completi, deterministici quando possibile e auditabili;
+- rendere disponibili risultati completi, deterministici quando possibile e auditabili; il runner interno del repository li persiste come artifact;
 - consentire adapter per diversi domini applicativi senza incorporare logica di dominio nel kernel;
 - accettare policy di riduzione esplicite e rendere osservabili, serializzabili e riproducibili i parametri e gli esiti necessari affinche` un'applicazione esterna possa confrontare policy differenti.
 
@@ -293,7 +293,7 @@ La pipeline single-pass deve seguire questi stadi. Il termine `RawMISSample` ind
 13. Fissare fuori da `C_effective` le decisioni binarie escluse.
 14. Risolvere il problema residuo con un solver classico entro il budget residuo, lasciando al solver la scelta delle decisioni binarie non fissate e delle altre variabili del modello.
 15. Validare la soluzione finale rispetto ai vincoli originali, alle tolleranze e al fixing manifest.
-16. Salvare artifact, provenance, metriche e failure reason, anche in caso di terminazione anticipata.
+16. Restituire provenance, metriche e failure reason disponibili, anche in caso di terminazione anticipata. Il runner interno puo` poi persistere il risultato come artifact.
 ```
 
 La pipeline non puo` adottare una soluzione finale se il post-check del modello originale fallisce.
@@ -533,7 +533,7 @@ on_reduced_problem_infeasible:
 max_recovery_attempts >= 0
 ```
 
-`retain_more_ranked_items_before_fixing` e `retry_with_larger_domain_from_same_round` possono essere usate soltanto prima di rendere terminale il fixing del round e devono ricostruire il problema a partire da `P_t`. Ogni tentativo deve avere artifact, reason code, durata e dominio propri. Se la policy e` `fail`, l'infeasibilita` del problema residuo termina il run senza fallback silenzioso.
+`retain_more_ranked_items_before_fixing` e `retry_with_larger_domain_from_same_round` possono essere usate soltanto prima di rendere terminale il fixing del round e devono ricostruire il problema a partire da `P_t`. Ogni tentativo deve rendere disponibili reason code, durata e dominio propri; un futuro runner multi-round dovra` persisterli separatamente. Se la policy e` `fail`, l'infeasibilita` del problema residuo termina il run senza fallback silenzioso.
 
 ## 10. Tipi di fixing e garanzie
 
@@ -770,7 +770,7 @@ node_order_version
 
 ### 12.2 Repair deterministico
 
-Il repair puo` essere abilitato per trasformare sample strutturalmente infeasible in candidate indipendenti. Repair, trim e augment sono fasi distinte: il repair rimuove conflitti; il trim riduce la cardinalita` secondo policy; l'augment aggiunge solo nodi non in conflitto con il set corrente. Ogni fase deve essere riportata separatamente negli artifact.
+Il repair puo` essere abilitato per trasformare sample strutturalmente infeasible in candidate indipendenti. Repair, trim e augment sono fasi distinte: il repair rimuove conflitti; il trim riduce la cardinalita` secondo policy; l'augment aggiunge solo nodi non in conflitto con il set corrente. Ogni fase deve restare osservabile nel risultato in memoria e, quando il runner la persiste, nei relativi artifact.
 
 La policy standard per il repair e`:
 
@@ -975,7 +975,7 @@ Se un'applicazione dichiara una policy come calibrata, raccomandata, congelata o
 
 ### 16.2 Metriche tecniche minime per ogni run
 
-Per ogni run QReduce deve rendere disponibili, direttamente negli artifact oppure nel run summary, almeno:
+Per ogni run QReduce deve rendere disponibili nel risultato in memoria, e il runner interno deve poter persistere, almeno:
 
 ```text
 original binary variable count
@@ -1208,7 +1208,6 @@ stage:
     restriction
     classical
     postcheck
-    artifacts
 
 adoption_status:
     adopted
@@ -1247,11 +1246,10 @@ classical_solver_failed
 classical_solver_infeasible
 classical_solver_time_limited
 postcheck_failed
-artifact_write_failed
 unsupported_problem_structure
 ```
 
-Uno stato `success` richiede un risultato classico post-check feasible senza time limit e con adozione della soluzione. Uno stato `partial_success` deve descrivere precisamente quale parte del workflow ha prodotto artifact validi e quale garanzia manca; include almeno il caso di incumbent feasible adottato dopo time limit. Uno stato `failed` richiede `adoption_status = not_adopted` o `unavailable`, salvo failure di scrittura artifact successiva a una soluzione gia` validata, che deve preservare il risultato in memoria e segnalare separatamente `artifact_write_failed`.
+Uno stato `success` richiede un risultato classico post-check feasible senza time limit e con adozione della soluzione. Uno stato `partial_success` deve descrivere precisamente quale parte del workflow ha prodotto un risultato valido e quale garanzia manca; include almeno il caso di incumbent feasible adottato dopo time limit. Uno stato `failed` richiede `adoption_status = not_adopted` o `unavailable`. Un errore di serializzazione degli artifact e` un errore globale del runner interno: il risultato in memoria resta disponibile al runner, ma nessuna directory finale incompleta viene pubblicata.
 
 ## 20. Requisiti di test
 
@@ -1318,7 +1316,7 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - I domini sono monotoni: `V_(t+1)` deve essere sottoinsieme di `V_t`; gli elementi protetti sono applicati prima del fixing e devono appartenere a `V_t`.
 - Il processo si arresta su target dimension, riduzione marginale insufficiente, limite di round e time budget.
 - Il recovery con dominio maggiore ricostruisce da `P_t`, rispetta `max_recovery_attempts` e non riattiva item fissati in round precedenti.
-- Gli artifact sono completi per ogni round, incluse failure.
+- Un futuro runner multi-round deve pubblicare artifact completi per ogni round, incluse failure.
 
 ### 20.7 Solver classico e post-check
 
@@ -1333,7 +1331,7 @@ Uno stato `success` richiede un risultato classico post-check feasible senza tim
 - La configurazione risolta serializza `policy_id`, `policy_version`, `policy_hash`, `policy_source` e `policy_selection_status` quando sono forniti dal chiamante.
 - Gli stessi metadata di policy sono riportati nel `run_manifest.json` e collegabili agli artifact del run.
 - QReduce esegue la stessa policy risolta in modo riproducibile a parita` di input, seed, capability e backend effettivo.
-- Il kernel registra failure, infeasibility e post-check failed nel run summary e non elimina artifact negativi.
+- Il kernel registra failure, infeasibility e post-check failed nel risultato in memoria; il runner interno non elimina gli artifact di run normalizzati negativi.
 - Le metriche tecniche obbligatorie sono disponibili anche quando il chiamante non fornisce riferimento classico, objective gap o metriche di dominio.
 - QReduce non espone una funzione che scelga automaticamente una policy migliore sulla base di benchmark o risultati di run precedenti.
 
@@ -1352,7 +1350,7 @@ QReduce soddisfa i criteri di accettazione quando:
 9. La riduzione applica fixing espliciti e rende disponibile un fixing manifest serializzabile nel risultato in memoria.
 10. Il framework distingue origine e garanzia di fixing euristico, sicuro e imposto dall'utente.
 11. La configurazione standard impone la condizione certificante `lambda_edge > max_i(w_i)` e i test piccoli ne verificano la proprieta`.
-12. Un run single-pass restituisce in memoria configurazione risolta, capability, compilation ed esecuzione MIS disponibili, fixing manifest, metriche tecniche, hash e failure parziali fino allo stage raggiunto; la persistenza in artifact e` opzionale e caller-owned.
+12. Un run single-pass restituisce in memoria configurazione risolta, capability, compilation ed esecuzione MIS disponibili, fixing manifest, metriche tecniche, hash e failure parziali fino allo stage raggiunto. Il runner interno del repository persiste obbligatoriamente gli artifact degli esperimenti; il kernel non espone un exporter pubblico.
 13. Il framework serializza la provenance opzionale della policy fornita dal chiamante e le metriche tecniche necessarie per confronti esterni, senza implementare o imporre un workflow di calibrazione o selezione automatica della policy.
 14. I test unitari e di integrazione elencati nelle sezioni rilevanti passano.
 15. La documentazione dichiara chiaramente che il solve ottimo del problema residuo non implica ottimalita` del problema originale dopo fixing euristico o user-imposed.

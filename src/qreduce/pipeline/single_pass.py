@@ -69,7 +69,7 @@ class SinglePassRunResult:
         object.__setattr__(self, "metrics", MappingProxyType(dict(self.metrics)))
 
     def to_dict(self) -> dict[str, object]:
-        """Return the complete in-memory result for caller-owned persistence or transport."""
+        """Return the complete in-memory result for repository runner persistence or transport."""
 
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
