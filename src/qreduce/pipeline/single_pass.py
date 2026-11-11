@@ -7,20 +7,17 @@ from types import MappingProxyType
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
-from qreduce.classical import (
-    ClassicalSolveRequest,
-    ClassicalSolveResult,
-    ClassicalSolverRegistry,
-    UnknownClassicalSolverError,
-    builtin_classical_solver_registry,
-)
 from qreduce.config import validate_resolved_run_config
 from qreduce.domains import (
     FinalSolutionValidationResult,
     FixingManifest,
     ReducibleProblemAdapter,
 )
-from qreduce.mis import (
+from qreduce.models import ResolvedRunConfig, RunResult
+from qreduce.mwis import CanonicalMWISProblem, build_mwis_qubo, qubo_to_ising
+from qreduce.mwis.energy import qubo_energy
+from qreduce.mwis.validation import validate_binary_selection
+from qreduce.solving.mwis import (
     MISBackendRequest,
     MISBackendResult,
     MISCompilationRequest,
@@ -33,10 +30,13 @@ from qreduce.mis import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
 )
-from qreduce.models import ResolvedRunConfig, RunResult
-from qreduce.mwis import CanonicalMWISProblem, build_mwis_qubo, qubo_to_ising
-from qreduce.mwis.energy import qubo_energy
-from qreduce.mwis.validation import validate_binary_selection
+from qreduce.solving.residual import (
+    ClassicalSolveRequest,
+    ClassicalSolveResult,
+    ClassicalSolverRegistry,
+    UnknownClassicalSolverError,
+    builtin_classical_solver_registry,
+)
 from qreduce.status import (
     AdoptionStatus,
     ClassicalSolverStatus,

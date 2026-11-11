@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from importlib import import_module as _import_module
 from typing import Literal
 
-from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
+from qreduce.solving.residual.capabilities import ClassicalRuntimeCapabilities
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.classical import (
+from qreduce.solving.residual import (
     ClassicalSolverRegistry,
     CplexClassicalBackend,
     ScipClassicalBackend,

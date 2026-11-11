@@ -2,7 +2,7 @@
 
 from types import ModuleType
 
-from qreduce.classical import cplex_capability
+from qreduce.solving.residual import cplex_capability
 
 
 def test_probe_reports_explicit_failure_when_cplex_binding_is_unavailable(

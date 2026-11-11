@@ -5,8 +5,9 @@ from time import perf_counter
 from typing import Any
 
 from qreduce.capabilities import RuntimeCapabilities
-from qreduce.mis.compilation import validate_compilation_request
-from qreduce.mis.contracts import (
+from qreduce.mwis.graph import CanonicalMWISProblem
+from qreduce.solving.mwis.compilation import validate_compilation_request
+from qreduce.solving.mwis.contracts import (
     BackendReportedScoreKind,
     CompiledMISJob,
     MISBackendRequest,
@@ -16,7 +17,6 @@ from qreduce.mis.contracts import (
     MISCompletionStatus,
     RawMISSample,
 )
-from qreduce.mwis.graph import CanonicalMWISProblem
 from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalReason
 
 

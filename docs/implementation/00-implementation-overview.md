@@ -41,7 +41,7 @@ application problem
   -> selected built-in or explicitly registered MIS backend
   -> normalization, validation, repair and candidate-domain construction
   -> explicit fixing manifest and restricted problem
-  -> selected built-in or explicitly registered classical backend
+  -> selected built-in or explicitly registered residual classical backend
   -> adapter post-check
   -> complete in-memory run result
 
@@ -61,9 +61,9 @@ originale dopo fixing euristico.
 | M01 | Fondazioni di progetto e compatibilita` | Parziale | Python 3.12, packaging provider-agnostic, dipendenze lazy, convenzioni di sviluppo | `pyproject.toml`, `poetry.lock`, test di indipendenza runtime | Verificare anche la configurazione CI richiesta dal documento di milestone e mantenere README, packaging e CI coerenti. |
 | M02 | Contratti core, configurazione, stati e provenance | Parziale | Configurazione immutabile, capability, stati/failure, metadata e serializzazione | `config.py`, `models.py`, `status.py`, `capabilities.py`, `artifacts/metadata.py` e relativi test | Coprire tutti i campi e le invarianti richiesti dalle sezioni 16-19 delle specifiche, con evidenze di serializzazione e audit. |
 | M03 | Grafo MWIS, QUBO, Ising ed exact diagnostics | Da verificare | Grafo canonico, QUBO MWIS, energia, conversione Ising, solver exact sotto soglia | `mwis/` e `tests/mwis/` | Verificare criterio per criterio la milestone; poi mantenere test di equivalenza, validazione e soglia exact in caso di evoluzione del modello. |
-| M04 | Contratto MIS, cataloghi e backend locali | Da verificare | Capability, compile/solve, normalizzazione, `local_greedy`, `dwave_simulated_annealing`, registry esplicite | `mis/`, `capabilities.py` e `tests/mis/` | Verificare criterio per criterio la milestone; poi mantenere la validazione pre-compilation e le failure esplicite per dipendenze o capability indisponibili. |
+| M04 | Esecuzione MWIS, cataloghi e backend locali | Da verificare | Capability, compile/solve, normalizzazione, `local_greedy`, `dwave_simulated_annealing`, registry esplicite | `solving/mwis/`, `capabilities.py` e `tests/solving/mwis/` | Verificare criterio per criterio la milestone; poi mantenere la validazione pre-compilation e le failure esplicite per dipendenze o capability indisponibili. |
 | M05 | Pipeline single-pass, candidate domain e fixing | Parziale | Orchestrazione end-to-end, ranking/diversita`, repair, fixing manifest, budget e failure parziali | `pipeline/single_pass.py`, `domains/`, test pipeline e integrazione | Completare la tracciabilita` richiesta per repair, scarti e candidate; verificare tutte le protezioni, metriche e invarianti delle sezioni 7, 8, 12 e 20. |
-| M06 | Solve classico, post-check ed esperimento portfolio | Parziale | Modello classico generico, backend `cplex` e `scip`, post-check, adapter portfolio dimostrativo | `classical/`, `experiments/portfolio_domain/` e test associati | Completare la verifica end-to-end delle opzioni di export e degli esiti opzionali dei solver, senza introdurre side effect impliciti nel kernel. |
+| M06 | Solve residuo, post-check ed esperimento portfolio | Parziale | Modello classico generico, backend `cplex` e `scip`, post-check, adapter portfolio dimostrativo | `solving/residual/`, `experiments/portfolio_domain/` e test associati | Completare la verifica end-to-end delle opzioni di export e degli esiti opzionali dei solver, senza introdurre side effect impliciti nel kernel. |
 | M07 | Runner, artifact e notebook di analisi | Parziale | Persistenza atomica degli esperimenti, manifest, loader e notebook che leggono artifact | `experiments/runner.py`, `experiments/artifacts.py`, notebook e test runner | Verificare la copertura completa di provenance, hash e dati per-round/candidate richiesta dalle sezioni 16-17. |
 | M08 | Riduzione multi-round e recovery | Da implementare | Domini monotoni, criteri di stop, recovery dal medesimo round, artifact per round | La configurazione modella `max_reduction_rounds`, ma `config.py` accetta oggi solo `1` | Definire un documento di milestone dedicato, implementare il runner multi-round e aggiungere i test della sezione 20.6. |
 
@@ -97,7 +97,7 @@ esplicita nelle specifiche.
 | M01 | `01-project-setup-and-python-compatibility.md` | Packaging, runtime e dipendenze opzionali. |
 | M02 | `02-core-domain-models-and-configuration.md` | Contratti dati, stati, configurazione e metadata. |
 | M03 | `03-canonical-mwis-graph-and-qubo.md` | Rappresentazione MWIS canonica ed exact diagnostics. |
-| M04 | `04-mis-backends-and-adapter-contracts.md` | Contratti e backend MIS. |
+| M04 | `04-mwis-execution-backends-and-adapter-contracts.md` | Contratti e backend per l'esecuzione MWIS. |
 | M05-M06 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio, backend classici e post-check; la pipeline single-pass e` inoltre in `src/qreduce/pipeline/single_pass.py`. |
 | M07 | `src/qreduce/experiments/` | Runner, artifact, loader e notebook; richiede un documento di milestone dedicato prima della dichiarazione di completamento. |
 | M08 | Da creare | Design multi-round/recovery, compatibile con sezioni 9 e 20.6 delle specifiche. |

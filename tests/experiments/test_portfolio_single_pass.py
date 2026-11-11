@@ -6,14 +6,11 @@ from dataclasses import replace
 
 import pytest
 
-from qreduce.classical import ClassicalSolverRegistry, CplexClassicalBackend
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,
 )
-from qreduce.mis import MISSolverRegistry
-from qreduce.mis.local_backend import LocalGreedyMISBackend
 from qreduce.models import (
     ClassicalSolveOptions,
     LambdaEdgePolicy,
@@ -23,6 +20,9 @@ from qreduce.models import (
     RunIdentity,
 )
 from qreduce.pipeline import run_single_pass
+from qreduce.solving.mwis import MISSolverRegistry
+from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
+from qreduce.solving.residual import ClassicalSolverRegistry, CplexClassicalBackend
 from qreduce.status import (
     ClassicalSolverStatus,
     PipelineStage,
@@ -72,7 +72,7 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
         raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
 
     monkeypatch.setattr(
-        "qreduce.classical.cplex_backend._import_module", raise_missing_binding
+        "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
     )
     config = make_config()
     adapter = MeanVariancePortfolioAdapter(
@@ -120,7 +120,7 @@ def test_pipeline_supports_explicit_extension_registries(
         raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
 
     monkeypatch.setattr(
-        "qreduce.classical.cplex_backend._import_module", raise_missing_binding
+        "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
     )
     mis_registry = MISSolverRegistry(include_builtins=False)
     mis_registry.register("caller_mis", LocalGreedyMISBackend)
@@ -168,7 +168,7 @@ def test_pipeline_selects_dwave_simulated_annealing_qubo_backend(
         raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
 
     monkeypatch.setattr(
-        "qreduce.classical.cplex_backend._import_module", raise_missing_binding
+        "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
     )
     config = make_config()
     config = replace(

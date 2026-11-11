@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from qreduce.classical import (
+from qreduce.solving.residual import (
     ClassicalOptimizationModel,
     ClassicalVariable,
     ClassicalVariableType,
@@ -10,7 +10,7 @@ from qreduce.classical import (
     LinearConstraintSense,
     QuadraticObjectiveTerm,
 )
-from qreduce.classical.cplex_backend import _build_cplex_model
+from qreduce.solving.residual.cplex_backend import _build_cplex_model
 
 
 class FakeCplex:

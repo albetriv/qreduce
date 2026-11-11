@@ -2,16 +2,16 @@
 
 from collections import defaultdict
 
-from qreduce.mis.contracts import (
+from qreduce.mwis.energy import ising_energy, qubo_energy
+from qreduce.mwis.graph import CanonicalMWISProblem
+from qreduce.mwis.ising import delta_to_spin
+from qreduce.mwis.validation import MWISValidationError, validate_binary_selection
+from qreduce.solving.mwis.contracts import (
     DeduplicationResult,
     MISBackendResult,
     MISNormalizationResult,
     RawMISSample,
 )
-from qreduce.mwis.energy import ising_energy, qubo_energy
-from qreduce.mwis.graph import CanonicalMWISProblem
-from qreduce.mwis.ising import delta_to_spin
-from qreduce.mwis.validation import MWISValidationError, validate_binary_selection
 from qreduce.status import TerminalReason
 
 

@@ -1,7 +1,10 @@
-"""Provider-neutral MIS compilation, execution and sample normalization contracts."""
+"""Provider-neutral execution of the canonical MWIS reduction problem."""
 
-from qreduce.mis.compilation import MISExecutionAdapter, validate_compilation_request
-from qreduce.mis.contracts import (
+from qreduce.solving.mwis.compilation import (
+    MISExecutionAdapter,
+    validate_compilation_request,
+)
+from qreduce.solving.mwis.contracts import (
     BackendReportedScoreKind,
     CompiledMISJob,
     DeduplicationResult,
@@ -13,11 +16,11 @@ from qreduce.mis.contracts import (
     MISNormalizationResult,
     RawMISSample,
 )
-from qreduce.mis.normalization import (
+from qreduce.solving.mwis.normalization import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
 )
-from qreduce.mis.registry import (
+from qreduce.solving.mwis.registry import (
     MISSolverRegistry,
     UnknownMISSolverError,
     builtin_mis_solver_registry,

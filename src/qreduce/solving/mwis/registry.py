@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from qreduce.mis.compilation import MISExecutionAdapter
+from qreduce.solving.mwis.compilation import MISExecutionAdapter
 
 
 class UnknownMISSolverError(ValueError):
@@ -44,11 +44,11 @@ def builtin_mis_solver_registry() -> MISSolverRegistry:
 def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
     """Import local implementations only while constructing the built-in catalog."""
 
-    from qreduce.mis.dwave_simulated_annealing_backend import (
+    from qreduce.solvers import BuiltinMISSolverId
+    from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
         DWaveSimulatedAnnealingMISBackend,
     )
-    from qreduce.mis.local_backend import LocalGreedyMISBackend
-    from qreduce.solvers import BuiltinMISSolverId
+    from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
 
     return {
         BuiltinMISSolverId.LOCAL_GREEDY: LocalGreedyMISBackend,

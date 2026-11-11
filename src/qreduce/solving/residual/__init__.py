@@ -1,4 +1,4 @@
-"""Classical-backend integration boundaries for QReduce."""
+"""Model and classical-backend integration for residual optimization solves."""
 
 from .capabilities import ClassicalRuntimeCapabilities
 from .contracts import ClassicalBackend, ClassicalSolveRequest, ClassicalSolveResult

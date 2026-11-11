@@ -2,15 +2,15 @@
 
 import pytest
 
-from qreduce.mis import (
+from qreduce.solving.mwis import (
     MISSolverRegistry,
     UnknownMISSolverError,
     builtin_mis_solver_registry,
 )
-from qreduce.mis.dwave_simulated_annealing_backend import (
+from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
     DWaveSimulatedAnnealingMISBackend,
 )
-from qreduce.mis.local_backend import LocalGreedyMISBackend
+from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
 
 
 class CallerMISBackend:

@@ -2,19 +2,19 @@
 
 from types import SimpleNamespace
 
-from qreduce.mis.contracts import (
-    MISBackendRequest,
-    MISCompilationRequest,
-    MISCompletionStatus,
-)
-from qreduce.mis.dwave_simulated_annealing_backend import (
-    DWaveSimulatedAnnealingMISBackend,
-)
 from qreduce.mwis import (
     CanonicalMWISProblem,
     ReductionGraph,
     build_mwis_qubo,
     qubo_to_ising,
+)
+from qreduce.solving.mwis.contracts import (
+    MISBackendRequest,
+    MISCompilationRequest,
+    MISCompletionStatus,
+)
+from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
+    DWaveSimulatedAnnealingMISBackend,
 )
 from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalReason
 
@@ -57,7 +57,7 @@ def test_capabilities_report_explicit_sdk_unavailability(monkeypatch) -> None:
         raise ModuleNotFoundError(f"No module named '{module_name}'", name=module_name)
 
     monkeypatch.setattr(
-        "qreduce.mis.dwave_simulated_annealing_backend._import_module", raise_missing
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", raise_missing
     )
 
     capabilities = DWaveSimulatedAnnealingMISBackend().capabilities()
@@ -101,7 +101,7 @@ def test_backend_compiles_qubo_and_preserves_ocean_samples(monkeypatch) -> None:
         raise AssertionError(f"Unexpected import: {module_name}")
 
     monkeypatch.setattr(
-        "qreduce.mis.dwave_simulated_annealing_backend._import_module", import_fake
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", import_fake
     )
     backend = DWaveSimulatedAnnealingMISBackend()
     problem = make_problem()
@@ -144,7 +144,7 @@ def test_backend_rejects_mis_graph_without_silent_representation_substitution(mo
 
     fake_runtime = lambda _: SimpleNamespace()
     monkeypatch.setattr(
-        "qreduce.mis.dwave_simulated_annealing_backend._import_module", fake_runtime
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", fake_runtime
     )
     problem = make_problem()
     request = MISCompilationRequest(

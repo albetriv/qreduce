@@ -1,21 +1,21 @@
 """Tests for canonical sample metric recomputation and deterministic deduplication."""
 
 from qreduce.capabilities import RuntimeCapabilities
-from qreduce.mis.contracts import (
-    BackendReportedScoreKind,
-    MISBackendResult,
-    MISCompletionStatus,
-    RawMISSample,
-)
-from qreduce.mis.normalization import (
-    deduplicate_raw_mis_samples,
-    normalize_backend_result,
-)
 from qreduce.mwis import (
     CanonicalMWISProblem,
     ReductionGraph,
     build_mwis_qubo,
     qubo_to_ising,
+)
+from qreduce.solving.mwis.contracts import (
+    BackendReportedScoreKind,
+    MISBackendResult,
+    MISCompletionStatus,
+    RawMISSample,
+)
+from qreduce.solving.mwis.normalization import (
+    deduplicate_raw_mis_samples,
+    normalize_backend_result,
 )
 from qreduce.status import BackendFamily, ExecutionMode, ProblemForm
 

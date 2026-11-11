@@ -2,7 +2,6 @@
 
 from types import SimpleNamespace
 
-from qreduce.mis.contracts import RawMISSample
 from qreduce.mwis import (
     CanonicalMWISProblem,
     ReductionGraph,
@@ -14,6 +13,7 @@ from qreduce.pipeline.single_pass import (
     _repair_sample,
     _select_diverse_samples,
 )
+from qreduce.solving.mwis.contracts import RawMISSample
 
 
 def make_selection_config() -> SimpleNamespace:

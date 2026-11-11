@@ -4,14 +4,14 @@ from typing import Protocol
 
 from qreduce.capabilities import RuntimeCapabilities
 from qreduce.config import ValidationIssue, ValidationResult
-from qreduce.mis.contracts import (
+from qreduce.mwis.graph import CanonicalMWISProblem
+from qreduce.solving.mwis.contracts import (
     CompiledMISJob,
     MISBackendRequest,
     MISBackendResult,
     MISCompilationRequest,
     MISCompilationResult,
 )
-from qreduce.mwis.graph import CanonicalMWISProblem
 from qreduce.status import TerminalReason
 
 

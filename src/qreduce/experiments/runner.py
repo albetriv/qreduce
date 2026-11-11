@@ -14,12 +14,12 @@ from qreduce.artifacts.metadata import (
     to_primitive,
     utc_created_at,
 )
-from qreduce.classical import ClassicalSolverRegistry
 from qreduce.domains import ReducibleProblemAdapter
 from qreduce.experiments.artifacts import ARTIFACT_SCHEMA_VERSION
-from qreduce.mis import MISSolverRegistry
 from qreduce.models import ResolvedRunConfig
 from qreduce.pipeline import SinglePassRunResult, run_single_pass
+from qreduce.solving.mwis import MISSolverRegistry
+from qreduce.solving.residual import ClassicalSolverRegistry
 
 
 @dataclass(frozen=True, slots=True)

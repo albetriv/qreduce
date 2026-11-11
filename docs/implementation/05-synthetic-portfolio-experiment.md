@@ -131,11 +131,11 @@ Test minimi:
 ```text
 src/qreduce/experiments/portfolio_domain/models.py
 src/qreduce/experiments/portfolio_domain/adapter.py
-src/qreduce/classical/model.py
-src/qreduce/classical/contracts.py
-src/qreduce/classical/registry.py
-src/qreduce/classical/cplex_backend.py
-src/qreduce/classical/scip_backend.py
+src/qreduce/solving/residual/model.py
+src/qreduce/solving/residual/contracts.py
+src/qreduce/solving/residual/registry.py
+src/qreduce/solving/residual/cplex_backend.py
+src/qreduce/solving/residual/scip_backend.py
 src/qreduce/pipeline/single_pass.py
 src/qreduce/experiments/portfolio_domain/postcheck.py
 ```

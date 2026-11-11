@@ -2,19 +2,19 @@
 
 from dataclasses import replace
 
-from qreduce.mis.compilation import validate_compilation_request
-from qreduce.mis.contracts import (
-    MISBackendRequest,
-    MISCompilationRequest,
-    MISCompletionStatus,
-)
-from qreduce.mis.local_backend import LocalGreedyMISBackend
 from qreduce.mwis import (
     CanonicalMWISProblem,
     ReductionGraph,
     build_mwis_qubo,
     qubo_to_ising,
 )
+from qreduce.solving.mwis.compilation import validate_compilation_request
+from qreduce.solving.mwis.contracts import (
+    MISBackendRequest,
+    MISCompilationRequest,
+    MISCompletionStatus,
+)
+from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
 from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalReason
 
 

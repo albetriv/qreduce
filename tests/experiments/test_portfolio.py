@@ -67,7 +67,7 @@ def test_synthetic_portfolio_analysis_uses_persisted_artifacts(monkeypatch, tmp_
     def missing_scip(module_name: str):
         raise ModuleNotFoundError(module_name)
 
-    monkeypatch.setattr("qreduce.classical.scip_backend._import_module", missing_scip)
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
     run = run_synthetic_portfolio_experiment("run-001", output_root=tmp_path)
     analysis = load_synthetic_portfolio_analysis(run.run_directory)
 
@@ -94,7 +94,7 @@ def test_synthetic_portfolio_analysis_rejects_a_different_experiment(monkeypatch
     def missing_scip(module_name: str):
         raise ModuleNotFoundError(module_name)
 
-    monkeypatch.setattr("qreduce.classical.scip_backend._import_module", missing_scip)
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
     run = run_synthetic_portfolio_experiment("run-001", output_root=tmp_path)
     manifest_path = run.run_directory / "run_manifest.json"
     manifest_path.write_text(manifest_path.read_text(encoding="utf-8").replace(SYNTHETIC_PORTFOLIO_EXPERIMENT_ID, "other"), encoding="utf-8")

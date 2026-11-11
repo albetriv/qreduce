@@ -1,11 +1,11 @@
 """Tests for lazy CPLEX backend failure behavior without requiring CPLEX."""
 
-from qreduce.classical import ClassicalSolveRequest, CplexClassicalBackend
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,
 )
+from qreduce.solving.residual import ClassicalSolveRequest, CplexClassicalBackend
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
@@ -26,7 +26,7 @@ def test_missing_cplex_binding_returns_explicit_unavailable(monkeypatch, portfol
         assert module_name == "cplex"
         raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", raise_missing_binding)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding)
 
     result = CplexClassicalBackend().solve(make_residual_problem(portfolio_problem), make_request())
 
@@ -41,7 +41,7 @@ def test_nonpositive_budget_skips_even_the_lazy_cplex_import(monkeypatch, portfo
     def unexpected_import(module_name: str):
         raise AssertionError(f"unexpected optional import: {module_name}")
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", unexpected_import)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", unexpected_import)
 
     result = CplexClassicalBackend().solve(make_residual_problem(portfolio_problem), make_request(remaining_budget=0.0))
 
@@ -57,7 +57,7 @@ def test_unusable_cplex_license_returns_explicit_unavailable(monkeypatch, portfo
             def __init__(self) -> None:
                 raise RuntimeError("CPLEX license is unavailable")
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", lambda _: LicenseFailingCplexModule)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", lambda _: LicenseFailingCplexModule)
 
     result = CplexClassicalBackend().solve(make_residual_problem(portfolio_problem), make_request())
 
@@ -71,7 +71,7 @@ def test_unsupported_problem_structure_fails_before_importing_cplex(monkeypatch)
     def unexpected_import(module_name: str):
         raise AssertionError(f"unexpected optional import: {module_name}")
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", unexpected_import)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", unexpected_import)
 
     result = CplexClassicalBackend().solve(object(), make_request())
 

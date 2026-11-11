@@ -1,6 +1,6 @@
 """Tests for the lazy SCIP backend without requiring PySCIPOpt."""
 
-from qreduce.classical import ClassicalSolveRequest, ScipClassicalBackend
+from qreduce.solving.residual import ClassicalSolveRequest, ScipClassicalBackend
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
@@ -27,7 +27,7 @@ def test_missing_pyscipopt_binding_returns_explicit_unavailable(monkeypatch) -> 
         assert module_name == "pyscipopt"
         raise ModuleNotFoundError("No module named 'pyscipopt'", name="pyscipopt")
 
-    monkeypatch.setattr("qreduce.classical.scip_backend._import_module", raise_missing_binding)
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", raise_missing_binding)
 
     class GenericResidualProblem:
         def build_classical_model(self):  # pragma: no cover - import must fail first.
@@ -46,7 +46,7 @@ def test_unsupported_problem_structure_skips_lazy_scip_import(monkeypatch) -> No
     def unexpected_import(module_name: str):
         raise AssertionError(f"unexpected optional import: {module_name}")
 
-    monkeypatch.setattr("qreduce.classical.scip_backend._import_module", unexpected_import)
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", unexpected_import)
 
     result = ScipClassicalBackend().solve(object(), make_request())
 

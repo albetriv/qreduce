@@ -4,10 +4,13 @@ from importlib import import_module as _import_module
 from time import perf_counter
 from typing import Any
 
-from qreduce.classical.capabilities import ClassicalRuntimeCapabilities
-from qreduce.classical.contracts import ClassicalSolveRequest, ClassicalSolveResult
-from qreduce.classical.cplex_capability import cplex_classical_capabilities
-from qreduce.classical.model import (
+from qreduce.solving.residual.capabilities import ClassicalRuntimeCapabilities
+from qreduce.solving.residual.contracts import (
+    ClassicalSolveRequest,
+    ClassicalSolveResult,
+)
+from qreduce.solving.residual.cplex_capability import cplex_classical_capabilities
+from qreduce.solving.residual.model import (
     ClassicalModelProvider,
     ClassicalOptimizationModel,
     ClassicalVariableType,

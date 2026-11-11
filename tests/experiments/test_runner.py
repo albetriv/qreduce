@@ -73,7 +73,7 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     def missing_cplex(module_name: str):
         raise ModuleNotFoundError(module_name)
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", missing_cplex)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", missing_cplex)
     run = run_experiment(
         "portfolio-reference",
         _problem(),
@@ -107,7 +107,7 @@ def test_runner_refuses_to_overwrite_a_published_experiment(
     def missing_cplex(module_name: str):
         raise ModuleNotFoundError(module_name)
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", missing_cplex)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", missing_cplex)
     arguments = (
         "portfolio-reference",
         _problem(),
@@ -144,7 +144,7 @@ def test_loader_rejects_artifacts_changed_after_publication(
     def missing_cplex(module_name: str):
         raise ModuleNotFoundError(module_name)
 
-    monkeypatch.setattr("qreduce.classical.cplex_backend._import_module", missing_cplex)
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", missing_cplex)
     run = run_experiment(
         "portfolio-reference",
         _problem(),

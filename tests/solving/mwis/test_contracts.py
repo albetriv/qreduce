@@ -3,7 +3,7 @@
 import pytest
 
 from qreduce.capabilities import RuntimeCapabilities
-from qreduce.mis.contracts import (
+from qreduce.solving.mwis.contracts import (
     BackendReportedScoreKind,
     MISBackendRequest,
     MISBackendResult,

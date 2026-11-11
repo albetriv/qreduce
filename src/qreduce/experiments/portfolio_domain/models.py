@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
-from qreduce.classical import (
+from qreduce.domains.contracts import FixingManifest
+from qreduce.solving.residual import (
     ClassicalOptimizationModel,
     ClassicalVariable,
     ClassicalVariableType,
@@ -14,7 +15,6 @@ from qreduce.classical import (
     LinearConstraintSense,
     QuadraticObjectiveTerm,
 )
-from qreduce.domains.contracts import FixingManifest
 
 
 @dataclass(frozen=True, slots=True)

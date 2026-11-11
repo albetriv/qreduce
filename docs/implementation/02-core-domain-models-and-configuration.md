@@ -128,8 +128,8 @@ src/qreduce/config.py
 src/qreduce/models.py
 src/qreduce/status.py
 src/qreduce/capabilities.py
-src/qreduce/mis/registry.py
-src/qreduce/classical/registry.py
+src/qreduce/solving/mwis/registry.py
+src/qreduce/solving/residual/registry.py
 src/qreduce/artifacts/metadata.py
 src/qreduce/experiments/
 ```

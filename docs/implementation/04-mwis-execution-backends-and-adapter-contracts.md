@@ -1,8 +1,8 @@
-# 04 - MIS backends and adapter contracts
+# 04 - MWIS execution backends and adapter contracts
 
 ## Scopo
 
-Definire il contratto provider-agnostic per compilation ed esecuzione MIS e implementare il solver locale concreto. Il solver locale deve restituire sample binarie auditabili, senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
+Definire il contratto provider-agnostic per compilation ed esecuzione del problema MWIS e implementare i backend locali concreti. Il termine MWIS identifica il problema di riduzione, non la tecnologia del backend: un backend MWIS puo` essere classico, come `local_greedy`, oppure un simulatore o un adapter quantistico. I backend devono restituire sample binarie auditabili senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
 
 ## Riferimenti alle specifiche
 
@@ -37,7 +37,7 @@ Ogni adapter deve dichiarare almeno:
 
 Il framework usa `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
 
-## Solver built-in e registry di estensione
+## Solver MWIS built-in e registry di estensione
 
 QReduce include `local_greedy` e `dwave_simulated_annealing` nel catalogo MIS
 standard. Il chiamante seleziona uno dei due ID nella configurazione e la pipeline
@@ -82,13 +82,13 @@ Campi come `num_reads`, `shots`, `embedding_policy`, `transpiler_options` o para
 ## Moduli Python indicativi
 
 ```text
-src/qreduce/mis/contracts.py
-src/qreduce/mis/capabilities.py
-src/qreduce/mis/local_backend.py
-src/qreduce/mis/dwave_simulated_annealing_backend.py
-src/qreduce/mis/registry.py
-src/qreduce/mis/normalization.py
-src/qreduce/mis/compilation.py
+src/qreduce/solving/mwis/contracts.py
+src/qreduce/capabilities.py
+src/qreduce/solving/mwis/local_backend.py
+src/qreduce/solving/mwis/dwave_simulated_annealing_backend.py
+src/qreduce/solving/mwis/registry.py
+src/qreduce/solving/mwis/normalization.py
+src/qreduce/solving/mwis/compilation.py
 ```
 
 Questi nomi non fissano l'API pubblica finale.

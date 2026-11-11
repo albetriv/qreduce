@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.classical import ClassicalSolveRequest, ClassicalSolveResult
+from qreduce.solving.residual import ClassicalSolveRequest, ClassicalSolveResult
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 

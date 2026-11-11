@@ -650,6 +650,13 @@ Il kernel QReduce non deve dipendere direttamente da classi, SDK, formati serial
 
 Il framework non assume che ogni backend accetti un BQM, produca energia QUBO, supporti `num_reads`, richieda embedding, sia stocastico, sia remoto o restituisca risultati completi. Queste proprieta` devono essere dichiarate come capability dell'adapter. QUBO, BQM e Ising restano rappresentazioni canoniche utili per il modello MWIS, ma non costituiscono l'unica interfaccia di esecuzione ammessa.
 
+Il termine MWIS identifica il problema di riduzione, non la tecnologia impiegata
+per risolverlo. Il relativo backend puo` quindi essere classico, simulato o
+quantistico: `local_greedy`, per esempio, e` un backend classico euristico che
+risolve il problema MWIS sul grafo canonico. Questo e` distinto dal solve
+classico residuo della sezione 14, che ottimizza il problema originale dopo
+l'applicazione dei fixing.
+
 ### 11.2 Rappresentazione canonica e interfacce uniformi
 
 Il framework deve esporre una rappresentazione serializzabile e indipendente dal provider, contenente almeno il grafo MWIS, il `node_order` canonico, la QUBO e le conversioni BQM/Ising quando applicabili. Gli oggetti canonici non possono essere oggetti runtime proprietari di un SDK.
