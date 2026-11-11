@@ -10,6 +10,42 @@ Definire il contratto provider-agnostic per compilation ed esecuzione del proble
 - `docs/implementation/02-core-domain-models-and-configuration.md`.
 - `docs/implementation/03-canonical-mwis-graph-and-qubo.md`.
 
+## Stato dell'audit
+
+**Stato: Completata.** L'audit del 2026-11-11 ha verificato i contratti
+provider-agnostic, il catalogo esplicito, il gate di capability prima della
+compilation, il clamping dei timeout, i backend `local_greedy` e
+`dwave_simulated_annealing`, oltre a normalizzazione, deduplicazione e
+redazione dei metadata. I timeout di fase sono applicati solo dagli adapter
+che li dichiarano supportati: `local_greedy` segnala la compilation o
+l'execution time-limited, mentre il simulatore Ocean rifiuta una richiesta di
+limite temporale prima della compilation. L'audit M03 del 2026-11-11 ha inoltre
+confermato il solver exact diagnostico bounded e il suo rifiuto esplicito oltre
+`exact_solver_max_variables`, chiudendo la dipendenza indicata da questa
+milestone.
+
+### Matrice di conformita'
+
+| Requisito | Implementazione | Evidenza riproducibile | Esito |
+|---|---|---|---|
+| Separazione `capabilities` / `compile` / `solve` e contratti serializzabili (11.2, 11.6) | `contracts.py`, `compilation.py` | `tests/solving/mwis/test_contracts.py` | Conforme |
+| Backend richiesto ed effettivo, famiglia, modalita', capability e failure normalizzate (11.2, 11.6, 20.2) | `CompiledMISJob`, `MISCompilationResult`, `MISBackendResult`, `RuntimeCapabilities` | `tests/solving/mwis/test_contracts.py`, `tests/test_capabilities.py` | Conforme |
+| Registry deterministica, ID ignoto senza fallback e failure della factory non mascherata (11.5, 11.6) | `registry.py` | `tests/solving/mwis/test_mis_solver_registry.py` | Conforme |
+| Disponibilita' SDK lazy e assenza di import del provider dal kernel (11.1, 11.5, 20.2) | `dwave_simulated_annealing_backend.py`, `registry.py` | `tests/solving/mwis/test_dwave_simulated_annealing_backend.py`, `tests/test_runtime_independence.py` | Conforme |
+| Capability incompatibile rifiutata prima della compilation (11.3, 20.2) | `capabilities.py`, `single_pass.py` | `tests/test_capabilities.py`, `tests/solving/mwis/test_pipeline_capability_gate.py` | Conforme |
+| Timeout di compilation ed execution limitati al minimo tra limite di fase e budget end-to-end; richieste rifiutate se il backend non li supporta (11.3, 11.6) | `config.effective_timeout`, `capabilities.py`, `single_pass.py` | `tests/test_config.py`, `tests/test_capabilities.py`, `tests/solving/mwis/test_pipeline_capability_gate.py` | Conforme |
+| `local_greedy`: seed, ordine canonico, sample binarie, timeout esplicito di compilation/execution e nessuna certificazione di ottimalita' (11.5, 20.2) | `local_backend.py` | `tests/experiments/test_local_greedy_mis.py` | Conforme |
+| D-Wave Ocean locale: traduzione QUBO/BQM, decoding nel `node_order`, rifiuto di label mancanti/extra o valori non binari, parametri dichiarati e SDK assente esplicito (11.1, 11.2, 20.3) | `dwave_simulated_annealing_backend.py` | `tests/solving/mwis/test_dwave_simulated_annealing_backend.py`; test integrazione opzionale in `tests/experiments/test_portfolio_single_pass.py` | Conforme |
+| Normalizzazione: validazione binaria e `node_order`, ricalcolo QUBO/Ising e validita' strutturale, score nativo non reinterpretato (11.4, 20.2) | `normalization.py` | `tests/solving/mwis/test_normalization.py` | Conforme |
+| Deduplicazione stabile, occurrence aggregata e cap deterministico (12, 20.2) | `normalization.py` | `tests/solving/mwis/test_normalization.py` | Conforme |
+| Sample provenance e metadata redatti, incluso il solo flag booleano di capability `required_credentials` senza bypass per valori sensibili (11.4, 20.2) | `contracts.py`, `artifacts/metadata.py`, backend locali | `tests/solving/mwis/test_contracts.py`, `tests/solving/mwis/test_dwave_simulated_annealing_backend.py`, `tests/artifacts/test_metadata.py` | Conforme |
+| Exact MIS/QUBO diagnostico con rifiuto oltre soglia (11.5, 20.2) | `mwis/exact.py` | Audit e certificazione assegnati a M03 | Dipendenza non verificata |
+
+Gli adapter gate-based, remote, neutral-atom, embedding e mapping geometrico
+non sono implementati in M04. I loro requisiti restano condizionali: se un
+adapter viene aggiunto, deve rispettare gli stessi contratti e produrre reason
+esplicite per capability, mapping o runtime indisponibili.
+
 ## Contratto MIS minimo
 
 L'API concreta puo` evolvere, ma deve mantenere la separazione funzionale:
@@ -111,3 +147,5 @@ Questi nomi non fissano l'API pubblica finale.
 - Il core non importa classi di provider o formati runtime proprietari.
 - Compilation, execution e normalizzazione sono osservabili separatamente.
 - Ogni cambio di backend o modalita` richiede una configurazione esplicita.
+- L'exact solver diagnostico di M03 resta confinato a test e diagnostica bounded;
+  la sua verifica e il rifiuto oltre soglia sono coperti da `tests/mwis/`.

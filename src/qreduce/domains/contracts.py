@@ -12,23 +12,15 @@ from qreduce.mwis import ReductionGraph
 
 @dataclass(frozen=True, slots=True)
 class DomainValidationResult:
-    """Serializable domain precheck result for a proposed candidate domain.
-
-    ``protected_items`` declares IDs that the pipeline must retain before it
-    applies the candidate-domain cap. Declared IDs must belong to the round's
-    canonical reduction graph.
-    """
+    """Serializable validation result for one proposed candidate domain."""
 
     is_valid: bool
     minimum_required_items: int | None
-    protected_items: tuple[str, ...] = ()
     failure_reasons: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.minimum_required_items is not None and self.minimum_required_items < 0:
             raise ValueError("minimum_required_items must be non-negative when supplied.")
-        if len(set(self.protected_items)) != len(self.protected_items):
-            raise ValueError("protected_items must be unique.")
         if self.is_valid and self.failure_reasons:
             raise ValueError("A valid domain result cannot include failure reasons.")
         if not self.is_valid and not self.failure_reasons:
@@ -126,6 +118,8 @@ class ReducibleProblemAdapter(Protocol):
     def identify_reducible_items(self, problem: object) -> list[str]: ...
 
     def build_conflict_graph(self, problem: object, state: object | None = None) -> ReductionGraph: ...
+
+    def declare_protected_items(self, problem: object) -> tuple[str, ...]: ...
 
     def validate_candidate_domain(
         self,

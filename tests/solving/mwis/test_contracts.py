@@ -100,3 +100,25 @@ def test_execution_request_serialization_redacts_sensitive_provider_parameters()
     )
 
     assert request.to_dict()["execution_parameters"]["api_token"] == "[REDACTED]"
+
+
+def test_capability_serialization_retains_the_required_credentials_flag() -> None:
+    """A credential requirement is capability metadata, not a credential to redact."""
+
+    capabilities = RuntimeCapabilities(
+        provider_id="remote-provider",
+        backend_id="remote-backend",
+        backend_family=BackendFamily.HYBRID,
+        execution_mode=ExecutionMode.REMOTE,
+        runtime_available=False,
+        supported_problem_forms=frozenset({ProblemForm.QUBO}),
+        supports_random_seed=False,
+        supports_solution_count=False,
+        supports_execution_time_limit=False,
+        supports_compilation_time_limit=False,
+        supports_async_execution=False,
+        supports_cancellation=False,
+        required_credentials=True,
+    )
+
+    assert capabilities.to_dict()["required_credentials"] is True

@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from qreduce.mwis import (
     CanonicalMWISProblem,
     ReductionGraph,
@@ -136,6 +138,14 @@ def test_backend_compiles_qubo_and_preserves_ocean_samples(monkeypatch) -> None:
     assert tuple(sample.delta for sample in result.samples) == ((1, 0, 1), (0, 1, 1))
     assert tuple(sample.occurrence_count for sample in result.samples) == (3, 1)
     assert all(sample.backend_reported_score == energy for sample, energy in zip(result.samples, (-4.0, -3.0), strict=True))
+    assert all(sample.source_provider_id == "dwave" for sample in result.samples)
+    assert all(sample.source_backend_id == "simulated_annealing" for sample in result.samples)
+    assert all(sample.execution_runtime_seconds is not None for sample in result.samples)
+    assert all(sample.effective_compilation_parameters == {} for sample in result.samples)
+    assert all(
+        sample.effective_execution_parameters == {"num_reads": 7, "num_sweeps": 20, "seed": 19}
+        for sample in result.samples
+    )
     assert result.effective_execution_parameters == {"num_reads": 7, "num_sweeps": 20, "seed": 19}
 
 
@@ -163,3 +173,62 @@ def test_backend_rejects_mis_graph_without_silent_representation_substitution(mo
 
     assert result.compiled_job is None
     assert result.terminal_reason is TerminalReason.MIS_PROBLEM_REPRESENTATION_UNSUPPORTED
+
+
+@pytest.mark.parametrize(
+    "backend_sample",
+    (
+        {"a": 1, "b": 0},
+        {"a": 1, "b": 0, "c": 1, "unexpected": 0},
+        {"a": 1.0, "b": 0, "c": 1},
+    ),
+)
+def test_backend_rejects_malformed_ocean_sample_labels_and_values(monkeypatch, backend_sample) -> None:
+    """Malformed provider output cannot be decoded by guessing labels or coercing values."""
+
+    class FakeBQM:
+        @classmethod
+        def from_qubo(cls, coefficients, offset):
+            del coefficients, offset
+            return "fake-bqm"
+
+    class FakeSampler:
+        def sample(self, bqm, **parameters):
+            del bqm, parameters
+            return SimpleNamespace(
+                data=lambda **kwargs: (
+                    SimpleNamespace(sample=backend_sample, energy=-1.0, num_occurrences=1),
+                )
+            )
+
+    def import_fake(module_name: str):
+        if module_name == "dimod":
+            return SimpleNamespace(BinaryQuadraticModel=FakeBQM)
+        if module_name == "dwave.samplers":
+            return SimpleNamespace(SimulatedAnnealingSampler=FakeSampler)
+        raise AssertionError(f"Unexpected import: {module_name}")
+
+    monkeypatch.setattr(
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", import_fake
+    )
+    backend = DWaveSimulatedAnnealingMISBackend()
+    problem = make_problem()
+    compilation = backend.compile(problem, make_compilation_request(problem))
+    assert compilation.compiled_job is not None
+
+    result = backend.solve(
+        compilation.compiled_job,
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id=compilation.compiled_job.compiled_job_id,
+            node_order=problem.graph.node_ids,
+            random_seed=None,
+            requested_solution_count=1,
+            residual_time_budget_seconds=5.0,
+        ),
+    )
+
+    assert result.samples == ()
+    assert result.completion_status is MISCompletionStatus.FAILED
+    assert result.terminal_reason is TerminalReason.MIS_RESULT_NORMALIZATION_FAILED

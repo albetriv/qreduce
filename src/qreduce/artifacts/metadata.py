@@ -17,6 +17,7 @@ _SENSITIVE_KEY_PARTS = (
     "secret",
     "token",
 )
+_BOOLEAN_CAPABILITY_KEYS = frozenset({"required_credentials"})
 _REDACTED_VALUE = "[REDACTED]"
 
 
@@ -87,7 +88,7 @@ def redact_metadata(value: object) -> object:
         result: dict[str, object] = {}
         for key, nested_value in value.items():
             text_key = str(key)
-            if _is_sensitive_key(text_key):
+            if _is_sensitive_key(text_key, nested_value):
                 result[text_key] = _REDACTED_VALUE
             else:
                 result[text_key] = redact_metadata(nested_value)
@@ -105,8 +106,10 @@ def utc_created_at() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _is_sensitive_key(key: str) -> bool:
+def _is_sensitive_key(key: str, value: object | None = None) -> bool:
     normalized_key = key.lower().replace("-", "_")
+    if normalized_key in _BOOLEAN_CAPABILITY_KEYS and isinstance(value, bool):
+        return False
     return any(part in normalized_key for part in _SENSITIVE_KEY_PARTS)
 
 

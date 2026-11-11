@@ -30,6 +30,14 @@ def test_adapter_builds_auditable_correlation_graph(portfolio_problem: Portfolio
     assert graph.edge_reasons[("asset-a", "asset-b")] == "abs_correlation=0.3 >= threshold=0.25"
 
 
+def test_baseline_portfolio_adapter_declares_no_protected_assets(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """The baseline experiment does not add domain-specific protection policy yet."""
+
+    assert make_adapter().declare_protected_items(portfolio_problem) == ()
+
+
 def test_excluded_assets_have_both_delta_and_weight_fixings(portfolio_problem: PortfolioProblem) -> None:
     """Restriction explicitly fixes every linked variable for an excluded asset."""
 

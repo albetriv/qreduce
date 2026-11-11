@@ -141,3 +141,19 @@ def test_local_backend_returns_explicit_time_limited_result_when_budget_is_exhau
 
     assert result.completion_status is MISCompletionStatus.TIME_LIMITED
     assert result.terminal_reason is TerminalReason.MIS_EXECUTION_TIME_BUDGET_EXHAUSTED
+
+
+def test_local_backend_returns_time_limited_compilation_when_budget_expires(monkeypatch) -> None:
+    """The declared compilation timeout is enforced before a job is returned."""
+
+    import qreduce.solving.mwis.local_backend as local_backend_module
+
+    timestamps = iter((0.0, 0.1))
+    monkeypatch.setattr(local_backend_module, "perf_counter", lambda: next(timestamps))
+    request = replace(make_compilation_request(make_problem()), residual_time_budget_seconds=0.05)
+
+    result = LocalGreedyMISBackend().compile(make_problem(), request)
+
+    assert result.compiled_job is None
+    assert result.completion_status is MISCompletionStatus.TIME_LIMITED
+    assert result.terminal_reason is TerminalReason.MIS_EXECUTION_TIME_BUDGET_EXHAUSTED

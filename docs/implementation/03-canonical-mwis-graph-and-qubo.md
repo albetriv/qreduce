@@ -13,6 +13,18 @@ Implementare il nucleo provider-independent del problema Maximum Weight Independ
 
 Questo task non costruisce il grafo da un dominio applicativo, non esegue un backend MIS remoto e non sceglie il candidate domain. Riceve un grafo gia` definito dall'adapter e produce una rappresentazione MWIS canonica, serializzabile e controllabile localmente.
 
+## Stato dell'audit
+
+**Stato: Completata.** L'audit del 2026-11-11 ha verificato requisito per
+requisito il grafo canonico, la QUBO MWIS standard, l'energia locale, la
+conversione QUBO-Ising e l'exact diagnostic bounded. Le evidenze riproducibili
+sono in `tests/mwis/`: invarianti e serializzazione del grafo, termini QUBO e
+policy della penalita`, equivalenza di energia QUBO-Ising, e enumerazione exact
+con rifiuto esplicito oltre `exact_solver_max_variables`. Il test exact verifica
+inoltre che tutti i minimizzatori globali della QUBO standard siano indipendenti
+e di peso MWIS, non soltanto il minimizzatore restituito nel risultato
+diagnostico.
+
 ## ReductionGraph canonico
 
 Il modello deve contenere almeno `node_ids`, `node_weights`, `edges`, `edge_reasons`, `graph_policy_id` e `graph_policy_version`.
@@ -108,3 +120,7 @@ La struttura e` indicativa e puo` evolvere senza cambiare i contratti descritti.
 - Grafo, QUBO e Ising sono serializzabili con ordine dei nodi esplicito.
 - Il solver exact e` confinato a diagnostica/test piccoli.
 - Il task successivo puo` compilare la stessa rappresentazione per backend diversi.
+
+L'audit ha confermato i criteri sopra senza introdurre dipendenze runtime da SDK
+di provider: gli oggetti canonici rimangono serializzabili e l'exact solver non
+e` incluso nel percorso operativo dei backend MWIS.

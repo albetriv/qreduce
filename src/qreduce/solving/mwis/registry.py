@@ -26,9 +26,10 @@ class MISSolverRegistry:
 
     def create(self, solver_id: str) -> MISExecutionAdapter:
         try:
-            return self._factories[solver_id]()
+            factory = self._factories[solver_id]
         except KeyError as error:
             raise UnknownMISSolverError(f"Unknown MIS solver: {solver_id}.") from error
+        return factory()
 
     @property
     def solver_ids(self) -> tuple[str, ...]:

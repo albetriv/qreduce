@@ -50,9 +50,13 @@ x_i = 0
 
 Il secondo fixing puo` essere ottenuto dalle linking constraints gia` presenti, ma l'adapter deve dimostrarne e verificarne l'effetto. Obiettivo e tutti i vincoli globali devono restare nel modello residuo.
 
-Prima del cap, la pipeline single-pass consulta il precheck dell'adapter anche per
-gli eventuali `protected_items`: tali ID devono appartenere al grafo canonico,
-sono mantenuti in ordine canonico e hanno precedenza sugli item MWIS ordinari.
+Prima del cap, la pipeline single-pass consulta
+`declare_protected_items(problem)` dell'adapter: tali ID devono appartenere al
+grafo canonico, sono mantenuti in ordine canonico e hanno precedenza sugli item
+MWIS ordinari. La dichiarazione deve essere unica ed e` letta una volta per
+round; la pipeline rifiuta ID duplicati o esterni al grafo. La dichiarazione e`
+separata da `validate_candidate_domain`, che valida soltanto il dominio effettivo
+dopo cap e protezioni.
 Se il loro numero supera `candidate_domain_max_items`, il run termina con
 `protected_items_exceed_candidate_domain_cap`, senza creare un fixing manifest.
 Il contratto corrente espone una sola categoria di protezione; le categorie e le
@@ -136,6 +140,9 @@ Test minimi:
 - il solver puo` scegliere un sottoinsieme fattibile di `C_effective` che non coincide con una candidate MWIS sorgente.
 - un item protetto dichiarato dall'adapter ha precedenza sul cap; protezioni oltre
   il cap o esterne al grafo falliscono prima del fixing.
+- il kernel rifiuta un dominio inferiore a `minimum_required_items` e un fixing
+  manifest non corrispondente esattamente al dominio effettivo prima della
+  restriction.
 
 ## Moduli Python indicativi
 

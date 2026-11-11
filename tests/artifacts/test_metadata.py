@@ -87,6 +87,20 @@ def test_redaction_removes_secrets_recursively_and_from_url_queries() -> None:
     assert "id=42" in redacted["endpoint"]
 
 
+def test_required_credentials_boolean_is_preserved_but_non_boolean_values_are_redacted() -> None:
+    """Capability flags remain observable without making the key a secret bypass."""
+
+    redacted = redact_metadata(
+        {
+            "required_credentials": True,
+            "nested": {"required_credentials": "secret-value"},
+        }
+    )
+
+    assert redacted["required_credentials"] is True
+    assert redacted["nested"]["required_credentials"] == "[REDACTED]"
+
+
 def test_created_at_is_explicit_utc_iso_timestamp() -> None:
     """Artifact timestamps identify UTC rather than depending on local timezone."""
 

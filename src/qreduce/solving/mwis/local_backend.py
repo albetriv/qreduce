@@ -53,7 +53,6 @@ class LocalGreedyMISBackend:
 
         started_at = perf_counter()
         validation = validate_compilation_request(problem, request, self.capabilities())
-        runtime_seconds = perf_counter() - started_at
         if not validation.is_valid:
             return MISCompilationResult(
                 compiled_job=None,
@@ -61,10 +60,24 @@ class LocalGreedyMISBackend:
                 requested_backend_id=request.requested_backend_id,
                 effective_provider_id=None,
                 effective_backend_id=None,
-                runtime_seconds=runtime_seconds,
+                runtime_seconds=perf_counter() - started_at,
                 completion_status=MISCompletionStatus.FAILED,
                 terminal_reason=validation.terminal_reason,
                 diagnostic_message="; ".join(issue.message for issue in validation.issues),
+            )
+        runtime_seconds = perf_counter() - started_at
+        if runtime_seconds >= request.residual_time_budget_seconds:
+            return MISCompilationResult(
+                compiled_job=None,
+                requested_provider_id=request.requested_provider_id,
+                requested_backend_id=request.requested_backend_id,
+                effective_provider_id=self.provider_id,
+                effective_backend_id=self.backend_id,
+                runtime_seconds=runtime_seconds,
+                completion_status=MISCompletionStatus.TIME_LIMITED,
+                terminal_reason=TerminalReason.MIS_EXECUTION_TIME_BUDGET_EXHAUSTED,
+                diagnostic_message="Local greedy compilation exhausted its residual time budget.",
+                effective_compilation_parameters=request.compilation_parameters,
             )
         job = CompiledMISJob(
             compiled_job_id=f"{request.run_id}:round:{request.round_index}:local-greedy",

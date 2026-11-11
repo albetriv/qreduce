@@ -116,21 +116,18 @@ def test_pipeline_retains_declared_protected_items_before_applying_cap(
 ) -> None:
     """A protected asset absent from the MIS sample takes precedence over the cap."""
 
+    declaration_calls = 0
+
     def raise_missing_binding(module_name: str):
         assert module_name == "cplex"
         raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
 
     class ProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
-        def validate_candidate_domain(
-            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
-        ) -> DomainValidationResult:
-            validation = super().validate_candidate_domain(problem, retained_item_ids)
-            return DomainValidationResult(
-                validation.is_valid,
-                validation.minimum_required_items,
-                protected_items=("asset-b",),
-                failure_reasons=validation.failure_reasons,
-            )
+        def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
+            nonlocal declaration_calls
+            del problem
+            declaration_calls += 1
+            return ("asset-b",)
 
     monkeypatch.setattr(
         "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
@@ -150,6 +147,7 @@ def test_pipeline_retains_declared_protected_items_before_applying_cap(
     assert result.fixing_manifest is not None
     assert result.fixing_manifest.excluded_item_ids == ("asset-c",)
     assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE
+    assert declaration_calls == 1
 
 
 def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
@@ -158,16 +156,9 @@ def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
     """The pipeline never silently drops protected assets or builds a partial manifest."""
 
     class TooManyProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
-        def validate_candidate_domain(
-            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
-        ) -> DomainValidationResult:
-            validation = super().validate_candidate_domain(problem, retained_item_ids)
-            return DomainValidationResult(
-                validation.is_valid,
-                validation.minimum_required_items,
-                protected_items=("asset-a", "asset-b"),
-                failure_reasons=validation.failure_reasons,
-            )
+        def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
+            del problem
+            return ("asset-a", "asset-b")
 
     config = replace(
         make_config(),
@@ -199,16 +190,9 @@ def test_pipeline_rejects_protected_item_outside_reduction_graph(
     """Adapter-declared protections must be members of the canonical graph domain."""
 
     class UnknownProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
-        def validate_candidate_domain(
-            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
-        ) -> DomainValidationResult:
-            validation = super().validate_candidate_domain(problem, retained_item_ids)
-            return DomainValidationResult(
-                validation.is_valid,
-                validation.minimum_required_items,
-                protected_items=("unknown-asset",),
-                failure_reasons=validation.failure_reasons,
-            )
+        def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
+            del problem
+            return ("unknown-asset",)
 
     result = run_single_pass(
         portfolio_problem,
@@ -222,6 +206,106 @@ def test_pipeline_rejects_protected_item_outside_reduction_graph(
     assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert result.fixing_manifest is None
+
+
+def test_pipeline_rejects_duplicate_protected_item_ids(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """Duplicate protection declarations are adapter failures rather than cap input."""
+
+    class DuplicateProtectedPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
+            del problem
+            return ("asset-a", "asset-a")
+
+    result = run_single_pass(
+        portfolio_problem,
+        DuplicateProtectedPortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
+        make_config(),
+    )
+
+    assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.fixing_manifest is None
+
+
+def test_pipeline_enforces_adapter_minimum_before_building_a_manifest(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """An adapter cannot mark a domain valid while bypassing its declared size minimum."""
+
+    class MinimumEnforcingPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def validate_candidate_domain(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ) -> DomainValidationResult:
+            del problem, retained_item_ids
+            return DomainValidationResult(True, minimum_required_items=3)
+
+        def build_fixing_manifest(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ) -> object:
+            del problem, retained_item_ids
+            raise AssertionError("A too-small candidate domain must not build a manifest.")
+
+    config = replace(
+        make_config(),
+        reduction=replace(make_config().reduction, candidate_domain_max_items=2),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        MinimumEnforcingPortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
+        config,
+    )
+
+    assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
+    assert result.run_result.terminal_reason is TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL
+    assert result.fixing_manifest is None
+    assert result.classical_result is None
+
+
+def test_pipeline_rejects_inconsistent_manifest_before_restriction(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """The adapter cannot restrict a problem with fixing IDs different from the requested domain."""
+
+    class InconsistentManifestPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def build_fixing_manifest(
+            self, problem: PortfolioProblem, retained_item_ids: tuple[str, ...]
+        ):
+            manifest = super().build_fixing_manifest(problem, retained_item_ids)
+            return replace(manifest, retained_item_ids=(retained_item_ids[0],))
+
+        def restrict_problem(
+            self,
+            problem: PortfolioProblem,
+            retained_item_ids: tuple[str, ...],
+            fixing_manifest: object,
+        ) -> object:
+            del problem, retained_item_ids, fixing_manifest
+            raise AssertionError("The pipeline must reject the manifest before restriction.")
+
+    config = replace(
+        make_config(),
+        reduction=replace(make_config().reduction, candidate_domain_max_items=2),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        InconsistentManifestPortfolioAdapter(
+            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        ),
+        config,
+    )
+
+    assert result.run_result.stage is PipelineStage.RESTRICTION
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.fixing_manifest is not None
+    assert result.classical_result is None
 
 
 def test_pipeline_supports_explicit_extension_registries(

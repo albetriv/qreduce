@@ -44,3 +44,16 @@ def test_unknown_mis_solver_is_rejected_without_substitution() -> None:
 
     with pytest.raises(UnknownMISSolverError, match="unknown_mis_solver"):
         builtin_mis_solver_registry().create("unknown_mis_solver")
+
+
+def test_registered_factory_key_error_is_not_misreported_as_an_unknown_solver() -> None:
+    """A registered factory failure remains distinguishable from an unknown solver ID."""
+
+    def broken_factory() -> CallerMISBackend:
+        raise KeyError("factory-internal-key-error")
+
+    registry = MISSolverRegistry(include_builtins=False)
+    registry.register("broken", broken_factory)
+
+    with pytest.raises(KeyError, match="factory-internal-key-error"):
+        registry.create("broken")

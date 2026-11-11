@@ -1,11 +1,14 @@
 """Lazy local D-Wave Ocean simulated-annealing MIS backend."""
 
+from collections.abc import Mapping
 from importlib import import_module as _import_module
+from operator import index
 from time import perf_counter
 from typing import Any
 
 from qreduce.capabilities import RuntimeCapabilities
 from qreduce.mwis.graph import CanonicalMWISProblem
+from qreduce.mwis.validation import MWISValidationError, normalize_binary_vector
 from qreduce.solving.mwis.compilation import validate_compilation_request
 from qreduce.solving.mwis.contracts import (
     BackendReportedScoreKind,
@@ -147,7 +150,22 @@ class DWaveSimulatedAnnealingMISBackend:
             bqm = _build_bqm(dimod_module, compiled_job.compiled_problem)
             effective_parameters = _effective_execution_parameters(request)
             sampleset = samplers_module.SimulatedAnnealingSampler().sample(bqm, **effective_parameters)
-            samples = _raw_samples(compiled_job, sampleset, request.requested_solution_count)
+            runtime_seconds = perf_counter() - started_at
+            samples = _raw_samples(
+                compiled_job,
+                sampleset,
+                request.requested_solution_count,
+                runtime_seconds,
+                effective_parameters,
+            )
+        except MWISValidationError as error:
+            return self._failure_result(
+                compiled_job,
+                request,
+                TerminalReason.MIS_RESULT_NORMALIZATION_FAILED,
+                perf_counter() - started_at,
+                str(error),
+            )
         except Exception as error:  # noqa: BLE001 - Optional SDK failures must be normalized.
             return self._failure_result(
                 compiled_job,
@@ -165,7 +183,7 @@ class DWaveSimulatedAnnealingMISBackend:
             backend_family=BackendFamily.ANNEALING,
             execution_mode=ExecutionMode.LOCAL,
             capabilities_snapshot=self.capabilities(),
-            runtime_seconds=perf_counter() - started_at,
+            runtime_seconds=runtime_seconds,
             effective_execution_parameters=effective_parameters,
             completion_status=MISCompletionStatus.COMPLETED,
             effective_device_id=None,
@@ -243,6 +261,8 @@ def _raw_samples(
     compiled_job: CompiledMISJob,
     sampleset: Any,
     requested_solution_count: int,
+    execution_runtime_seconds: float,
+    effective_execution_parameters: dict[str, object],
 ) -> tuple[RawMISSample, ...]:
     """Convert Ocean SampleSet rows into canonical-order, auditable binary samples."""
 
@@ -253,17 +273,67 @@ def _raw_samples(
         if sample_index >= requested_solution_count:
             break
         sample = record.sample
+        if not isinstance(sample, Mapping):
+            raise MWISValidationError(
+                "invalid_backend_sample",
+                "sample",
+                "Ocean sample must be a mapping keyed by canonical node IDs.",
+            )
+        sample_node_ids = set(sample)
+        expected_node_ids = set(compiled_job.node_order)
+        missing_node_ids = sorted(expected_node_ids - sample_node_ids)
+        extra_node_ids = sorted(sample_node_ids - expected_node_ids)
+        if missing_node_ids or extra_node_ids:
+            details: list[str] = []
+            if missing_node_ids:
+                details.append("missing=" + ", ".join(missing_node_ids))
+            if extra_node_ids:
+                details.append("extra=" + ", ".join(extra_node_ids))
+            raise MWISValidationError(
+                "backend_sample_node_ids_mismatch",
+                "sample",
+                "Ocean sample node IDs do not match the canonical node order: " + "; ".join(details),
+            )
+        delta = _decode_binary_sample_values(sample, compiled_job.node_order)
         samples.append(
             RawMISSample(
                 raw_sample_id=f"{compiled_job.compiled_job_id}:sample:{sample_index:04d}",
                 node_order=compiled_job.node_order,
-                delta=tuple(int(sample[node_id]) for node_id in compiled_job.node_order),
+                delta=delta,
                 occurrence_count=int(record.num_occurrences),
                 backend_reported_score=float(record.energy),
                 backend_reported_score_kind=BackendReportedScoreKind.QUBO_ENERGY,
                 source_provider_id=DWaveSimulatedAnnealingMISBackend.provider_id,
                 source_backend_id=DWaveSimulatedAnnealingMISBackend.backend_id,
+                execution_runtime_seconds=execution_runtime_seconds,
+                effective_compilation_parameters=compiled_job.effective_compilation_parameters,
+                effective_execution_parameters=effective_execution_parameters,
                 raw_backend_metadata={"sampler": "dwave.samplers.SimulatedAnnealingSampler"},
             )
         )
     return tuple(samples)
+
+
+def _decode_binary_sample_values(
+    sample: Mapping[str, object], node_order: tuple[str, ...]
+) -> tuple[int, ...]:
+    """Accept provider integer scalars while rejecting floats, booleans and non-binary values."""
+
+    decoded_values: list[int] = []
+    for node_id in node_order:
+        value = sample[node_id]
+        if isinstance(value, bool):
+            raise MWISValidationError(
+                "invalid_binary_value",
+                f"sample[{node_id!r}]",
+                "Each Ocean sample value must be the integer 0 or 1, not a boolean.",
+            )
+        try:
+            decoded_values.append(index(value))
+        except TypeError as error:
+            raise MWISValidationError(
+                "invalid_binary_value",
+                f"sample[{node_id!r}]",
+                "Each Ocean sample value must be an integer scalar equal to 0 or 1.",
+            ) from error
+    return normalize_binary_vector(tuple(decoded_values), "sample")

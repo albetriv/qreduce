@@ -7,7 +7,7 @@ from types import MappingProxyType
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
-from qreduce.config import validate_resolved_run_config
+from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
     FinalSolutionValidationResult,
     FixingManifest,
@@ -141,16 +141,20 @@ def run_single_pass(
             capability_validation.terminal_reason,
             _issues_message(capability_validation),
         )
-    remaining_budget = _remaining_budget_seconds(config, started_at)
-    if remaining_budget is None:
+    compilation_timeout = effective_timeout(
+        config.mis_execution.compilation_time_limit_seconds,
+        _remaining_budget_or_zero(config, started_at),
+    )
+    if not compilation_timeout.validation.is_valid:
         return _budget_exhausted(config, PipelineStage.MIS)
+    assert compilation_timeout.timeout_seconds is not None
     compilation = mis_solver.compile(
         canonical_problem,
         MISCompilationRequest(
             run_id=config.run_identity.run_id,
             round_index=0,
             node_order=graph.node_ids,
-            residual_time_budget_seconds=remaining_budget,
+            residual_time_budget_seconds=compilation_timeout.timeout_seconds,
             requested_provider_id=capabilities.provider_id,
             requested_backend_id=capabilities.backend_id,
             requested_backend_family=capabilities.backend_family,
@@ -167,11 +171,15 @@ def run_single_pass(
             mis_compilation_result=compilation,
             metrics=_run_metrics(started_at, mis_compilation_result=compilation),
         )
-    remaining_budget = _remaining_budget_seconds(config, started_at)
-    if remaining_budget is None:
+    execution_timeout = effective_timeout(
+        config.mis_execution.execution_time_limit_seconds,
+        _remaining_budget_or_zero(config, started_at),
+    )
+    if not execution_timeout.validation.is_valid:
         return _budget_exhausted(
             config, PipelineStage.MIS, mis_compilation_result=compilation
         )
+    assert execution_timeout.timeout_seconds is not None
     execution = mis_solver.solve(
         compilation.compiled_job,
         MISBackendRequest(
@@ -181,7 +189,7 @@ def run_single_pass(
             node_order=graph.node_ids,
             random_seed=config.mis_execution.random_seed,
             requested_solution_count=config.mis_execution.requested_solution_count,
-            residual_time_budget_seconds=remaining_budget,
+            residual_time_budget_seconds=execution_timeout.timeout_seconds,
             execution_parameters=config.mis_execution.provider_parameters,
         ),
     )
@@ -241,19 +249,14 @@ def run_single_pass(
                 mis_execution_result=execution,
             ),
         )
-    raw_candidate_item_ids = _candidate_domain_item_ids(
-        graph.node_ids, graph.node_weights, selected_samples, config, apply_cap=False
-    )
     try:
-        protection_declaration = adapter.validate_candidate_domain(
-            problem, raw_candidate_item_ids
-        )
+        protected_item_ids = adapter.declare_protected_items(problem)
     except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
         return _failed(
             config,
             PipelineStage.CANDIDATE_DOMAIN,
             TerminalReason.ADAPTER_FAILURE,
-            f"The adapter failed while declaring protected candidate-domain items: {error}",
+            f"The adapter failed while declaring protected items: {error}",
             selected_mis_samples=selected_samples,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
@@ -267,7 +270,25 @@ def run_single_pass(
                 (),
             ),
         )
-    protected_item_ids = protection_declaration.protected_items
+    if len(set(protected_item_ids)) != len(protected_item_ids):
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.ADAPTER_FAILURE,
+            "The adapter declared duplicate protected item IDs.",
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                (),
+            ),
+        )
     unknown_protected_item_ids = tuple(
         item_id for item_id in protected_item_ids if item_id not in graph.node_weights
     )
@@ -380,8 +401,76 @@ def run_single_pass(
                 retained_item_ids,
             ),
         )
+    if (
+        domain_validation.minimum_required_items is not None
+        and len(retained_item_ids) < domain_validation.minimum_required_items
+    ):
+        return _failed(
+            config,
+            PipelineStage.CANDIDATE_DOMAIN,
+            TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
+            "The candidate domain is smaller than the adapter's minimum_required_items.",
+            retained_item_ids,
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
+        )
     try:
         fixing_manifest = adapter.build_fixing_manifest(problem, retained_item_ids)
+    except Exception as error:  # noqa: BLE001 - Adapter restriction failures are normalized.
+        return _failed(
+            config,
+            PipelineStage.RESTRICTION,
+            TerminalReason.ADAPTER_FAILURE,
+            str(error),
+            retained_item_ids,
+            selected_mis_samples=selected_samples,
+            fixing_manifest=fixing_manifest if "fixing_manifest" in locals() else None,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
+        )
+    if not _fixing_manifest_matches_candidate_domain(
+        fixing_manifest, graph.node_ids, retained_item_ids
+    ):
+        return _failed(
+            config,
+            PipelineStage.RESTRICTION,
+            TerminalReason.ADAPTER_FAILURE,
+            "The adapter returned a fixing manifest inconsistent with the candidate domain.",
+            retained_item_ids,
+            fixing_manifest=fixing_manifest,
+            selected_mis_samples=selected_samples,
+            mis_compilation_result=compilation,
+            mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at,
+                execution,
+                compilation,
+                deduplicated.samples,
+                valid_samples,
+                selected_samples,
+                retained_item_ids,
+            ),
+        )
+    try:
         reduced_problem = adapter.restrict_problem(
             problem, retained_item_ids, fixing_manifest
         )
@@ -392,8 +481,8 @@ def run_single_pass(
             TerminalReason.ADAPTER_FAILURE,
             str(error),
             retained_item_ids,
+            fixing_manifest=fixing_manifest,
             selected_mis_samples=selected_samples,
-            fixing_manifest=fixing_manifest if "fixing_manifest" in locals() else None,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -645,6 +734,12 @@ def _remaining_budget_seconds(
         perf_counter() - started_at
     )
     return remaining if remaining > 0 else None
+
+
+def _remaining_budget_or_zero(config: ResolvedRunConfig, started_at: float) -> float:
+    """Return the remaining end-to-end budget for timeout clamping helpers."""
+
+    return config.reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
 
 
 def _budget_exhausted(
@@ -931,3 +1026,20 @@ def _candidate_domain_item_ids(
         config.reduction.candidate_domain_max_items - len(protected_in_canonical_order)
     )
     return protected_in_canonical_order + ranked_unprotected_item_ids[:remaining_capacity]
+
+
+def _fixing_manifest_matches_candidate_domain(
+    fixing_manifest: FixingManifest,
+    graph_node_ids: tuple[str, ...],
+    retained_item_ids: tuple[str, ...],
+) -> bool:
+    """Ensure an adapter fixes exactly the graph items outside the requested domain."""
+
+    retained_item_id_set = set(retained_item_ids)
+    expected_excluded_item_ids = tuple(
+        node_id for node_id in graph_node_ids if node_id not in retained_item_id_set
+    )
+    return (
+        fixing_manifest.retained_item_ids == retained_item_ids
+        and fixing_manifest.excluded_item_ids == expected_excluded_item_ids
+    )

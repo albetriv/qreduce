@@ -50,6 +50,12 @@ class MeanVariancePortfolioAdapter:
             graph_policy_version=self._graph_policy.policy_version,
         )
 
+    def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
+        """Return no additional protections for the baseline portfolio experiment."""
+
+        del problem
+        return ()
+
     def validate_candidate_domain(
         self,
         problem: PortfolioProblem,

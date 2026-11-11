@@ -860,7 +860,6 @@ class ReductionGraph:
 class DomainValidationResult:
     is_valid: bool
     minimum_required_items: int | None
-    protected_items: tuple[str, ...]
     failure_reasons: tuple[str, ...]
 
 
@@ -881,6 +880,9 @@ class ReducibleProblemAdapter:
         ...
 
     def build_conflict_graph(self, problem, state) -> ReductionGraph:
+        ...
+
+    def declare_protected_items(self, problem) -> tuple[str, ...]:
         ...
 
     def validate_candidate_domain(
