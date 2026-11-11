@@ -17,7 +17,7 @@ normativi o se la revisione delle specifiche viene approvata esplicitamente.
 | Tema | Decisione |
 |---|---|
 | Runtime supportato | Python 3.12 |
-| Solver MIS e classico | Scelti e registrati esplicitamente dal chiamante |
+| Solver MIS e classico | Cataloghi built-in risolti dalla pipeline; registry del chiamante solo per estensioni esplicite |
 | Adapter di dominio | Fornito dall'applicazione o confinato in un esperimento interno |
 | Percorso completo | Riduzione single-pass |
 | Provider quantistici/remoti | Non richiesti dal kernel |
@@ -85,9 +85,9 @@ problema originale dopo fixing euristico.
 | 01 | `01-project-setup-and-python-compatibility.md` | Ambiente Python 3.12 e convenzioni allineati |
 | 02 | `02-core-domain-models-and-configuration.md` | Configurazione, stati, metadata e contratti serializzabili |
 | 03 | `03-canonical-mwis-graph-and-qubo.md` | Grafo, QUBO, energia, Ising ed exact diagnostics |
-| 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS, registry e adapter forniti dal chiamante |
+| 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS, catalogo built-in e registry di estensione |
 | 05 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio interno, fixing e post-check specifici |
-| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta con registry MIS e classico iniettati |
+| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta con cataloghi built-in e registry MIS/classico opzionali |
 | 07 | Esperimenti interni | Runner, artifact JSON, loader filesystem e notebook di analisi |
 | 08 | Estensioni opzionali | Multi-round, recovery e adapter remoti/provider-specifici |
 
@@ -117,7 +117,7 @@ definizione concreta:
 
 - libreria per dataclass/configurazione e validazione;
 - formato interno definitivo delle strutture QUBO e Ising;
-- cataloghi o package opzionali di solver MIS e classici;
+- ulteriori cataloghi o package opzionali di solver MIS e classici oltre agli ID built-in correnti;
 - schema esatto di tutti i file JSON e CSV;
 - verifica della licenza CPLEX nell'ambiente che esegue i test live;
 - API pubblica finale di `QReduce.run(...)`;

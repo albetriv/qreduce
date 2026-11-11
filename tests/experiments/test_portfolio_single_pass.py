@@ -1,7 +1,7 @@
 """End-to-end portfolio experiment path using QReduce's built-in solver catalog."""
 
-import json
 import importlib.util
+import json
 from dataclasses import replace
 
 import pytest

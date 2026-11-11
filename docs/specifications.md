@@ -659,7 +659,14 @@ class MISExecutionAdapter:
 
 La separazione tra `compile` e `solve` e` obbligatoria a livello contrattuale anche quando un adapter implementa internamente entrambe le fasi in una sola chiamata. Essa consente di distinguere in modo auditabile la costruzione di un BQM, Hamiltoniana, circuito, sequenza fisica, mapping geometrico, embedding o job remoto dalla sua esecuzione.
 
-`MISCompilationRequest` deve includere almeno `run_id`, `round_index`, `node_order`, il tempo residuo, il backend richiesto, la rappresentazione canonica disponibile e i parametri specifici di compilation. `MISBackendRequest` deve includere almeno `run_id`, `round_index`, `node_order`, `random_seed` se supportato, `requested_solution_count`, il tempo residuo, i parametri specifici di esecuzione e l'identificatore del job compilato. `num_reads`, `shots`, numero di ripetizioni, profondita` QAOA, optimizer classico, transpilation, embedding, mapping geometrico e opzioni di simulazione sono parametri opzionali, validi soltanto se supportati dall'adapter selezionato.
+`MISCompilationRequest` deve includere almeno `run_id`, `round_index`, `node_order`, il tempo residuo, il backend richiesto, la forma canonica richiesta e i parametri specifici di compilation. `MISBackendRequest` deve includere almeno `run_id`, `round_index`, `node_order`, `random_seed` se supportato, `requested_solution_count`, il tempo residuo, i parametri specifici di esecuzione e l'identificatore del job compilato. `num_reads`, `shots`, numero di ripetizioni, profondita` QAOA, optimizer classico, transpilation, embedding, mapping geometrico e opzioni di simulazione sono parametri opzionali, validi soltanto se supportati dall'adapter selezionato.
+
+La pipeline single-pass sceglie una sola forma dichiarata supportata dal backend,
+con ordine deterministico `mis_graph`, `qubo`, `bqm`, `ising`. Non converte
+silenziosamente una forma rifiutata dal backend: se nessuna forma canonica e`
+supportata, termina con `mis_problem_representation_unsupported`. Per esempio,
+`local_greedy` riceve `mis_graph`, mentre `dwave_simulated_annealing` riceve
+`qubo` e costruisce il BQM Ocean soltanto nel proprio adapter.
 
 `MISBackendResult` deve includere almeno `samples`, `requested_backend`, `effective_backend`, `requested_provider`, `effective_provider`, `backend_family`, `execution_location`, `capability_status`, `runtime_seconds`, `effective_parameters`, `completion_status` e, in caso di failure, un `terminal_reason` normalizzato. Il backend non puo` restituire risultati parziali senza dichiarare se l'esecuzione e` completa, time-limited, cancellata o fallita.
 
@@ -1364,11 +1371,16 @@ QReduce soddisfa i criteri di accettazione quando:
 1. Il kernel usa esclusivamente il contratto `ReducibleProblemAdapter`; adapter, modelli residui e post-check di dominio sono forniti dall'applicazione chiamante o confinati negli esperimenti interni.
 2. Il framework esegue il percorso completo `graph -> MIS -> candidate domain -> restricted classical solve -> post-check`.
 3. Il kernel non dipende da SDK, provider, QPU, simulatore o formato di job specifico e la rappresentazione MWIS canonica e` serializzabile.
-4. La pipeline accetta registry MIS espliciti forniti dal chiamante; un backend locale, D-Wave Ocean, IBM Qiskit, AWS Braket, Pasqal/Pulser o altro backend compatibile puo` essere registrato senza diventare una dipendenza del kernel.
+4. La pipeline risolve senza registry del chiamante i cataloghi built-in MIS
+   `local_greedy` e `dwave_simulated_annealing`; accetta inoltre registry MIS
+   espliciti per estendere il catalogo con backend compatibili, senza rendere i
+   relativi SDK una dipendenza core.
 5. Il backend exact e` disponibile solo per test diagnostici piccoli.
 6. La configurazione valida capability, rappresentazione, parametri e modalita` di esecuzione prima della compilation e rifiuta esplicitamente adapter o capability non disponibili.
 7. Il framework normalizza i risultati del backend in sample binarie canoniche e ricalcola le metriche strutturali necessarie all'audit.
-8. La pipeline accetta un registry classico esplicito fornito dal chiamante; qualsiasi solver compatibile con il contratto puo` eseguire il residual solve senza diventare un requisito della libreria.
+8. La pipeline risolve senza registry del chiamante i cataloghi classici built-in
+   `cplex` e `scip`; accetta inoltre un registry classico esplicito per estendere
+   il catalogo con solver compatibili senza renderli un requisito della libreria.
 9. La riduzione applica fixing espliciti e rende disponibile un fixing manifest serializzabile nel risultato in memoria.
 10. Il framework distingue origine e garanzia di fixing euristico, sicuro e imposto dall'utente.
 11. La configurazione standard impone la condizione certificante `lambda_edge > max_i(w_i)` e i test piccoli ne verificano la proprieta`.

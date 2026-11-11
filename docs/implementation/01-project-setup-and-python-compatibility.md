@@ -14,8 +14,10 @@ l'indipendenza del kernel QReduce.
 ## Decisioni applicate
 
 - QReduce supporta Python `>=3.12,<3.13`.
-- Il kernel non impone ne` include un solver MIS o classico concreto.
-- Gli esperimenti interni possono scegliere solver e dipendenze opzionali proprie.
+- Il kernel include cataloghi di ID solver standard, ma non impone quale ID debba
+  essere selezionato da una run.
+- I backend built-in concreti e gli esperimenti interni possono richiedere
+  dipendenze opzionali proprie.
 - Il kernel non importa direttamente SDK di provider MIS.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
 
@@ -52,11 +54,12 @@ effective solver: cplex | unavailable
 ```
 
 disponibili in ogni ambiente.
-I binding Python CPLEX e PySCIPOpt sono dichiarati nel gruppo Poetry
-`experiments`. Sono importati lazy dai backend core `cplex` e `scip`, quindi non
-sono richiesti per importare QReduce. L'installazione del gruppo rende disponibili
-i binding opzionali, ma non implica che la licenza CPLEX o le capacita` MIQP siano
-utilizzabili in ogni ambiente.
+I binding Python CPLEX, PySCIPOpt e D-Wave Ocean sono dichiarati nel gruppo
+Poetry `experiments`. Sono importati lazy dai backend core `cplex`, `scip` e
+`dwave_simulated_annealing`, quindi non sono richiesti per importare QReduce.
+L'installazione del gruppo rende disponibili i binding opzionali, ma non implica
+che la licenza CPLEX, le capacita` MIQP o un backend esterno siano utilizzabili in
+ogni ambiente.
 
 ## Convenzioni di progetto
 

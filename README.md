@@ -19,8 +19,9 @@ poetry run pytest
 poetry run ruff check .
 ```
 
-I backend classici built-in usano binding opzionali. Per installare CPLEX e
-PySCIPOpt per gli esperimenti o per l'esecuzione dei backend corrispondenti:
+I backend built-in opzionali usano binding runtime-specifici. Per installare
+CPLEX, PySCIPOpt e il simulatore locale D-Wave Ocean per gli esperimenti o per
+l'esecuzione dei backend corrispondenti:
 
 ```powershell
 poetry install --with experiments
@@ -30,11 +31,11 @@ poetry install --with experiments
 e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
 package in modalita` editable insieme alle dipendenze gia` risolte.
 
-Le dipendenze core restano provider-agnostic. I binding Python `cplex` e
-`pyscipopt` sono opzionali e vengono importati lazy dai backend QReduce;
-`import qreduce` non li carica. Se il binding, il runtime o una licenza richiesta
-non sono disponibili, QReduce produce una failure esplicita e non seleziona
-automaticamente un'alternativa.
+Le dipendenze core restano provider-agnostic. I binding Python `cplex`,
+`pyscipopt`, `dimod` e `dwave-samplers` sono opzionali e vengono importati lazy
+dai backend QReduce; `import qreduce` non li carica. Se il binding, il runtime o
+una licenza richiesta non sono disponibili, QReduce produce una failure esplicita
+e non seleziona automaticamente un'alternativa.
 
 ## Selezione dei solver
 

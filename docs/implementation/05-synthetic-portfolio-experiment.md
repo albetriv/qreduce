@@ -2,7 +2,7 @@
 
 ## Scopo
 
-Definire un esperimento interno di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo solver-agnostico. Il portfolio resta confinato negli esperimenti; i solver built-in `local_greedy`, `cplex` e `scip` appartengono invece alla libreria e non importano il dominio portfolio.
+Definire un esperimento interno di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo solver-agnostico. Il portfolio resta confinato negli esperimenti; i solver built-in `local_greedy`, `dwave_simulated_annealing`, `cplex` e `scip` appartengono invece alla libreria e non importano il dominio portfolio.
 
 ## Riferimenti alle specifiche
 
@@ -74,9 +74,12 @@ L'integrazione deve almeno:
 - esportare il modello se richiesto;
 - dichiarare indisponibilita` del binding o della licenza senza fallback.
 
-I binding Python CPLEX e PySCIPOpt vengono installati tramite il gruppo Poetry
-`experiments`. Il test live CPLEX richiede inoltre una licenza locale utilizzabile
-e deve essere marcato come integrazione opzionale.
+I binding Python CPLEX, PySCIPOpt e Ocean vengono installati tramite il gruppo
+Poetry `experiments`. Il test live CPLEX richiede inoltre una licenza locale
+utilizzabile e deve essere marcato come integrazione opzionale. Il simulatore MIS
+`dwave_simulated_annealing` e` locale e non richiede credenziali o una QPU; il
+percorso portfolio predefinito continua a usare `local_greedy` per mantenere la
+configurazione dimostrativa dependency-free.
 
 ## Post-check indipendente
 
