@@ -4,7 +4,17 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
-> **Stato**: e` disponibile una pipeline single-pass domain- e solver-agnostica, con risultato auditabile in memoria. Il repository include un esperimento sintetico di portfolio persistito, non distribuito con la libreria. Recovery e multi-round non sono inclusi.
+> **Stato sintetico**: il repository contiene un nucleo single-pass utilizzabile, con risultato auditabile in memoria e un esperimento sintetico persistito. Lo stato dettagliato delle feature previste e delle relative milestone e` mantenuto nella roadmap di implementazione.
+
+## Specifiche e roadmap
+
+`docs/specifications.md` definisce le feature previste, i requisiti, le
+garanzie e i non-obiettivi di QReduce. La roadmap in
+`docs/implementation/00-implementation-overview.md` stabilisce invece come tali
+feature vengono completate, con milestone, stato ed evidenze di verifica.
+
+Questo README riassume le capacita` utilizzabili e le istruzioni operative del
+repository; non sostituisce ne` duplica il piano di implementazione.
 
 ## Sviluppo
 
@@ -100,9 +110,11 @@ problema MIP/MIQP/MIQCP
 
 ## Backend indipendenti dal provider
 
-Il kernel e` indipendente da QPU, simulatore e SDK specifici. Un adapter compila ed esegue il problema MWIS sul backend configurato, che puo` essere un solver locale, un simulatore o una QPU annealing, gate-based, neutral-atom o hybrid.
-
-Esempi di adapter previsti: D-Wave, IBM Qiskit/Quantum, AWS Braket e Pasqal/Pulser. Nessun provider e` richiesto dal kernel e non sono ammessi fallback silenziosi fra backend o modalita` di esecuzione.
+Il kernel e` indipendente da QPU, simulatore e SDK specifici. Il backend
+configurato dichiara le proprie capability e QReduce rifiuta richieste
+incompatibili senza selezionare automaticamente un'alternativa. Le feature
+previste e lo stato dei rispettivi adapter sono documentati nelle specifiche e
+nella roadmap.
 
 ## Garanzie
 
@@ -183,4 +195,7 @@ del binding selezionato il runner salva la failure effettiva e gli eventuali
 risultati intermedi, senza sostituire il solver. Le selezioni MWIS non sono la
 soluzione finale e non certificano l'ottimo del problema originale.
 
-La specifica completa e normativa e` disponibile in [`docs/specifications.md`](./docs/specifications.md).
+Le fonti autorevoli sono:
+
+- [`docs/specifications.md`](./docs/specifications.md) per feature previste e requisiti normativi;
+- [`docs/implementation/00-implementation-overview.md`](./docs/implementation/00-implementation-overview.md) per roadmap, stato ed evidenze di implementazione.

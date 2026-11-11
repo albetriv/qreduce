@@ -25,6 +25,20 @@ problema originale grande
 
 QReduce supporta sia una riduzione in singolo passaggio sia una riduzione iterativa, in cui il processo viene ripetuto fino a quando il problema residuo rientra in un budget di complessita` o di tempo definito dall'utente.
 
+## 1.1 Ruolo del documento e stato di implementazione
+
+Questo documento definisce la destinazione funzionale di QReduce: raccoglie le
+feature previste per il progetto, i relativi requisiti, le garanzie, i
+non-obiettivi e i criteri di accettazione. La presenza di un requisito in queste
+specifiche non implica che esso sia gia` implementato nel repository.
+
+Lo stato di implementazione, la sequenza delle milestone, le dipendenze tecniche
+e le evidenze di verifica sono mantenuti in
+`docs/implementation/00-implementation-overview.md`. I documenti di milestone
+in `docs/implementation/` dettagliano i task necessari per soddisfare i
+requisiti qui definiti, senza introdurre requisiti funzionali in conflitto con
+questo documento.
+
 ## 2. Obiettivi
 
 QReduce deve:
@@ -57,11 +71,14 @@ QReduce non deve:
 - definire o imporre dataset di calibrazione, benchmark, riferimento classico, funzione di qualita`, soglie di accettazione o regole universali per scegliere una policy migliore;
 - eseguire automaticamente tuning, calibrazione o selezione di policy in base a risultati di run precedenti.
 
-### 3.1 Perimetro attuale
+### 3.1 Perimetro funzionale previsto
 
-QReduce implementa il percorso end-to-end con i componenti obbligatori seguenti:
+Il progetto prevede il percorso end-to-end con i componenti seguenti. Lo stato
+effettivo di ciascun componente e` dichiarato soltanto nella roadmap di
+implementazione.
 
-| Componente | Stato |
+| Componente | Priorita` nel perimetro |
+|---|---|
 | Adapter di dominio dimostrativo | obbligatorio |
 | Rappresentazione MWIS canonica: grafo, QUBO e conversione BQM/Ising quando applicabile; validazione, repair e candidate domain | obbligatorio |
 | Backend MIS locale concreto, euristico o simulato | obbligatorio; non deve rendere il kernel dipendente da uno specifico provider o SDK |
@@ -715,9 +732,9 @@ redacted raw backend metadata, if serializable
 
 Il vettore binario deve essere validato rispetto al `node_order` serializzato nel `ReductionGraph`; un adapter deve dichiarare e applicare esplicitamente ogni convenzione di endianess, ordine dei bit, spin/binary conversion o decoding provider-specifico. I metadata grezzi non devono contenere credenziali, token, segreti, endpoint con parametri sensibili o dati personali.
 
-### 11.5 Backend disponibili e adapter opzionali
+### 11.5 Backend previsti e adapter opzionali
 
-QReduce implementa almeno:
+Il progetto prevede almeno:
 
 ```text
 backend MIS built-in local_greedy e dwave_simulated_annealing, selezionati da ID esplicito
@@ -1389,12 +1406,17 @@ QReduce soddisfa i criteri di accettazione quando:
 14. I test unitari e di integrazione elencati nelle sezioni rilevanti passano.
 15. La documentazione dichiara chiaramente che il solve ottimo del problema residuo non implica ottimalita` del problema originale dopo fixing euristico o user-imposed.
 
-## 22. Estensioni non incluse
+## 22. Idee per possibili estensioni future
 
-Le estensioni non incluse includono:
+Le idee seguenti non sono requisiti di QReduce, non sono comprese nei criteri di
+accettazione e non devono essere pianificate come milestone obbligatorie. Sono
+spunti che possono essere promossi a requisiti soltanto con una decisione
+esplicita, seguita dall'aggiornamento di queste specifiche e della roadmap.
+
+Tra queste idee rientrano:
 
 - implementazione di ulteriori adapter per D-Wave Leap Hybrid e QPU, IBM Quantum/Qiskit, AWS Braket, Pasqal/Pulser e altri provider;
-- esperimenti di portfolio o di altri domini e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
+- ulteriori esperimenti di portfolio o di altri domini, oltre agli esperimenti dimostrativi gia` previsti, e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
 - politiche di graph construction apprese o data-driven;
 - integrazione con certificate di presolve e reduced-cost fixing;
 - adaptive selection del numero di round e della dimensione di `C`;

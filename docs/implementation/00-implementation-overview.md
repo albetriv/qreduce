@@ -1,142 +1,143 @@
 # QReduce - Implementation overview
 
-## Scopo
+## Scopo e autorita` documentale
 
-Questo documento descrive la roadmap tecnica di QReduce.
-Traduce `docs/specifications.md` in task implementativi, senza sostituirla:
-le specifiche restano la fonte normativa per requisiti funzionali, confini di
-responsabilita`, garanzie, stati, failure reason e criteri di accettazione.
+Questo documento e` la roadmap tecnica verso il completamento delle feature
+previste in `docs/specifications.md`. Le specifiche sono la fonte normativa per
+requisiti funzionali, garanzie, confini di responsabilita`, stati, failure reason
+e criteri di accettazione; questa roadmap stabilisce invece ordine, dipendenze,
+stato ed evidenze delle milestone necessarie a soddisfarli.
 
-I documenti in `docs/implementation/` registrano invece decisioni tecniche
-operative, assunzioni temporanee e contratti da verificare durante lo sviluppo.
-Una decisione qui descritta puo` essere rivista se non modifica i requisiti
-normativi o se la revisione delle specifiche viene approvata esplicitamente.
+Una milestone non puo` introdurre un nuovo requisito funzionale o modificare una
+garanzia stabilita dalle specifiche. Se una scelta tecnica richiede un cambio di
+requisito, deve essere prima approvato e documentato in
+`docs/specifications.md`, poi riflesso in questa roadmap e nei documenti di
+milestone interessati.
 
-## Decisioni tecniche correnti
+Il README e` una guida sintetica per utenti e contributori: rimanda a questi due
+documenti, riporta solo uno stato generale della roadmap e non ne duplica le
+milestone.
 
-| Tema | Decisione |
+## Regole di stato
+
+| Stato | Significato |
 |---|---|
-| Runtime supportato | Python 3.12 |
-| Solver MIS e classico | Cataloghi built-in risolti dalla pipeline; registry del chiamante solo per estensioni esplicite |
-| Adapter di dominio | Fornito dall'applicazione o confinato in un esperimento interno |
-| Percorso completo | Riduzione single-pass |
-| Provider quantistici/remoti | Non richiesti dal kernel |
-| Kernel | Indipendente da provider, SDK e oggetti runtime proprietari |
-| Esperimenti repository | `qreduce.experiments` salva artifact e resta escluso dalla distribuzione |
+| Completata | Codice, test e documentazione disponibili; i criteri della milestone sono stati verificati nel repository. |
+| Parziale | Parte del percorso e` implementata, ma restano requisiti, evidenze o allineamenti documentali da completare. |
+| Da verificare | Codice e test pertinenti sono presenti, ma non e` stata ancora completata la verifica requisito-per-requisito contro le specifiche. |
+| Da implementare | La milestone e` richiesta dalle specifiche ma non possiede ancora un percorso implementato verificabile. |
+| Condizionale | Capacita` opzionale prevista dalle specifiche; non blocca il completamento del nucleo finche` non viene resa obbligatoria da una decisione esplicita. |
 
-Un esperimento interno disponibile e` il portfolio sintetico single-pass:
+Lo stato qui riportato e` una fotografia del repository alla revisione della
+roadmap. Una milestone passa a `Completata` soltanto dopo la verifica dei propri
+criteri di completamento, compresi i test proporzionati.
 
-```bash
-poetry run python -m qreduce.experiments.portfolio \
-  --run-id scip-run-001 \
-  --mis-solver-id local_greedy \
-  --classical-solver-id scip
-```
-
-Il runner pubblica il run in
-`outputs/synthetic-portfolio-single-pass/scip-run-001/`; il notebook
-`notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` lo analizza
-dal filesystem senza invocare la pipeline.
-
-L'esperimento portfolio seleziona i solver built-in `local_greedy` e `scip` per
-dimostrare un solve residuo MIQP con variabili binarie e continue. Il catalogo MIS
-built-in include anche `dwave_simulated_annealing`, un simulatore Ocean locale
-opzionale. L'esperimento resta escluso dal wheel; CPLEX, PySCIPOpt e Ocean sono
-dipendenze opzionali importate lazy.
-
-## Principio di progettazione
-
-L'implementazione deve produrre un percorso locale e auditabile:
+## Architettura di riferimento
 
 ```text
 application problem
   -> application domain adapter builds ReductionGraph
-  -> canonical MWIS/QUBO
-  -> built-in or caller-registered MIS solver
-  -> sample normalization and candidate domain
-  -> explicit fixing manifest
-  -> built-in or caller-registered residual classical solve
+  -> canonical MWIS/QUBO/Ising representation
+  -> selected built-in or explicitly registered MIS backend
+  -> normalization, validation, repair and candidate-domain construction
+  -> explicit fixing manifest and restricted problem
+  -> selected built-in or explicitly registered classical backend
   -> adapter post-check
-  -> complete in-memory run result and run summary
+  -> complete in-memory run result
 
 repository experiment runner
   -> persists complete artifacts under outputs/{experiment_id}/{run_id}/
   -> notebooks load artifacts without rerunning the pipeline
 ```
 
-Il risultato MWIS restringe il dominio delle decisioni binarie. Non e` il
-portafoglio finale e non trasferisce ottimalita` globale dal problema residuo al
-problema originale dopo fixing euristico.
+Il risultato MWIS restringe il dominio delle decisioni binarie; non e` la
+soluzione finale e non trasferisce l'ottimalita` del problema residuo al problema
+originale dopo fixing euristico.
 
-## Documentazione e fonti di verita`
+## Roadmap delle feature obbligatorie
+
+| ID | Milestone | Stato | Requisiti principali | Evidenze correnti | Uscita richiesta per il completamento |
+|---|---|---|---|---|---|
+| M01 | Fondazioni di progetto e compatibilita` | Parziale | Python 3.12, packaging provider-agnostic, dipendenze lazy, convenzioni di sviluppo | `pyproject.toml`, `poetry.lock`, test di indipendenza runtime | Verificare anche la configurazione CI richiesta dal documento di milestone e mantenere README, packaging e CI coerenti. |
+| M02 | Contratti core, configurazione, stati e provenance | Parziale | Configurazione immutabile, capability, stati/failure, metadata e serializzazione | `config.py`, `models.py`, `status.py`, `capabilities.py`, `artifacts/metadata.py` e relativi test | Coprire tutti i campi e le invarianti richiesti dalle sezioni 16-19 delle specifiche, con evidenze di serializzazione e audit. |
+| M03 | Grafo MWIS, QUBO, Ising ed exact diagnostics | Da verificare | Grafo canonico, QUBO MWIS, energia, conversione Ising, solver exact sotto soglia | `mwis/` e `tests/mwis/` | Verificare criterio per criterio la milestone; poi mantenere test di equivalenza, validazione e soglia exact in caso di evoluzione del modello. |
+| M04 | Contratto MIS, cataloghi e backend locali | Da verificare | Capability, compile/solve, normalizzazione, `local_greedy`, `dwave_simulated_annealing`, registry esplicite | `mis/`, `capabilities.py` e `tests/mis/` | Verificare criterio per criterio la milestone; poi mantenere la validazione pre-compilation e le failure esplicite per dipendenze o capability indisponibili. |
+| M05 | Pipeline single-pass, candidate domain e fixing | Parziale | Orchestrazione end-to-end, ranking/diversita`, repair, fixing manifest, budget e failure parziali | `pipeline/single_pass.py`, `domains/`, test pipeline e integrazione | Completare la tracciabilita` richiesta per repair, scarti e candidate; verificare tutte le protezioni, metriche e invarianti delle sezioni 7, 8, 12 e 20. |
+| M06 | Solve classico, post-check ed esperimento portfolio | Parziale | Modello classico generico, backend `cplex` e `scip`, post-check, adapter portfolio dimostrativo | `classical/`, `experiments/portfolio_domain/` e test associati | Completare la verifica end-to-end delle opzioni di export e degli esiti opzionali dei solver, senza introdurre side effect impliciti nel kernel. |
+| M07 | Runner, artifact e notebook di analisi | Parziale | Persistenza atomica degli esperimenti, manifest, loader e notebook che leggono artifact | `experiments/runner.py`, `experiments/artifacts.py`, notebook e test runner | Verificare la copertura completa di provenance, hash e dati per-round/candidate richiesta dalle sezioni 16-17. |
+| M08 | Riduzione multi-round e recovery | Da implementare | Domini monotoni, criteri di stop, recovery dal medesimo round, artifact per round | La configurazione modella `max_reduction_rounds`, ma `config.py` accetta oggi solo `1` | Definire un documento di milestone dedicato, implementare il runner multi-round e aggiungere i test della sezione 20.6. |
+
+Le milestone M01-M07 descrivono il nucleo obbligatorio previsto dalle
+specifiche. M08 e` anch'essa obbligatoria per dichiarare completo il progetto,
+ma non blocca la disponibilita` del percorso single-pass gia` implementato in
+modo parziale.
+
+## Capacita` opzionali previste
+
+Le specifiche prevedono contratti in grado di supportare adapter MIS remoti,
+gate-based o neutral-atom, ma non impongono un provider specifico. Queste
+capacita` restano `Condizionali`: entrano in una milestone esecutiva solo quando
+viene scelta esplicitamente una famiglia di backend, un adapter e un ambiente di
+verifica.
+
+| ID | Capacita` | Stato | Condizione per pianificarla |
+|---|---|---|---|
+| O01 | Adapter annealing remoto, Leap Hybrid o QPU | Condizionale | Provider, credenziali, gestione di embedding e ambiente di test dichiarati. |
+| O02 | Adapter gate-based | Condizionale | Scelta di SDK, compilazione/decoding, gestione shots e transpilation dichiarati. |
+| O03 | Adapter neutral-atom | Condizionale | Scelta di SDK o servizio, mapping geometrico e criteri di audit dichiarati. |
+
+Le idee raccolte nella sezione 22 delle specifiche non appartengono a questa
+tabella: non sono requisiti e non ricevono una milestone fino a promozione
+esplicita nelle specifiche.
+
+## Documenti di milestone ed evidenze
+
+| Area | Documento o posizione | Ruolo |
+|---|---|---|
+| M01 | `01-project-setup-and-python-compatibility.md` | Packaging, runtime e dipendenze opzionali. |
+| M02 | `02-core-domain-models-and-configuration.md` | Contratti dati, stati, configurazione e metadata. |
+| M03 | `03-canonical-mwis-graph-and-qubo.md` | Rappresentazione MWIS canonica ed exact diagnostics. |
+| M04 | `04-mis-backends-and-adapter-contracts.md` | Contratti e backend MIS. |
+| M05-M06 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio, backend classici e post-check; la pipeline single-pass e` inoltre in `src/qreduce/pipeline/single_pass.py`. |
+| M07 | `src/qreduce/experiments/` | Runner, artifact, loader e notebook; richiede un documento di milestone dedicato prima della dichiarazione di completamento. |
+| M08 | Da creare | Design multi-round/recovery, compatibile con sezioni 9 e 20.6 delle specifiche. |
+
+## Decisioni tecniche correnti e aperte
+
+| Tema | Decisione o stato corrente |
+|---|---|
+| Runtime supportato | Python 3.12. |
+| Kernel | Indipendente da provider, SDK e oggetti runtime proprietari. |
+| Solver standard | Cataloghi built-in; registry del chiamante solo per estensioni esplicite. |
+| Adapter di dominio | Fornito dall'applicazione oppure confinato in un esperimento interno. |
+| Percorso attualmente eseguibile | Single-pass. Multi-round e recovery appartengono a M08. |
+| Esperimenti repository | `qreduce.experiments` e` escluso dal wheel e pubblica artifact. |
+| API pubblica finale e CLI | Decisione aperta; non deve alterare i confini contrattuali delle specifiche. |
+| Formati aggiuntivi e provider remoti | Condizionali: richiedono una scelta esplicita di adapter e ambiente. |
+
+## Regole di completamento delle milestone
+
+Una milestone puo` iniziare quando possiede confini di responsabilita`, input,
+output, failure osservabili, dipendenze dichiarate e un piano di test minimo.
+Puo` essere dichiarata completata soltanto quando:
+
+1. requisiti e criteri di accettazione rilevanti sono mappati alle evidenze;
+2. implementazione Python e test permanenti sono coerenti;
+3. README, esempi e notebook impattati sono aggiornati o verificati coerenti;
+4. notebook ed esempi usano la logica dei moduli Python senza duplicare business
+   logic;
+5. le decisioni rimaste fuori dalla milestone sono esplicitamente riportate
+   come dipendenze di una milestone successiva o come capacita` condizionali.
+
+## Fonti di verita`
 
 | Contenuto | Posizione | Regola |
 |---|---|---|
-| Requisiti, garanzie e non-obiettivi | `docs/specifications.md` | Normativo |
-| Roadmap e decisioni tecniche correnti | `docs/implementation/` | Revisionabile e tracciabile |
-| Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook |
-| Test permanenti | `tests/` | Ogni milestone aggiunge test proporzionati |
-| Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem |
-| Esperimenti interni | `src/qreduce/experiments/` | Runner interno, escluso dal wheel, che pubblica artifact completi in `outputs/{experiment_id}/{run_id}/` |
-| Notebook experiments | `notebooks/experiments/` | Leggono gli artifact dal filesystem e non invocano la pipeline |
-| File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo |
-
-## Sequenza implementativa proposta
-
-| Ordine | Documento | Risultato verificabile |
-|---:|---|---|
-| 01 | `01-project-setup-and-python-compatibility.md` | Ambiente Python 3.12 e convenzioni allineati |
-| 02 | `02-core-domain-models-and-configuration.md` | Configurazione, stati, metadata e contratti serializzabili |
-| 03 | `03-canonical-mwis-graph-and-qubo.md` | Grafo, QUBO, energia, Ising ed exact diagnostics |
-| 04 | `04-mis-backends-and-adapter-contracts.md` | Contratto MIS, catalogo built-in e registry di estensione |
-| 05 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio interno, fixing e post-check specifici |
-| 06 | `src/qreduce/pipeline/single_pass.py` | Pipeline concreta con cataloghi built-in e registry MIS/classico opzionali |
-| 07 | Esperimenti interni | Runner, artifact JSON, loader filesystem e notebook di analisi |
-| 08 | Estensioni opzionali | Multi-round, recovery e adapter remoti/provider-specifici |
-
-## Rappresentazioni MWIS e indipendenza dal provider
-
-Il core deve distinguere livelli diversi:
-
-```text
-ReductionGraph
-  -> canonical QUBO over delta_i in {0, 1}
-  -> optional canonical Ising form over z_i in {-1, +1}
-  -> adapter-specific compilation, if required
-```
-
-QUBO e` la formulazione matematica binaria quadratica del MWIS. BQM e` una
-struttura dati usata da alcuni ecosistemi per rappresentare termini lineari e
-quadratici binari o spin. Ising e` una formulazione equivalente su spin.
-
-Il kernel non deve richiedere un SDK BQM e non deve esporre oggetti runtime di
-un provider. Un adapter puo` costruire un BQM, una Hamiltoniana, un circuito o
-una rappresentazione nativa soltanto quando la propria capability lo richiede.
-
-## Decisioni volutamente rinviate
-
-Le seguenti scelte saranno documentate quando il codice ne richiedera` una
-definizione concreta:
-
-- libreria per dataclass/configurazione e validazione;
-- formato interno definitivo delle strutture QUBO e Ising;
-- ulteriori cataloghi o package opzionali di solver MIS e classici oltre agli ID built-in correnti;
-- schema esatto di tutti i file JSON e CSV;
-- verifica della licenza CPLEX nell'ambiente che esegue i test live;
-- API pubblica finale di `QReduce.run(...)`;
-- CLI, notebook e schema di input utente;
-- BQM/annealing, gate-based, neutral-atom o adapter remoti;
-- multi-round, recovery, rollback e fallback espliciti futuri.
-
-Ogni scelta dovra` rispettare la capability validation, il divieto di fallback
-silenzioso e l'auditabilita` richiesti dalle specifiche.
-
-## Criteri per passare dalla documentazione al codice
-
-L'implementazione puo` iniziare quando ogni task ha:
-
-1. confini di responsabilita` chiari;
-2. input, output e failure osservabili;
-3. un piano di test minimo;
-4. dipendenze dichiarate e non implicite;
-5. una decisione esplicita su cio` che resta fuori dalla milestone.
+| Feature previste, requisiti e non-obiettivi | `docs/specifications.md` | Normativo. |
+| Sequenza, stato ed evidenze di implementazione | `docs/implementation/` | Roadmap tracciabile. |
+| Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook. |
+| Test permanenti | `tests/` | Ogni modifica osservabile richiede test proporzionati. |
+| Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem. |
+| Esperimenti interni | `src/qreduce/experiments/` | Runner interno escluso dal wheel, con artifact in `outputs/{experiment_id}/{run_id}/`. |
+| Notebook experiments | `notebooks/experiments/` | Leggono artifact dal filesystem e non invocano la pipeline. |
+| File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo. |
