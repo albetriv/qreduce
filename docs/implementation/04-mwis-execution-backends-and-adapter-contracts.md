@@ -39,7 +39,7 @@ milestone.
 | Normalizzazione: validazione binaria e `node_order`, ricalcolo QUBO/Ising e validita' strutturale, score nativo non reinterpretato (11.4, 20.2) | `normalization.py` | `tests/solving/mwis/test_normalization.py` | Conforme |
 | Deduplicazione stabile, occurrence aggregata e cap deterministico (12, 20.2) | `normalization.py` | `tests/solving/mwis/test_normalization.py` | Conforme |
 | Sample provenance e metadata redatti, incluso il solo flag booleano di capability `required_credentials` senza bypass per valori sensibili (11.4, 20.2) | `contracts.py`, `artifacts/metadata.py`, backend locali | `tests/solving/mwis/test_contracts.py`, `tests/solving/mwis/test_dwave_simulated_annealing_backend.py`, `tests/artifacts/test_metadata.py` | Conforme |
-| Exact MIS/QUBO diagnostico con rifiuto oltre soglia (11.5, 20.2) | `mwis/exact.py` | Audit e certificazione assegnati a M03 | Dipendenza non verificata |
+| Exact MIS/QUBO diagnostico con rifiuto oltre soglia (11.5, 20.2) | `mwis/exact.py` | Audit M03 del 2026-11-11; `tests/mwis/test_exact.py` | Conforme |
 
 Gli adapter gate-based, remote, neutral-atom, embedding e mapping geometrico
 non sono implementati in M04. I loro requisiti restano condizionali: se un
