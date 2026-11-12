@@ -43,7 +43,8 @@ questo documento.
 
 QReduce deve:
 
-- supportare problemi grandi MIP, MIQP e MIQCP con decisioni binarie riducibili;
+- supportare problemi grandi MIP, MIQP e, tramite estensioni esplicite del
+  contratto classico, MIQCP con decisioni binarie riducibili;
 - usare MIS per proporre un dominio discreto piu` piccolo, non per sostituire automaticamente il problema originale ne` per fissare direttamente la selezione finale;
 - mantenere il kernel indipendente da provider, SDK e modello computazionale del backend MIS;
 - supportare backend MIS locali o remoti, classici o quantistici, tramite adapter che dichiarano capability e rappresentazioni accettate;
@@ -79,7 +80,7 @@ implementazione.
 
 | Componente | Priorita` nel perimetro |
 |---|---|
-| Adapter di dominio dimostrativo | obbligatorio |
+| Adapter di dominio dimostrativo interno | obbligatorio: esempio end-to-end confinato negli esperimenti del repository; dimostra il contratto adapter senza rendere il kernel dipendente dal dominio ne` costituire una funzionalita` generale della distribuzione |
 | Rappresentazione MWIS canonica: grafo, QUBO e conversione BQM/Ising quando applicabile; validazione, repair e candidate domain | obbligatorio |
 | Backend MIS locale concreto, euristico o simulato | obbligatorio; non deve rendere il kernel dipendente da uno specifico provider o SDK |
 | Cataloghi/factory built-in per solver MIS e classico | obbligatorio: QReduce risolve gli ID standard senza registry forniti dal chiamante |
@@ -116,6 +117,34 @@ dove:
 - `x` sono eventuali variabili continue;
 - `y` sono eventuali altre variabili discrete o continue;
 - `I` e` il dominio delle decisioni binarie candidabili alla riduzione.
+
+La QUBO/MWIS costruita da QReduce e` un problema ausiliario di riduzione: non
+sostituisce, non modifica e non viene sommata alla funzione obiettivo
+`F(delta, x, y)` del problema originale. Essa seleziona soltanto un dominio
+candidato delle decisioni binarie; il solve classico residuo mantiene
+l'obiettivo originale, salvo il fixing delle decisioni escluse e delle variabili
+semanticamente collegate.
+
+Il contratto classico attualmente rappresentato dal repository supporta:
+
+```text
+MILP:
+    linear objective
+    linear constraints
+
+MIQP:
+    linear objective + explicit quadratic objective terms
+    linear constraints
+```
+
+Quindi un obiettivo originale lineare non e` richiesto. Un obiettivo quadratico
+e` ammesso nel problema residuo ed e` distinto dai termini quadratici della
+QUBO MWIS. Vincoli quadratici, conici, indicatori o non lineari non sono
+rappresentati direttamente dal `ClassicalOptimizationModel` corrente: per
+eseguirli end-to-end richiedono una riformulazione/linearizzazione oppure
+un'estensione esplicita del contratto adapter/backend. Il riferimento a MIQCP
+negli obiettivi del progetto indica questa destinazione architetturale, non una
+capacita` gia` fornita dalla rappresentazione residuale corrente.
 
 Il problema e` adatto a QReduce quando sono vere tutte le condizioni seguenti:
 
@@ -257,6 +286,12 @@ Il modello QUBO deve contenere esclusivamente:
 
 - un termine lineare `-w_i * delta_i` per ogni nodo;
 - un termine quadratico positivo `lambda_edge * delta_i * delta_j` per ogni arco.
+
+Questi termini appartengono esclusivamente al problema ausiliario MWIS. Non
+sono sommati, trasferiti o reinterpretati come termini dell'obiettivo originale:
+un eventuale obiettivo lineare o quadratico del problema di dominio rimane nel
+modello classico residuo. La QUBO MWIS determina soltanto quali decisioni
+binarie restano disponibili al solver classico.
 
 Con pesi finiti e non negativi e con `lambda_edge > max_i(w_i)`, ogni minimizzatore globale della QUBO corrisponde a un insieme indipendente: se una selezione contiene un arco violato, rimuovere uno dei suoi endpoint diminuisce strettamente l'energia. Il sampling euristico puo` comunque produrre sample non indipendenti e deve quindi passare dalla validazione strutturale.
 
@@ -927,6 +962,16 @@ L'adapter e` responsabile di:
 - serializzare informazioni di dominio necessarie all'audit;
 - validare la soluzione finale rispetto al problema originale.
 
+L'adapter portfolio media-varianza incluso nel repository e` un adapter
+dimostrativo interno, usato da un esperimento sintetico e confinato in
+`qreduce.experiments`. Tratta ogni asset come item riducibile, costruisce il
+grafo da retention score e correlazioni, fissa `delta_i = 0` e `x_i = 0` per
+gli asset esclusi, compila un MIQP residuo e ne esegue il post-check. Non e` una
+policy finanziaria raccomandata, un benchmark, un adapter universale o una
+dipendenza del kernel/distribuzione della libreria. Altri domini devono fornire
+un adapter che implementi lo stesso contratto con pesi, archi, fixing e
+validazioni coerenti con la propria semantica.
+
 Ogni `item_id` restituito dall'adapter deve essere unico, serializzabile e stabile almeno per tutta la durata del run. Il framework deve rifiutare item duplicati, pesi non finiti, archi con endpoint assenti e reason mancanti per archi o fixing.
 
 L'adapter deve descrivere i conteggi delle variabili logiche libere del problema
@@ -962,6 +1007,12 @@ di ogni termine quadratico rappresenta il polinomio effettivo, non la matrice
 quadratica di una API specifica. La conversione alle convenzioni native,
 incluse forme quadratiche con coefficienti diagonali in convenzione dimezzata,
 e` responsabilita` del backend.
+
+Di conseguenza, il contratto corrente rappresenta direttamente MILP e MIQP con
+vincoli lineari. Non rappresenta direttamente vincoli quadratici, conici,
+indicatori o non lineari; il loro supporto richiede una riformulazione nel
+contratto corrente oppure un'estensione esplicita e verificata del modello e dei
+backend classici.
 
 I solver ID classici built-in iniziali sono `cplex` e `scip`. Entrambi usano
 import lazy e non possono importare moduli di dominio sperimentali. Il backend

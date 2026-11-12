@@ -4,6 +4,12 @@ QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi d
 
 Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
 
+La QUBO MWIS e` un problema ausiliario di riduzione: i suoi termini quadratici
+non vengono sommati all'obiettivo di dominio. Il contratto residuale corrente
+rappresenta MILP e MIQP con vincoli lineari, quindi l'obiettivo originale puo`
+essere lineare o quadratico; vincoli quadratici, conici, indicatori o non
+lineari richiedono una riformulazione oppure un'estensione esplicita.
+
 > **Stato sintetico**: il repository contiene un nucleo single-pass utilizzabile, con risultato auditabile in memoria e un esperimento sintetico persistito. Lo stato dettagliato delle feature previste e delle relative milestone e` mantenuto nella roadmap di implementazione.
 
 ## Specifiche e roadmap
@@ -81,6 +87,13 @@ poetry install --with experiments
 ## Policy e valutazione esterna
 
 QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e ne registra configurazione, provenance ed esiti. Non include un workflow di calibrazione, benchmark o selezione automatica della policy: riferimenti classici, metriche di qualita`, soglie e separazione fra tuning e valutazione finale restano responsabilita` dell'applicazione o dell'adapter di dominio.
+
+Il portfolio media-varianza presente in `qreduce.experiments` e` un esempio
+sintetico interno: dimostra un adapter che costruisce il grafo, applica fixing,
+compila un MIQP residuo ed esegue il post-check. Non e` un adapter finanziario
+generico, una policy raccomandata o una dipendenza della distribuzione; gli
+adapter di altri domini devono implementare il contratto QReduce con la propria
+semantica.
 
 Gli adapter di dominio devono implementare `describe_logical_variables(problem)`
 e restituire `LogicalVariableCounts` per problema originale e residuo. I conteggi

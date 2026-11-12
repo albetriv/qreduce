@@ -111,6 +111,7 @@ esplicita nelle specifiche.
 | Kernel | Indipendente da provider, SDK e oggetti runtime proprietari. |
 | Solver standard | Cataloghi built-in; registry del chiamante solo per estensioni esplicite. |
 | Adapter di dominio | Fornito dall'applicazione oppure confinato in un esperimento interno. |
+| Forme residuali correnti | Il `ClassicalOptimizationModel` rappresenta MILP e MIQP con vincoli lineari; MIQCP richiede un'estensione esplicita o una riformulazione. |
 | Percorso attualmente eseguibile | Single-pass. Multi-round e recovery appartengono a M08. |
 | Esperimenti repository | `qreduce.experiments` e` escluso dal wheel e pubblica artifact. |
 | API pubblica finale e CLI | Decisione aperta; non deve alterare i confini contrattuali delle specifiche. |
