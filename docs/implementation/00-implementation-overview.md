@@ -90,6 +90,27 @@ Le idee raccolte nella sezione 22 delle specifiche non appartengono a questa
 tabella: non sono requisiti e non ricevono una milestone fino a promozione
 esplicita nelle specifiche.
 
+## Nice to have: benchmark suite pubblica esterna
+
+La sezione 22.1 delle specifiche registra una proposta non vincolante di suite
+esterna per il benchmark del core MWIS e della riduzione end-to-end. Non e` una
+milestone e non modifica il perimetro del kernel: dataset, parser, adapter,
+policy di grafo, metriche di qualita` e soglie restano responsabilita` del
+workflow esterno.
+
+| ID | Iniziativa | Stato | Condizione per pianificarla |
+|---|---|---|---|
+| N01 | Benchmark MWIS DIMACS-like | Nice to have | Scegliere una collezione, una licenza, parser e protocollo per confrontare backend MIS senza trattarla come benchmark end-to-end. |
+| N02 | Adapter OR-Library set packing | Nice to have | Definire formato di input, mapping item/colonne, conflitti at-most-one, solve residuo e confronto con il modello completo. |
+| N03 | Adapter OR-Library facility location e set covering | Nice to have | Dichiarare score, conflitti, precheck di capacita` o copertura, fixing delle variabili collegate e post-check. |
+| N04 | Adapter QPLIB filtrata a MIQP lineare nei vincoli | Nice to have | Definire parser e filtri per binarie/mixed-binary, obiettivo quadratico e soli vincoli lineari; escludere MIQCP fino a estensione del contratto residuale. |
+| N05 | Adapter MIPLIB 2017 per famiglie strutturali | Nice to have | Selezionare una famiglia con semantica esplicita, parser MPS/LP, criteri di inclusione e policy di grafo; non inferire conflitti dalla sola co-occorrenza nei vincoli. |
+
+Prima di promuovere una di queste iniziative a milestone, creare un documento
+dedicato con dataset e licenza, filtro/versione delle istanze, adapter,
+protocollo full-versus-reduced, metriche, limiti di tempo, solver di riferimento
+e gestione riproducibile di infeasibility, failure e post-check failed.
+
 ## Documenti di milestone ed evidenze
 
 | Area | Documento o posizione | Ruolo |

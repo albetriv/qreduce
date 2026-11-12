@@ -1553,3 +1553,42 @@ Tra queste idee rientrano:
 - bound globali per quantificare la perdita introdotta dalla riduzione euristica;
 - fallback espliciti e auditabili tra backend, se richiesti da una policy esplicita;
 - rollback cross-round e riattivazione controllata di item gia` fissati.
+
+### 22.1 Nice to have: benchmark suite pubblica esterna
+
+Una benchmark suite pubblica deve restare un package opzionale o un'applicazione
+esterna al kernel. Non deve introdurre loader, dataset, policy di grafo, soglie
+di accettazione o selezione automatica della policy come dipendenze obbligatorie
+di QReduce. Ogni adapter benchmark deve dichiarare la propria semantica di item,
+pesi, archi, fixing, precheck di fattibilita` e post-check, senza assumere che
+una struttura di vincolo generica rappresenti automaticamente un conflitto MWIS.
+
+La suite puo` essere articolata nei livelli seguenti:
+
+| Livello | Famiglie suggerite | Scopo | Compatibilita` e cautele |
+|---|---|---|---|
+| Core MWIS | Collezioni pubbliche di maximum-weight independent set o maximum-weight clique in formato DIMACS-like | Verificare grafo, QUBO/Ising, backend MIS, normalizzazione, repair e diagnostica exact su istanze piccole | Non valuta fixing, solve residuo o post-check di un problema di dominio; non e` una valutazione end-to-end della riduzione. |
+| Primo end-to-end MILP | OR-Library set packing | Implementare un adapter semplice: una colonna/set e` un item binario, il profitto e` un peso naturale e la condivisione di un vincolo at-most-one definisce conflitti pairwise | Utile per validare il percorso completo, ma il problema e` vicino a MWIS e quindi non dimostra da solo il beneficio della riduzione su modelli piu` ricchi. |
+| End-to-end con variabili collegate | OR-Library facility location, capacitated o uncapacitated | Ridurre le binarie di apertura e lasciare al MILP residuo assegnazioni, domanda e capacita` | Pesi e archi devono rappresentare una policy esplicita, per esempio sovrapposizione di copertura o ridondanza di facility; non possono essere dedotti automaticamente da ogni co-occorrenza nei vincoli. |
+| Stress di fattibilita` | OR-Library set covering | Valutare precheck, protezioni e failure esplicite quando l'esclusione di colonne puo` impedire la copertura | L'adapter deve verificare che ogni riga rimanga copribile, oppure applicare protezioni equivalenti, prima del fixing. |
+| MIQP con obiettivo quadratico | QPLIB filtrata | Verificare che la QUBO MWIS ausiliaria resti separata dall'obiettivo quadratico originale | Selezionare istanze binarie o mixed-binary con obiettivo quadratico e soli vincoli lineari; escludere vincoli quadratici finche` il contratto residuale non viene esteso. |
+| MIP realistici | MIPLIB 2017 filtrata | Valutare robustezza e scalabilita` su modelli pubblici eterogenei | Richiede parser e adapter per una famiglia strutturale dichiarata, per esempio set packing, set partitioning o knapsack; non e` corretto creare archi solo perche` due variabili compaiono nello stesso vincolo. |
+
+Una prima sequenza consigliata e`:
+
+```text
+1. benchmark MWIS DIMACS-like per il nucleo;
+2. OR-Library set packing per il primo adapter end-to-end;
+3. OR-Library facility location per un dominio con variabili collegate;
+4. QPLIB filtrata a MIQP con vincoli lineari;
+5. MIPLIB 2017 filtrata per famiglie strutturali dichiarate.
+```
+
+Il protocollo esterno deve confrontare almeno il solve completo e il solve
+ridotto con la stessa istanza e lo stesso backend classico quando possibile. Per
+ogni run deve registrare configurazione e policy, dimensione originale e
+residua, tempo di graph construction, tempo MIS, tempo di solve classico,
+tempo end-to-end, status, fattibilita` e post-check, obiettivo/bound/gap quando
+disponibili e misura della perdita rispetto a un riferimento classico. Gli esiti
+infeasible, failure e post-check failed devono essere conservati e inclusi nella
+valutazione.
