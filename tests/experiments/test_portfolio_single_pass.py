@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from qreduce.domains import DomainValidationResult
+from qreduce.domains import DomainValidationResult, ProtectionDeclaration
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
@@ -182,6 +182,50 @@ def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
     assert result.retained_item_ids == ()
     assert result.fixing_manifest is None
     assert result.classical_result is None
+
+
+def test_pipeline_records_best_effort_protection_excluded_by_cap(
+    monkeypatch, portfolio_problem: PortfolioProblem
+) -> None:
+    """An incumbent best-effort protection is auditably excluded rather than silently promoted."""
+
+    def raise_missing_binding(module_name: str):
+        assert module_name == "cplex"
+        raise ModuleNotFoundError("No module named 'cplex'", name="cplex")
+
+    class BestEffortPortfolioAdapter(MeanVariancePortfolioAdapter):
+        def declare_protected_items(
+            self, problem: PortfolioProblem
+        ) -> ProtectionDeclaration:
+            del problem
+            return ProtectionDeclaration(
+                incumbent_supported_item_ids=("asset-b",),
+                incumbent_protection_mode="best_effort",
+            )
+
+    monkeypatch.setattr(
+        "qreduce.solving.residual.cplex_backend._import_module", raise_missing_binding
+    )
+    config = replace(
+        make_config(),
+        reduction=replace(make_config().reduction, candidate_domain_max_items=1),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        BestEffortPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        config,
+    )
+
+    asset_b_record = next(
+        record
+        for record in result.candidate_domain_item_records
+        if record.item_id == "asset-b"
+    )
+    assert result.protection_declaration is not None
+    assert result.protection_declaration.incumbent_protection_mode == "best_effort"
+    assert asset_b_record.decision == "excluded"
+    assert asset_b_record.reason == "best_effort_protection_excluded_by_cap"
 
 
 def test_pipeline_rejects_protected_item_outside_reduction_graph(

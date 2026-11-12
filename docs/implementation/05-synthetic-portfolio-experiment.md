@@ -51,17 +51,52 @@ x_i = 0
 Il secondo fixing puo` essere ottenuto dalle linking constraints gia` presenti, ma l'adapter deve dimostrarne e verificarne l'effetto. Obiettivo e tutti i vincoli globali devono restare nel modello residuo.
 
 Prima del cap, la pipeline single-pass consulta
-`declare_protected_items(problem)` dell'adapter: tali ID devono appartenere al
-grafo canonico, sono mantenuti in ordine canonico e hanno precedenza sugli item
-MWIS ordinari. La dichiarazione deve essere unica ed e` letta una volta per
-round; la pipeline rifiuta ID duplicati o esterni al grafo. La dichiarazione e`
-separata da `validate_candidate_domain`, che valida soltanto il dominio effettivo
-dopo cap e protezioni.
-Se il loro numero supera `candidate_domain_max_items`, il run termina con
+`declare_protected_items(problem)` dell'adapter. Il contratto puo` restituire la
+tupla legacy di item obbligatori oppure una `ProtectionDeclaration` con le
+categorie `mandatory`, `user_locked`, `safe_retained` e
+`incumbent_supported`. La dichiarazione e` letta una volta per round; gli ID
+devono appartenere al grafo canonico e non possono comparire in piu` categorie.
+
+`mandatory`, `user_locked` e `safe_retained` hanno precedenza sul cap. Gli
+`incumbent_supported` seguono `incumbent_protection_mode = required | best_effort`:
+nel primo caso hanno la stessa precedenza obbligatoria; nel secondo partecipano
+al ranking ma possono essere esclusi dal cap con il reason code
+`best_effort_protection_excluded_by_cap`. Se le protezioni obbligatorie superano
+`candidate_domain_max_items`, il run termina con
 `protected_items_exceed_candidate_domain_cap`, senza creare un fixing manifest.
-Il contratto corrente espone una sola categoria di protezione; le categorie e le
-policy specifiche previste dalle sezioni 8.3 e 9.4 restano un completamento di
-M05.
+La dichiarazione resta separata da `validate_candidate_domain`, che valida il
+dominio effettivo dopo cap e protezioni.
+
+Il risultato single-pass conserva `candidate_records` e
+`candidate_domain_item_records`: includono esito di repair, duplicazione,
+diversita`, ranking e ragione di retention/esclusione per item. Le policy di
+protezione specifiche del dominio portfolio restano assenti nel caso base: il
+test usa dichiarazioni locali dell'adapter per verificare il comportamento del
+kernel senza introdurre regole finanziarie implicite.
+
+## Matrice requisiti -> implementazione -> test M05
+
+La matrice copre i requisiti M02/M05 materializzati dal percorso portfolio
+single-pass. I riferimenti alle sezioni sono di `docs/specifications.md`.
+
+| Requisito | Implementazione | Test principale | Stato |
+|---|---|---|---|
+| 7: percorso `graph -> MIS -> candidate domain -> restrict -> classical -> post-check` | `run_single_pass` in `src/qreduce/pipeline/single_pass.py`; adapter portfolio in `src/qreduce/experiments/portfolio_domain.py` | `tests/experiments/test_portfolio_single_pass.py`; integrazioni SCIP/CPLEX quando disponibili | Coperto |
+| 8.1-8.2: candidate selezionate, ranking e dominio aggregato | `_select_diverse_samples`, `_candidate_domain_item_ids` e record audit nel single-pass | `tests/pipeline/test_single_pass_selection.py` | Coperto |
+| 8.3: cap stabile e dominio minimo | applicazione cap, `candidate_domain_min_items`, validazione adapter | `test_pipeline_enforces_adapter_minimum_before_building_a_manifest`; test di ranking/cap in `tests/pipeline/test_single_pass_selection.py` | Coperto |
+| 8.3: protezioni obbligatorie prima del cap | `ProtectionDeclaration.required_item_ids`; failure `protected_items_exceed_candidate_domain_cap` | `test_pipeline_retains_declared_protected_items_before_applying_cap`; `test_pipeline_fails_before_fixing_when_protected_items_exceed_cap` | Coperto |
+| 8.3: incumbent best-effort auditabile | `ProtectionDeclaration.best_effort_item_ids`; reason `best_effort_protection_excluded_by_cap` | `test_pipeline_records_best_effort_protection_excluded_by_cap`; unit test cap best-effort | Coperto |
+| 8.4, 10: fixing completo e manifest serializzabile | `FixingManifest`, adapter portfolio `restrict_problem`, controllo di coerenza prima della restriction | test fixing/manifest in `tests/experiments/test_portfolio_single_pass.py` | Coperto |
+| 12.1-12.2: validazione strutturale, repair deterministico, esiti auditabili | validazione MWIS e `_repair_sample`; `CandidateRecord.repair_status`/`repair_actions` | test repair e candidate record in `tests/pipeline/test_single_pass_selection.py` | Coperto |
+| 12.3: diversita` post-validazione e reason di scarto | `_select_diverse_samples`; `CandidateRecord.rejection_reason` | `test_diversity_audit_records_the_observed_rejection_reason` | Coperto |
+| 16.2, 17: risultato serializzabile e artifact runner | `SinglePassRunResult.to_dict`; runner interno | `tests/experiments/test_runner.py` | Coperto |
+| 16.3, 20.8: provenance policy senza selezione automatica | `PolicyProvenance` in config risolta | `tests/test_config.py`; artifact runner | Coperto |
+| 9, 20.6: domini monotoni, stop iterativi, per-round artifact | Nessun loop multi-round nel single-pass | Non applicabile al percorso M05 corrente | Non implementato: M08 |
+| 9.5, 18: recovery e rollback | Nessun recovery implicito; fixing terminale nel singolo round | Non applicabile al percorso M05 corrente | Non implementato: M08 |
+
+La matrice non dichiara ottimalita` del problema portfolio originale: il solve
+classico ottimo del problema residuo resta condizionato al fixing euristico o
+imposto applicato nel single-pass.
 
 ## Policy iniziale del grafo
 

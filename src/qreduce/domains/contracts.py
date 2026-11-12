@@ -31,6 +31,76 @@ class DomainValidationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ProtectionDeclaration:
+    """Categorized item protections declared once by an adapter for one round.
+
+    Mandatory, user-locked, and safe-retained items are required protections.
+    Incumbent-supported items may instead be best-effort when explicitly requested.
+    """
+
+    mandatory_item_ids: tuple[str, ...] = ()
+    user_locked_item_ids: tuple[str, ...] = ()
+    safe_retained_item_ids: tuple[str, ...] = ()
+    incumbent_supported_item_ids: tuple[str, ...] = ()
+    incumbent_protection_mode: str = "required"
+
+    def __post_init__(self) -> None:
+        categories = (
+            "mandatory_item_ids",
+            "user_locked_item_ids",
+            "safe_retained_item_ids",
+            "incumbent_supported_item_ids",
+        )
+        all_item_ids: list[str] = []
+        for category in categories:
+            category_value = getattr(self, category)
+            if not isinstance(category_value, tuple | list):
+                raise TypeError(f"{category} must be a tuple or list of item IDs.")
+            item_ids = tuple(category_value)
+            if any(not isinstance(item_id, str) or not item_id.strip() for item_id in item_ids):
+                raise ValueError(f"{category} must contain non-blank item IDs.")
+            if len(set(item_ids)) != len(item_ids):
+                raise ValueError(f"{category} must not contain duplicate item IDs.")
+            object.__setattr__(self, category, item_ids)
+            all_item_ids.extend(item_ids)
+        if len(set(all_item_ids)) != len(all_item_ids):
+            raise ValueError("An item ID cannot belong to more than one protection category.")
+        if self.incumbent_protection_mode not in {"required", "best_effort"}:
+            raise ValueError(
+                "incumbent_protection_mode must be 'required' or 'best_effort'."
+            )
+
+    @property
+    def required_item_ids(self) -> tuple[str, ...]:
+        """Return categories whose members must survive the candidate-domain cap."""
+
+        incumbent_item_ids = (
+            self.incumbent_supported_item_ids
+            if self.incumbent_protection_mode == "required"
+            else ()
+        )
+        return (
+            self.mandatory_item_ids
+            + self.user_locked_item_ids
+            + self.safe_retained_item_ids
+            + incumbent_item_ids
+        )
+
+    @property
+    def best_effort_item_ids(self) -> tuple[str, ...]:
+        """Return incumbent items that may be excluded when the cap requires it."""
+
+        return (
+            self.incumbent_supported_item_ids
+            if self.incumbent_protection_mode == "best_effort"
+            else ()
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return redact_metadata(to_primitive(self))  # type: ignore[return-value]
+
+
+@dataclass(frozen=True, slots=True)
 class FixingEntry:
     """Explicit values that a domain adapter requires for one excluded item."""
 
@@ -119,7 +189,9 @@ class ReducibleProblemAdapter(Protocol):
 
     def build_conflict_graph(self, problem: object, state: object | None = None) -> ReductionGraph: ...
 
-    def declare_protected_items(self, problem: object) -> tuple[str, ...]: ...
+    def declare_protected_items(
+        self, problem: object
+    ) -> tuple[str, ...] | ProtectionDeclaration: ...
 
     def validate_candidate_domain(
         self,

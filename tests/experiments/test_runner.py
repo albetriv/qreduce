@@ -88,6 +88,9 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     assert loaded.manifest["experiment_id"] == "portfolio-reference"
     assert loaded.manifest["run_id"] == "run-001"
     assert loaded.result["run_result"]["run_status"] == "failed"
+    assert loaded.result["candidate_records"][0]["selection_status"] == "selected"
+    assert loaded.result["candidate_domain_item_records"]
+    assert loaded.result["protection_declaration"]["mandatory_item_ids"] == []
     assert "\n  \"run_result\":" in (run.run_directory / "run_result.json").read_text(
         encoding="utf-8"
     )

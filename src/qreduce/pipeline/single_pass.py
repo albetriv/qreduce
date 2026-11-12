@@ -11,6 +11,7 @@ from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
     FinalSolutionValidationResult,
     FixingManifest,
+    ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
 from qreduce.models import ResolvedRunConfig, RunResult
@@ -49,6 +50,56 @@ from qreduce.status import (
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateRecord:
+    """Audit record for one deduplicated MIS sample considered by the pipeline."""
+
+    candidate_id: str
+    raw_sample_id: str
+    selected_item_ids: tuple[str, ...]
+    raw_energy: float | None
+    energy_recomputed_after_repair: float | None
+    selection_weight: float | None
+    num_selected: int | None
+    num_violated_edges_before_repair: int
+    repair_status: str
+    repair_actions: tuple[str, ...] = ()
+    candidate_rank_key: tuple[object, ...] | None = None
+    selection_status: str = "not_selected"
+    rejection_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.candidate_id.strip() or not self.raw_sample_id.strip():
+            raise ValueError("Candidate IDs cannot be blank.")
+        object.__setattr__(self, "selected_item_ids", tuple(self.selected_item_ids))
+        object.__setattr__(self, "repair_actions", tuple(self.repair_actions))
+        if self.candidate_rank_key is not None:
+            object.__setattr__(self, "candidate_rank_key", tuple(self.candidate_rank_key))
+
+    def to_dict(self) -> dict[str, object]:
+        return redact_metadata(to_primitive(self))  # type: ignore[return-value]
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateDomainItemRecord:
+    """Audit record explaining one item's retained or excluded domain status."""
+
+    item_id: str
+    selection_frequency: int
+    mean_candidate_quality: float | None
+    decision: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.item_id.strip() or self.selection_frequency < 0:
+            raise ValueError("Candidate-domain item records require valid item data.")
+        if self.decision not in {"retained", "excluded"} or not self.reason.strip():
+            raise ValueError("Candidate-domain item records require a decision and reason.")
+
+    def to_dict(self) -> dict[str, object]:
+        return redact_metadata(to_primitive(self))  # type: ignore[return-value]
+
+
+@dataclass(frozen=True, slots=True)
 class SinglePassRunResult:
     """Complete in-memory, serializable output of one single-pass run."""
 
@@ -57,6 +108,9 @@ class SinglePassRunResult:
     retained_item_ids: tuple[str, ...] = ()
     fixing_manifest: FixingManifest | None = None
     selected_mis_samples: tuple[RawMISSample, ...] = ()
+    candidate_records: tuple[CandidateRecord, ...] = ()
+    candidate_domain_item_records: tuple[CandidateDomainItemRecord, ...] = ()
+    protection_declaration: ProtectionDeclaration | None = None
     mis_compilation_result: MISCompilationResult | None = None
     mis_execution_result: MISBackendResult | None = None
     classical_result: ClassicalSolveResult | None = None
@@ -67,6 +121,10 @@ class SinglePassRunResult:
         object.__setattr__(self, "retained_item_ids", tuple(self.retained_item_ids))
         object.__setattr__(
             self, "selected_mis_samples", tuple(self.selected_mis_samples)
+        )
+        object.__setattr__(self, "candidate_records", tuple(self.candidate_records))
+        object.__setattr__(
+            self, "candidate_domain_item_records", tuple(self.candidate_domain_item_records)
         )
         object.__setattr__(self, "metrics", MappingProxyType(dict(self.metrics)))
 
@@ -231,7 +289,18 @@ def run_single_pass(
     valid_samples = _valid_or_repaired_samples(
         canonical_problem, deduplicated.samples, config
     )
-    selected_samples = _select_diverse_samples(valid_samples, config)
+    selected_samples, selection_rejection_reasons = _select_diverse_samples_with_audit(
+        valid_samples, config
+    )
+    candidate_records = _candidate_records(
+        canonical_problem,
+        deduplicated.samples,
+        deduplicated.discarded_samples,
+        valid_samples,
+        selected_samples,
+        selection_rejection_reasons,
+        config,
+    )
     if not selected_samples:
         return _failed(
             config,
@@ -240,6 +309,7 @@ def run_single_pass(
             "The MIS solver produced no valid independent-set candidate samples.",
             mis_compilation_result=compilation,
             mis_execution_result=execution,
+            candidate_records=candidate_records,
             metrics=_run_metrics(
                 started_at,
                 raw_sample_count=len(execution.samples),
@@ -250,7 +320,9 @@ def run_single_pass(
             ),
         )
     try:
-        protected_item_ids = adapter.declare_protected_items(problem)
+        protection_declaration = _normalize_protection_declaration(
+            adapter.declare_protected_items(problem)
+        )
     except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
         return _failed(
             config,
@@ -258,6 +330,7 @@ def run_single_pass(
             TerminalReason.ADAPTER_FAILURE,
             f"The adapter failed while declaring protected items: {error}",
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -270,25 +343,10 @@ def run_single_pass(
                 (),
             ),
         )
-    if len(set(protected_item_ids)) != len(protected_item_ids):
-        return _failed(
-            config,
-            PipelineStage.CANDIDATE_DOMAIN,
-            TerminalReason.ADAPTER_FAILURE,
-            "The adapter declared duplicate protected item IDs.",
-            selected_mis_samples=selected_samples,
-            mis_compilation_result=compilation,
-            mis_execution_result=execution,
-            metrics=_candidate_metrics(
-                started_at,
-                execution,
-                compilation,
-                deduplicated.samples,
-                valid_samples,
-                selected_samples,
-                (),
-            ),
-        )
+    protected_item_ids = (
+        protection_declaration.required_item_ids
+        + protection_declaration.best_effort_item_ids
+    )
     unknown_protected_item_ids = tuple(
         item_id for item_id in protected_item_ids if item_id not in graph.node_weights
     )
@@ -300,6 +358,8 @@ def run_single_pass(
             "The adapter declared protected item IDs outside the reduction graph: "
             + ", ".join(unknown_protected_item_ids),
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -312,13 +372,18 @@ def run_single_pass(
                 (),
             ),
         )
-    if len(protected_item_ids) > config.reduction.candidate_domain_max_items:
+    if (
+        len(protection_declaration.required_item_ids)
+        > config.reduction.candidate_domain_max_items
+    ):
         return _failed(
             config,
             PipelineStage.CANDIDATE_DOMAIN,
             TerminalReason.PROTECTED_ITEMS_EXCEED_CANDIDATE_DOMAIN_CAP,
             "The number of protected candidate-domain items exceeds candidate_domain_max_items.",
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -336,7 +401,14 @@ def run_single_pass(
         graph.node_weights,
         selected_samples,
         config,
-        protected_item_ids=protected_item_ids,
+        protected_item_ids=protection_declaration.required_item_ids,
+        best_effort_item_ids=protection_declaration.best_effort_item_ids,
+    )
+    candidate_domain_item_records = _candidate_domain_item_records(
+        graph.node_ids,
+        selected_samples,
+        retained_item_ids,
+        protection_declaration,
     )
     if len(retained_item_ids) < config.reduction.candidate_domain_min_items:
         return _failed(
@@ -346,6 +418,9 @@ def run_single_pass(
             "The capped candidate domain is smaller than candidate_domain_min_items.",
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_run_metrics(
@@ -369,6 +444,9 @@ def run_single_pass(
             f"The adapter failed while validating the candidate domain: {error}",
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -389,6 +467,9 @@ def run_single_pass(
             "; ".join(domain_validation.failure_reasons),
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -507,6 +588,9 @@ def run_single_pass(
             str(error),
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             fixing_manifest=fixing_manifest,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
@@ -527,6 +611,9 @@ def run_single_pass(
             PipelineStage.CLASSICAL,
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             fixing_manifest=fixing_manifest,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
@@ -563,6 +650,9 @@ def run_single_pass(
             retained_item_ids,
             classical_result,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             fixing_manifest=fixing_manifest,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
@@ -601,6 +691,9 @@ def run_single_pass(
             resolved_config=config,
             fixing_manifest=fixing_manifest,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             classical_result=classical_result,
@@ -637,6 +730,9 @@ def run_single_pass(
         resolved_config=config,
         fixing_manifest=fixing_manifest,
         selected_mis_samples=selected_samples,
+        candidate_records=candidate_records,
+        candidate_domain_item_records=candidate_domain_item_records,
+        protection_declaration=protection_declaration,
         mis_compilation_result=compilation,
         mis_execution_result=execution,
         classical_result=classical_result,
@@ -665,6 +761,9 @@ def _failed(
     *,
     fixing_manifest: FixingManifest | None = None,
     selected_mis_samples: tuple[RawMISSample, ...] = (),
+    candidate_records: tuple[CandidateRecord, ...] = (),
+    candidate_domain_item_records: tuple[CandidateDomainItemRecord, ...] = (),
+    protection_declaration: ProtectionDeclaration | None = None,
     mis_compilation_result: MISCompilationResult | None = None,
     mis_execution_result: MISBackendResult | None = None,
     metrics: Mapping[str, object] | None = None,
@@ -689,6 +788,9 @@ def _failed(
         retained_item_ids=retained_item_ids,
         fixing_manifest=fixing_manifest,
         selected_mis_samples=selected_mis_samples,
+        candidate_records=candidate_records,
+        candidate_domain_item_records=candidate_domain_item_records,
+        protection_declaration=protection_declaration,
         mis_compilation_result=mis_compilation_result,
         mis_execution_result=mis_execution_result,
         classical_result=classical_result,
@@ -865,6 +967,164 @@ def _valid_or_repaired_samples(
     return tuple(valid_samples)
 
 
+def _candidate_records(
+    problem: CanonicalMWISProblem,
+    unique_samples: tuple[RawMISSample, ...],
+    discarded_samples: tuple[RawMISSample, ...],
+    valid_samples: tuple[RawMISSample, ...],
+    selected_samples: tuple[RawMISSample, ...],
+    selection_rejection_reasons: Mapping[str, str],
+    config: ResolvedRunConfig,
+) -> tuple[CandidateRecord, ...]:
+    """Describe every deduplicated sample, including invalid and non-selected outcomes."""
+
+    valid_by_id = {sample.raw_sample_id: sample for sample in valid_samples}
+    selected_ids = {sample.raw_sample_id for sample in selected_samples}
+    records: list[CandidateRecord] = []
+    for index, sample in enumerate(unique_samples):
+        processed = valid_by_id.get(sample.raw_sample_id)
+        records.append(
+            _candidate_record(
+                f"candidate:{index:04d}",
+                problem,
+                sample,
+                processed,
+                config,
+                selection_status=(
+                    "selected" if sample.raw_sample_id in selected_ids else "not_selected"
+                ),
+                rejection_reason=_candidate_rejection_reason(
+                    processed, selection_rejection_reasons, config
+                ),
+            )
+        )
+    offset = len(records)
+    for index, sample in enumerate(discarded_samples, start=offset):
+        records.append(
+            _candidate_record(
+                f"candidate:{index:04d}",
+                problem,
+                sample,
+                None,
+                config,
+                selection_status="discarded",
+                rejection_reason="max_distinct_samples_limit",
+            )
+        )
+    return tuple(records)
+
+
+def _candidate_record(
+    candidate_id: str,
+    problem: CanonicalMWISProblem,
+    raw_sample: RawMISSample,
+    processed_sample: RawMISSample | None,
+    config: ResolvedRunConfig,
+    *,
+    selection_status: str,
+    rejection_reason: str | None,
+) -> CandidateRecord:
+    """Build one audit record without treating a sample as a certified MWIS optimum."""
+
+    selected_item_ids = (
+        tuple(
+            node_id
+            for node_id, value in zip(
+                problem.graph.node_ids, processed_sample.delta, strict=True
+            )
+            if value == 1
+        )
+        if processed_sample is not None
+        else ()
+    )
+    was_repaired = processed_sample is not None and processed_sample.delta != raw_sample.delta
+    repair_actions = (
+        tuple(
+            f"removed_item:{node_id}"
+            for node_id, raw_value, processed_value in zip(
+                problem.graph.node_ids,
+                raw_sample.delta,
+                processed_sample.delta,
+                strict=True,
+            )
+            if raw_value == 1 and processed_value == 0
+        )
+        if was_repaired
+        else ()
+    )
+    repair_status = (
+        "not_processed_after_deduplication"
+        if selection_status == "discarded"
+        else "repaired"
+        if was_repaired
+        else "valid_without_repair"
+        if processed_sample is not None
+        else "repair_disabled"
+        if not config.mis_execution.repair_enabled
+        else "repair_failed"
+    )
+    return CandidateRecord(
+        candidate_id=candidate_id,
+        raw_sample_id=raw_sample.raw_sample_id,
+        selected_item_ids=selected_item_ids,
+        raw_energy=raw_sample.canonical_qubo_energy,
+        energy_recomputed_after_repair=(
+            processed_sample.canonical_qubo_energy if was_repaired else None
+        ),
+        selection_weight=(
+            processed_sample.selection_weight if processed_sample is not None else None
+        ),
+        num_selected=(processed_sample.num_selected if processed_sample is not None else None),
+        num_violated_edges_before_repair=raw_sample.num_violated_edges or 0,
+        repair_status=repair_status,
+        repair_actions=repair_actions,
+        candidate_rank_key=(
+            _candidate_rank_key(processed_sample) if processed_sample is not None else None
+        ),
+        selection_status=selection_status,
+        rejection_reason=rejection_reason,
+    )
+
+
+def _candidate_rejection_reason(
+    processed_sample: RawMISSample | None,
+    selection_rejection_reasons: Mapping[str, str],
+    config: ResolvedRunConfig,
+) -> str | None:
+    """Expose why a candidate did not reach the selected source-candidate set."""
+
+    if processed_sample is None:
+        return (
+            "invalid_independent_set"
+            if not config.mis_execution.repair_enabled
+            else "repair_failed"
+        )
+    return selection_rejection_reasons.get(processed_sample.raw_sample_id)
+
+
+def _candidate_rank_key(sample: RawMISSample) -> tuple[object, ...]:
+    """Return the standard declared lexicographic ranking key for one valid sample."""
+
+    return (
+        -(sample.selection_weight or 0.0),
+        -(sample.num_selected or 0),
+        sample.canonical_qubo_energy
+        if sample.canonical_qubo_energy is not None
+        else float("inf"),
+        sample.raw_sample_id,
+    )
+
+
+def _normalize_protection_declaration(
+    declaration: tuple[str, ...] | ProtectionDeclaration,
+) -> ProtectionDeclaration:
+    """Accept the legacy mandatory tuple while making categorized protections explicit."""
+
+    if isinstance(declaration, ProtectionDeclaration):
+        return declaration
+    return ProtectionDeclaration(mandatory_item_ids=tuple(declaration))
+
+
 def _repair_sample(
     problem: CanonicalMWISProblem,
     sample: RawMISSample,
@@ -950,28 +1210,30 @@ def _select_diverse_samples(
 ) -> tuple[RawMISSample, ...]:
     """Rank valid samples and retain up to the configured number under Jaccard diversity."""
 
-    ranked_samples = sorted(
-        samples,
-        key=lambda sample: (
-            -(sample.selection_weight or 0.0),
-            -(sample.num_selected or 0),
-            sample.canonical_qubo_energy
-            if sample.canonical_qubo_energy is not None
-            else float("inf"),
-            sample.raw_sample_id,
-        ),
-    )
+    selected_samples, _ = _select_diverse_samples_with_audit(samples, config)
+    return selected_samples
+
+
+def _select_diverse_samples_with_audit(
+    samples: tuple[RawMISSample, ...], config: ResolvedRunConfig
+) -> tuple[tuple[RawMISSample, ...], Mapping[str, str]]:
+    """Apply diversity selection while retaining deterministic reasons for every rejection."""
+
+    ranked_samples = sorted(samples, key=_candidate_rank_key)
     selected: list[RawMISSample] = []
+    rejection_reasons: dict[str, str] = {}
     for sample in ranked_samples:
-        if all(
+        if len(selected) == config.reduction.num_source_mis_candidates:
+            rejection_reasons[sample.raw_sample_id] = "candidate_limit_reached"
+        elif all(
             _jaccard_distance(sample.delta, accepted.delta)
             >= config.mis_execution.minimum_candidate_jaccard_distance
             for accepted in selected
         ):
             selected.append(sample)
-        if len(selected) == config.reduction.num_source_mis_candidates:
-            break
-    return tuple(selected)
+        else:
+            rejection_reasons[sample.raw_sample_id] = "insufficient_jaccard_distance"
+    return tuple(selected), MappingProxyType(rejection_reasons)
 
 
 def _jaccard_distance(
@@ -992,6 +1254,7 @@ def _candidate_domain_item_ids(
     config: ResolvedRunConfig,
     *,
     protected_item_ids: tuple[str, ...] = (),
+    best_effort_item_ids: tuple[str, ...] = (),
     apply_cap: bool = True,
 ) -> tuple[str, ...]:
     """Aggregate candidate votes and apply declared protection before the domain cap."""
@@ -1004,11 +1267,20 @@ def _candidate_domain_item_ids(
             if value == 1:
                 frequencies[node_id] += 1
                 quality_sums[node_id] += quality
+    best_effort_item_id_set = set(best_effort_item_ids)
     ranked_item_ids = tuple(sorted(
-        (node_id for node_id in node_ids if frequencies[node_id] > 0),
+        (
+            node_id
+            for node_id in node_ids
+            if frequencies[node_id] > 0 or node_id in best_effort_item_id_set
+        ),
         key=lambda node_id: (
             -frequencies[node_id],
-            -(quality_sums[node_id] / frequencies[node_id]),
+            -(
+                quality_sums[node_id] / frequencies[node_id]
+                if frequencies[node_id] > 0
+                else 0.0
+            ),
             -node_weights[node_id],
             node_id,
         ),
@@ -1026,6 +1298,59 @@ def _candidate_domain_item_ids(
         config.reduction.candidate_domain_max_items - len(protected_in_canonical_order)
     )
     return protected_in_canonical_order + ranked_unprotected_item_ids[:remaining_capacity]
+
+
+def _candidate_domain_item_records(
+    node_ids: tuple[str, ...],
+    selected_samples: tuple[RawMISSample, ...],
+    retained_item_ids: tuple[str, ...],
+    protection_declaration: ProtectionDeclaration,
+) -> tuple[CandidateDomainItemRecord, ...]:
+    """Record the policy reason for every retained or excluded graph item."""
+
+    frequencies = {node_id: 0 for node_id in node_ids}
+    quality_sums = {node_id: 0.0 for node_id in node_ids}
+    for sample in selected_samples:
+        quality = sample.selection_weight or 0.0
+        for node_id, value in zip(node_ids, sample.delta, strict=True):
+            if value == 1:
+                frequencies[node_id] += 1
+                quality_sums[node_id] += quality
+    retained_item_id_set = set(retained_item_ids)
+    required_item_id_set = set(protection_declaration.required_item_ids)
+    best_effort_item_id_set = set(protection_declaration.best_effort_item_ids)
+    records: list[CandidateDomainItemRecord] = []
+    for node_id in node_ids:
+        frequency = frequencies[node_id]
+        mean_quality = quality_sums[node_id] / frequency if frequency else None
+        if node_id in retained_item_id_set:
+            reason = (
+                "required_protection"
+                if node_id in required_item_id_set
+                else "best_effort_protection"
+                if node_id in best_effort_item_id_set
+                else "selected_candidate_aggregation"
+            )
+            decision = "retained"
+        else:
+            reason = (
+                "best_effort_protection_excluded_by_cap"
+                if node_id in best_effort_item_id_set
+                else "candidate_domain_cap"
+                if frequency > 0
+                else "not_present_in_selected_candidates"
+            )
+            decision = "excluded"
+        records.append(
+            CandidateDomainItemRecord(
+                item_id=node_id,
+                selection_frequency=frequency,
+                mean_candidate_quality=mean_quality,
+                decision=decision,
+                reason=reason,
+            )
+        )
+    return tuple(records)
 
 
 def _fixing_manifest_matches_candidate_domain(
