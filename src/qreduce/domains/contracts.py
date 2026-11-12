@@ -8,6 +8,33 @@ from typing import Protocol
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.mwis import ReductionGraph
+from qreduce.solving.residual.contracts import ClassicalSolveResult
+
+
+@dataclass(frozen=True, slots=True)
+class DomainEvaluationMetric:
+    """Adapter-supplied numeric evaluation and its externally defined meaning."""
+
+    metric_id: str
+    value: float | None
+    unit: str
+    comparison_convention: str
+    provenance: str
+
+    def __post_init__(self) -> None:
+        for name in ("metric_id", "unit", "comparison_convention", "provenance"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-blank string.")
+        if self.value is not None and (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, int | float)
+            or not math.isfinite(self.value)
+        ):
+            raise ValueError("value must be a finite number or None.")
+
+    def to_dict(self) -> dict[str, object]:
+        return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,6 +231,11 @@ class ReducibleProblemAdapter(Protocol):
     """Minimum boundary between the provider-neutral kernel and a domain model."""
 
     def describe_logical_variables(self, problem: object) -> LogicalVariableCounts: ...
+
+    def evaluate_domain_metrics(
+        self, problem: object, classical_result: ClassicalSolveResult,
+        postcheck_result: FinalSolutionValidationResult,
+    ) -> tuple[DomainEvaluationMetric, ...]: ...
 
     def identify_reducible_items(self, problem: object) -> list[str]: ...
 

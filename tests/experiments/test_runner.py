@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from qreduce.domains import DomainEvaluationMetric, FinalSolutionValidationResult
 from qreduce.experiments import (
     ExperimentArtifactError,
     load_experiment_run,
@@ -24,9 +25,19 @@ from qreduce.models import (
     ReductionPolicy,
     ResolvedRunConfig,
     RunIdentity,
+    RunResult,
 )
-from qreduce.pipeline import run_single_pass
-from qreduce.status import PostcheckMode, RunStatus
+from qreduce.pipeline import SinglePassRunResult, run_single_pass
+from qreduce.solving.residual import ClassicalSolveResult
+from qreduce.status import (
+    AdoptionStatus,
+    ClassicalSolverStatus,
+    PipelineStage,
+    PostcheckMode,
+    PostcheckStatus,
+    RunStatus,
+    TerminalReason,
+)
 
 
 def _config(run_id: str) -> ResolvedRunConfig:
@@ -66,6 +77,78 @@ def _problem() -> PortfolioProblem:
         retention_scores={"asset-a": 0.9, "asset-b": 0.7, "asset-c": 0.8},
         risk_aversion=1.0,
     )
+
+
+def _postchecked_result(problem, adapter, config, **kwargs):
+    del problem, adapter, kwargs
+    return SinglePassRunResult(
+        resolved_config=config,
+        run_result=RunResult(config.run_identity.run_id, RunStatus.SUCCESS,
+                             PipelineStage.POSTCHECK, None, ClassicalSolverStatus.OPTIMAL,
+                             PostcheckStatus.PASSED, AdoptionStatus.ADOPTED),
+        classical_result=ClassicalSolveResult(
+            ClassicalSolverStatus.OPTIMAL, None, True, 1.0, 1.0, 0.0, True, False, 0.1
+        ),
+        postcheck_result=FinalSolutionValidationResult(True, True, True, True, 1.0, True),
+    )
+
+
+def test_domain_metrics_persist_and_redact(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+
+    class EvaluatingAdapter(MeanVariancePortfolioAdapter):
+        def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
+            assert classical_result.solver_claimed_feasible and postcheck_result.postcheck_feasible
+            return [DomainEvaluationMetric("quality", None, "unitless", "higher",
+                                           "https://example.com/?token=secret")]
+
+    run = run_experiment("metrics", _problem(), EvaluatingAdapter(
+        PortfolioGraphPolicy("test", "1", 0.25)), _config("run"), output_root=tmp_path)
+    assert run.result.domain_evaluation_metrics[0].value is None
+    metric = load_experiment_run(run.run_directory).result["domain_evaluation_metrics"][0]
+    assert metric["metric_id"] == "quality"
+    assert "secret" not in metric["provenance"]
+
+
+@pytest.mark.parametrize("mode", ["missing", "exception", "invalid", "duplicate"])
+def test_domain_metric_failure_preserves_postcheck(monkeypatch, mode) -> None:
+    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+
+    class EvaluatingAdapter(MeanVariancePortfolioAdapter):
+        def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
+            if mode == "exception":
+                raise ValueError("evaluation failed")
+            if mode == "invalid":
+                return [object()]
+            metric = DomainEvaluationMetric("quality", 1, "unitless", "higher", "test")
+            return [metric, metric]
+
+    adapter = EvaluatingAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    if mode == "missing":
+        adapter.evaluate_domain_metrics = None
+    result = run_single_pass(_problem(), adapter, _config("run"))
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert result.classical_result is not None and result.postcheck_result is not None
+    assert result.domain_evaluation_metrics is None
+
+
+def test_metrics_run_after_failed_postcheck(monkeypatch) -> None:
+    def failed_postcheck(problem, adapter, config, **kwargs):
+        result = _postchecked_result(problem, adapter, config, **kwargs)
+        return replace(result,
+            run_result=replace(result.run_result, run_status=RunStatus.FAILED,
+                               postcheck_status=PostcheckStatus.FAILED,
+                               adoption_status=AdoptionStatus.NOT_ADOPTED,
+                               terminal_reason=TerminalReason.POSTCHECK_FAILED),
+            postcheck_result=FinalSolutionValidationResult(
+                False, True, False, True, None, None, ("constraint",)))
+
+    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", failed_postcheck)
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    result = run_single_pass(_problem(), adapter, _config("run"))
+    assert result.run_result.terminal_reason is TerminalReason.POSTCHECK_FAILED
+    assert result.domain_evaluation_metrics == ()
 
 
 def test_runner_persists_normalized_failure_for_notebook_analysis(

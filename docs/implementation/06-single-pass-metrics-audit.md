@@ -17,6 +17,8 @@ Aggiornamento successivo: i conteggi logici obbligatori originali e residui
 sono implementati da `LogicalVariableCounts` e dall'adapter portfolio. Le prime
 tre righe sottostanti descrivono i gap individuati al momento dell'audit,
 ora coperti dal contratto e dai test; il resto della matrice resta da verificare.
+Anche il contratto delle metriche di dominio e` ora implementato per il
+single-pass: la relativa riga descrive il gap storico, non lo stato corrente.
 
 ## Matrice requisito -> evidenza -> gap
 
@@ -53,8 +55,8 @@ disponibili non vengano persi durante la failure.
 
 ## Priorita` e confini
 
-1. **M02/M05:** mantenere verificati i conteggi logici implementati e definire il
-   contratto delle metriche di dominio, distinto dalle ausiliarie dei backend.
+1. **M02/M05:** mantenere verificati conteggi logici e contratto delle metriche
+   di dominio implementati, distinti dalle ausiliarie dei backend.
 2. **M05:** definire le metriche del singolo round, inclusi ratio, conteggi
    repair e tempi/failure, poi aggiungere test deterministici per stage raggiunti
    e non raggiunti. La formula marginale e` gia` nella sezione 9.3; non

@@ -12,6 +12,12 @@ lineari richiedono una riformulazione oppure un'estensione esplicita.
 
 > **Stato sintetico**: il repository contiene un nucleo single-pass utilizzabile, con risultato auditabile in memoria e un esperimento sintetico persistito. Lo stato dettagliato delle feature previste e delle relative milestone e` mantenuto nella roadmap di implementazione.
 
+Gli adapter devono implementare `evaluate_domain_metrics`: dopo il post-check
+possono restituire metriche di dominio con valore, unita`, convenzione e
+provenance, oppure una sequenza vuota. Il metodo non viene chiamato se il
+post-check non e` raggiunto; in quel caso il campo del risultato e` `None`.
+Un errore del metodo produce `adapter_failure` e conserva i risultati precedenti.
+
 ## Specifiche e roadmap
 
 `docs/specifications.md` definisce le feature previste, i requisiti, le

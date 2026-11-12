@@ -109,6 +109,7 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
         result.run_result.classical_solver_status is ClassicalSolverStatus.UNAVAILABLE
     )
     assert result.classical_result is not None
+    assert result.domain_evaluation_metrics is None
     assert result.classical_result.requested_solver_id == "cplex"
     assert result.classical_result.effective_solver_id is None
     assert result.metrics["raw_sample_count"] == 1

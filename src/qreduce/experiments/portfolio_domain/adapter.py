@@ -1,6 +1,7 @@
 """Synthetic mean-variance portfolio adapter used only by repository experiments."""
 
 from qreduce.domains.contracts import (
+    DomainEvaluationMetric,
     DomainValidationResult,
     FinalSolutionValidationResult,
     FixingEntry,
@@ -16,6 +17,7 @@ from qreduce.experiments.portfolio_domain.models import (
 from qreduce.experiments.portfolio_domain.postcheck import validate_portfolio_solution
 from qreduce.models import ClassicalSolveOptions
 from qreduce.mwis import ReductionGraph
+from qreduce.solving.residual.contracts import ClassicalSolveResult
 
 
 class MeanVariancePortfolioAdapter:
@@ -23,6 +25,13 @@ class MeanVariancePortfolioAdapter:
 
     def __init__(self, graph_policy: PortfolioGraphPolicy) -> None:
         self._graph_policy = graph_policy
+
+    def evaluate_domain_metrics(
+        self, problem: object, classical_result: ClassicalSolveResult,
+        postcheck_result: FinalSolutionValidationResult,
+    ) -> tuple[DomainEvaluationMetric, ...]:
+        """The demonstration does not define external evaluation metrics."""
+        return ()
 
     def identify_reducible_items(self, problem: PortfolioProblem) -> list[str]:
         return list(problem.asset_ids)

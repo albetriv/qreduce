@@ -1121,6 +1121,18 @@ domain-specific evaluation metrics supplied by the adapter or caller, with metri
 run status and terminal reason
 ```
 
+Nel single-pass corrente l'adapter implementa obbligatoriamente
+`evaluate_domain_metrics(problem, classical_result, postcheck_result)`. Il metodo
+e` invocato dopo un post-check eseguito, anche se negativo; se il post-check non
+e` raggiunto, le metriche di dominio sono `None`. Una sequenza vuota indica invece
+che la valutazione e` stata eseguita senza metriche. Ogni metrica ha identificatore
+unico, valore numerico finito oppure `None`, unita`, convenzione di confronto e
+provenance testuali non vuote. Assenza del metodo, eccezione o risultato non
+valido producono `adapter_failure` senza scartare solve e post-check gia` ottenuti
+e senza adottare la soluzione. L'adapter non deve includere segreti o dati
+personali nei valori o metadati; la redazione automatica e` una protezione
+aggiuntiva, non una garanzia di individuazione di ogni dato sensibile.
+
 ### 16.3 Provenance di policy fornita dall'esterno
 
 La configurazione risolta deve poter includere metadata opzionali di provenance della policy, senza attribuire al kernel responsabilita` di calibrazione:

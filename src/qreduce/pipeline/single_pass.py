@@ -10,6 +10,7 @@ from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
 from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
+    DomainEvaluationMetric,
     FinalSolutionValidationResult,
     FixingManifest,
     LogicalVariableCounts,
@@ -119,6 +120,7 @@ class SinglePassRunResult:
     mis_execution_result: MISBackendResult | None = None
     classical_result: ClassicalSolveResult | None = None
     postcheck_result: FinalSolutionValidationResult | None = None
+    domain_evaluation_metrics: tuple[DomainEvaluationMetric, ...] | None = None
     metrics: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -166,10 +168,31 @@ def run_single_pass(
         classical_solver_registry=classical_solver_registry,
         _model_export_write_path=_model_export_write_path,
     )
-    return replace(
+    result = replace(
         result, original_variable_counts=original_counts,
         residual_variable_counts=tracking_adapter.residual_counts,
     )
+    if result.postcheck_result is None:
+        return result
+    try:
+        evaluate = getattr(adapter, "evaluate_domain_metrics", None)
+        if not callable(evaluate):
+            raise TypeError("Adapter must implement evaluate_domain_metrics.")
+        metrics = evaluate(problem, result.classical_result, result.postcheck_result)
+        if not isinstance(metrics, tuple | list) or any(
+            not isinstance(metric, DomainEvaluationMetric) for metric in metrics
+        ):
+            raise TypeError("evaluate_domain_metrics must return a sequence of DomainEvaluationMetric.")
+        if len({metric.metric_id for metric in metrics}) != len(metrics):
+            raise ValueError("Domain metric IDs must be unique within a run.")
+        return replace(result, domain_evaluation_metrics=tuple(metrics))
+    except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
+        return replace(result, run_result=replace(
+            result.run_result, run_status=RunStatus.FAILED,
+            terminal_reason=TerminalReason.ADAPTER_FAILURE,
+            adoption_status=AdoptionStatus.NOT_ADOPTED,
+            diagnostic_message=f"evaluate_domain_metrics: {error}",
+        ))
 
 
 def _validate_logical_counts(value: object) -> LogicalVariableCounts:
