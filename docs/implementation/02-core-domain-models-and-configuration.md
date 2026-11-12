@@ -204,3 +204,29 @@ Questa struttura e` una proposta iniziale, non un'API pubblica congelata.
 - Core, adapter di dominio e backend condividono contratti senza dipendere da oggetti CPLEX o provider MIS.
 - La validazione delle capability avviene prima di compilation ed esecuzione.
 - Stati e failure richiesti possono essere emessi in modo uniforme dalla pipeline.
+
+## Stato della verifica
+
+**Stato: Completata.** La verifica del 2026-11-12 ha confermato che tutti i
+criteri di completamento sono soddisfatti per il perimetro single-pass.
+
+### Criteri soddisfatti
+
+| Criterio | Evidenza |
+|---|---|
+| Configurazione risolta, immutabile e serializzabile | `ResolvedRunConfig` in `src/qreduce/models.py`; `config_hash()`, `to_canonical_json()`; test in `tests/test_config.py` |
+| Contratti condivisi senza dipendenze CPLEX/provider MIS | `ReducibleProblemAdapter`, `LogicalVariableCounts`, `ProtectionDeclaration`, `FixingManifest`, `DomainEvaluationMetric` in `src/qreduce/domains/contracts.py`; nessun import di SDK nei contratti |
+| Validazione capability prima di compilation/esecuzione | `validate_backend_compatibility` in `src/qreduce/capabilities.py`; gate nella pipeline single-pass; test in `tests/test_capabilities.py` e `tests/solving/mwis/test_pipeline_capability_gate.py` |
+| Stati e failure emessi uniformemente | `RunStatus`, `TerminalReason`, `ClassicalSolverStatus`, `PostcheckStatus`, `AdoptionStatus` in `src/qreduce/status.py`; invarianti in `RunResult.__post_init__`; test in `tests/test_config.py` |
+
+### Requisiti esplicitamente esclusi dal perimetro M02
+
+I seguenti requisiti delle specifiche sono documentati come **bloccati a M08**
+perche' richiedono semantica multi-round che il single-pass non puo` fornire:
+
+- `on_candidate_domain_too_small` (policy di recovery)
+- `on_reduced_problem_infeasible` (policy di recovery)
+- `max_recovery_attempts` (contatore di recovery)
+
+Questa esclusione e` una decisione di progetto esplicita, non un gap da colmare
+in M02. Il single-pass applica il comportamento `fail` senza recovery implicito.
