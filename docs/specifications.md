@@ -1092,6 +1092,19 @@ Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benc
 
 L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
 
+L'export del modello residuo e` una scrittura esplicitamente richiesta tramite
+`model_export_enabled`, disabilitata per default nell'esperimento. Per l'uso
+diretto della pipeline il chiamante fornisce `model_export_path`, percorso
+completo del file; un percorso mancante o gia` esistente produce failure di
+configurazione. Il runner interno, quando l'export e` abilitato senza override,
+risolve il percorso a `outputs/{experiment_id}/{run_id}/residual_model.lp`,
+rispettando `output_root`. L'override indica un file `.lp` o `.mps`. Il runner
+non sovrascrive file esistenti, registra percorso, formato e hash dell'export
+effettivamente prodotto e pubblica il file predefinito insieme agli artifact.
+Un export esterno viene preparato nella directory di destinazione e pubblicato
+senza sovrascrittura; in caso di errore di pubblicazione il runner tenta di
+rimuoverlo. I due percorsi non costituiscono una transazione atomica unica.
+
 Il chiamante della libreria puo` persistere, trasmettere o scartare il risultato in memoria secondo le proprie esigenze; il kernel non fornisce un exporter pubblico. Il repository include un runner interno, non distribuito con la libreria, che esegue esperimenti e salva obbligatoriamente artifact JSON per l'analisi successiva nei notebook. Ogni artifact strutturato prodotto dal runner deve dichiarare, direttamente o nel relativo manifest, `artifact_schema_version`, `producer_version`, `run_id`, `created_at`, `config_hash` e un content hash per ciascun file pubblicato.
 
 Per ogni run pubblicato dal runner interno, la struttura minima e`:

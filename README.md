@@ -146,6 +146,17 @@ Il notebook corrispondente e`
 `outputs/synthetic-portfolio-single-pass/scip-run-001/`. Il percorso predefinito
 usa `local_greedy` per MIS e `scip` per il solve classico residuo.
 
+L'export del modello residuo e` disabilitato per default. Per richiederlo,
+aggiungere `--model-export`: il runner pubblica `residual_model.lp` nella
+directory del run. Con `--model-export-path /percorso/modello.lp` si sceglie
+invece un file `.lp` o `.mps`; la directory esterna deve gia` esistere e un
+file esistente non viene sovrascritto. Il manifest registra formato e hash.
+L'export predefinito segue la pubblicazione atomica del run; un file esterno
+non fa parte della stessa transazione. Nell'uso diretto di `run_single_pass`,
+chi abilita l'export deve fornire `model_export_path` nella configurazione.
+Il loader verifica l'hash del modello interno al run; l'hash del file esterno
+e` registrato nel manifest, ma non viene verificato dal loader.
+
 Per analizzare il percorso con simulatore MIS D-Wave Ocean locale e solve
 classico CPLEX, produrre prima artifact distinti:
 

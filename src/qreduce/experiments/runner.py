@@ -3,7 +3,8 @@
 import os
 import shutil
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from hashlib import sha256
 from pathlib import Path
 from tempfile import mkdtemp
 
@@ -57,27 +58,69 @@ def run_experiment(
             f"Experiment artifact directory already exists: {destination}"
         )
 
-    result = run_single_pass(
-        problem,
-        adapter,
-        config,
-        mis_solver_registry=mis_solver_registry,
-        classical_solver_registry=classical_solver_registry,
-    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_root = Path(mkdtemp(prefix=f".{run_id}.", dir=destination.parent))
+    external_staging = None
+    external_published = None
     try:
+        export_path = None
+        write_path = None
+        if config.classical_solve.model_export_enabled:
+            requested = config.classical_solve.model_export_path
+            if requested is not None and (not isinstance(requested, str) or not requested.strip()):
+                raise ValueError("Model export path must be non-blank.")
+            export_path = Path(requested).resolve() if requested is not None else (
+                destination.resolve() / "residual_model.lp"
+            )
+            if export_path.suffix.lower() not in {".lp", ".mps"}:
+                raise ValueError("Model export requires an .lp or .mps file path.")
+            if export_path.parent == destination.resolve():
+                write_path = temporary_root / export_path.name
+            else:
+                if export_path.is_relative_to(destination.resolve()):
+                    raise ValueError("Model export must be directly inside the run directory.")
+                if export_path.exists():
+                    raise FileExistsError(f"Model export already exists: {export_path}")
+                external_staging = Path(mkdtemp(prefix=".qreduce-export.", dir=export_path.parent))
+                write_path = external_staging / export_path.name
+            config = replace(config, classical_solve=replace(
+                config.classical_solve, model_export_path=str(export_path)
+            ))
+        result = run_single_pass(
+            problem,
+            adapter,
+            config,
+            mis_solver_registry=mis_solver_registry,
+            classical_solver_registry=classical_solver_registry,
+            _model_export_write_path=str(write_path) if write_path else None,
+        )
+        exported = write_path if write_path and write_path.is_file() else None
+        if exported and result.classical_result and not result.classical_result.model_export_path:
+            result = replace(result, classical_result=replace(
+                result.classical_result, model_export_path=str(export_path)
+            ))
         _write_artifacts(
             temporary_root,
             experiment_id,
             problem,
             result,
             experiment_metadata or {},
+            exported,
+            export_path,
+            external_staging is not None,
         )
+        if exported and external_staging is not None:
+            os.link(exported, export_path)
+            external_published = export_path
         os.replace(temporary_root, destination)
     except Exception:
         shutil.rmtree(temporary_root, ignore_errors=True)
+        if external_published is not None:
+            external_published.unlink(missing_ok=True)
         raise
+    finally:
+        if external_staging is not None:
+            shutil.rmtree(external_staging, ignore_errors=True)
     return ExperimentRun(
         experiment_id=experiment_id, run_directory=destination, result=result
     )
@@ -89,6 +132,9 @@ def _write_artifacts(
     problem: object,
     result: SinglePassRunResult,
     experiment_metadata: Mapping[str, object],
+    exported: Path | None,
+    export_path: Path | None,
+    external_export: bool,
 ) -> None:
     config = result.resolved_config.to_dict()
     problem_data = redact_metadata(to_primitive(problem))
@@ -110,6 +156,16 @@ def _write_artifacts(
         _write_json(directory / filename, contents)
         content_hashes[filename] = sha256_hex(contents)
 
+    model_export = None
+    if exported is not None and export_path is not None:
+        digest = sha256(exported.read_bytes()).hexdigest()
+        model_export = {
+            "path": str(export_path), "format": export_path.suffix[1:].lower(),
+            "sha256": digest, "external": external_export,
+        }
+        if not external_export:
+            content_hashes[export_path.name] = digest
+
     manifest: dict[str, object] = {
         "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
         "producer_version": _producer_version(),
@@ -119,6 +175,7 @@ def _write_artifacts(
         "run_status": result.run_result.run_status.value,
         "config_hash": result.run_result.config_hash,
         "files": content_hashes,
+        "model_export": model_export,
     }
     _write_json(directory / "run_manifest.json", manifest)
 

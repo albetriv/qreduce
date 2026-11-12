@@ -1,6 +1,8 @@
 """Tests for repository-internal experiment persistence and filesystem loading."""
 
+import importlib.util
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,6 +25,7 @@ from qreduce.models import (
     ResolvedRunConfig,
     RunIdentity,
 )
+from qreduce.pipeline import run_single_pass
 from qreduce.status import PostcheckMode, RunStatus
 
 
@@ -162,3 +165,114 @@ def test_loader_rejects_artifacts_changed_after_publication(
 
     with pytest.raises(ExperimentArtifactError, match="Content hash mismatch"):
         load_experiment_run(run.run_directory)
+
+
+def test_direct_pipeline_rejects_missing_export_path() -> None:
+    config = _config("missing-path")
+    config = replace(config, classical_solve=replace(config.classical_solve, model_export_enabled=True))
+    result = run_single_pass(
+        _problem(), MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)), config
+    )
+    assert result.run_result.terminal_reason.value == "invalid_configuration"
+    assert "file path" in result.run_result.diagnostic_message
+
+
+@pytest.mark.skipif(importlib.util.find_spec("pyscipopt") is None, reason="SCIP not installed")
+def test_direct_pipeline_exports_to_requested_path_and_refuses_overwrite(tmp_path: Path) -> None:
+    target = tmp_path / "direct.lp"
+    config = _config("direct")
+    config = replace(config, classical_solve=replace(
+        config.classical_solve, classical_solver_id="scip", model_export_enabled=True,
+        model_export_path=str(target),
+    ))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    result = run_single_pass(_problem(), adapter, config)
+    assert target.is_file()
+    assert result.classical_result.model_export_path == str(target)
+    contents = target.read_bytes()
+    second = run_single_pass(_problem(), adapter, config)
+    assert second.run_result.terminal_reason.value == "invalid_configuration"
+    assert target.read_bytes() == contents
+
+
+def test_missing_backend_does_not_publish_model(monkeypatch, tmp_path: Path) -> None:
+    def missing_cplex(module_name: str):
+        raise ModuleNotFoundError(module_name)
+
+    monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", missing_cplex)
+    config = _config("missing-backend")
+    config = replace(config, classical_solve=replace(config.classical_solve, model_export_enabled=True))
+    run = run_experiment(
+        "portfolio-reference", _problem(),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config, output_root=tmp_path,
+    )
+    assert run.result.run_result.run_status is RunStatus.FAILED
+    assert not (run.run_directory / "residual_model.lp").exists()
+    assert load_experiment_run(run.run_directory).manifest["model_export"] is None
+
+
+@pytest.mark.skipif(importlib.util.find_spec("pyscipopt") is None, reason="SCIP not installed")
+@pytest.mark.parametrize("external", [False, True])
+def test_model_export_is_published_and_auditable(tmp_path: Path, external: bool) -> None:
+    config = _config("export-run")
+    custom = tmp_path / "custom.lp" if external else None
+    config = replace(config, classical_solve=replace(
+        config.classical_solve, classical_solver_id="scip", model_export_enabled=True,
+        model_export_path=str(custom) if custom else None,
+    ))
+    run = run_experiment(
+        "portfolio-reference", _problem(),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config, output_root=tmp_path,
+    )
+    model = custom or run.run_directory / "residual_model.lp"
+    assert model.is_file()
+    assert run.result.classical_result.model_export_path == str(model)
+    assert run.result.resolved_config.classical_solve.model_export_path == str(model)
+    loaded = load_experiment_run(run.run_directory)
+    assert loaded.manifest["model_export"]["external"] is external
+    assert loaded.manifest["model_export"]["format"] == "lp"
+    if not external:
+        model.write_text("tampered", encoding="utf-8")
+        with pytest.raises(ExperimentArtifactError, match="Content hash mismatch"):
+            load_experiment_run(run.run_directory)
+
+
+def test_external_export_refuses_existing_file(tmp_path: Path) -> None:
+    target = tmp_path / "existing.lp"
+    target.write_text("keep", encoding="utf-8")
+    config = _config("collision")
+    config = replace(config, classical_solve=replace(
+        config.classical_solve, model_export_enabled=True, model_export_path=str(target)
+    ))
+    with pytest.raises(FileExistsError):
+        run_experiment(
+            "portfolio-reference", _problem(),
+            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+            config, output_root=tmp_path,
+        )
+    assert target.read_text(encoding="utf-8") == "keep"
+    assert not (tmp_path / "portfolio-reference" / "collision").exists()
+
+
+@pytest.mark.skipif(importlib.util.find_spec("pyscipopt") is None, reason="SCIP not installed")
+def test_export_cleanup_when_artifact_publication_fails(monkeypatch, tmp_path: Path) -> None:
+    config = _config("write-failure")
+    config = replace(config, classical_solve=replace(
+        config.classical_solve, classical_solver_id="scip", model_export_enabled=True,
+        model_export_path=str(tmp_path / "external.lp"),
+    ))
+    def fail_publication(*args, **kwargs):
+        raise OSError("publication failed")
+
+    monkeypatch.setattr("qreduce.experiments.runner.os.replace", fail_publication)
+    with pytest.raises(OSError, match="publication failed"):
+        run_experiment(
+            "portfolio-reference", _problem(),
+            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+            config, output_root=tmp_path,
+        )
+    assert not (tmp_path / "external.lp").exists()
+    assert not (tmp_path / "portfolio-reference" / "write-failure").exists()
+    assert not list(tmp_path.glob(".qreduce-export.*"))

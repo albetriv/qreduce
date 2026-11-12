@@ -183,6 +183,8 @@ def run_synthetic_portfolio_experiment(
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
+    model_export_enabled: bool = False,
+    model_export_path: str | None = None,
 ) -> ExperimentRun:
     """Run and persist the deterministic synthetic portfolio experiment."""
 
@@ -197,7 +199,11 @@ def run_synthetic_portfolio_experiment(
         SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
         inputs.problem,
         inputs.adapter,
-        inputs.config,
+        replace(inputs.config, classical_solve=replace(
+            inputs.config.classical_solve,
+            model_export_enabled=model_export_enabled,
+            model_export_path=model_export_path,
+        )),
         output_root=output_root,
         experiment_metadata={"portfolio_graph_policy": inputs.graph_policy},
     )
@@ -342,6 +348,8 @@ def _main() -> None:
     parser = argparse.ArgumentParser(description="Run the synthetic portfolio QReduce experiment.")
     parser.add_argument("--run-id", required=True, help="Unique run identifier used under the experiment output directory.")
     parser.add_argument("--output-root", default="outputs", help="Root directory for repository experiment artifacts.")
+    parser.add_argument("--model-export", action="store_true", help="Export the residual model.")
+    parser.add_argument("--model-export-path", help="Optional .lp or .mps export file path.")
     parser.add_argument(
         "--mis-solver-id",
         choices=("local_greedy", "dwave_simulated_annealing"),
@@ -365,6 +373,8 @@ def _main() -> None:
         help="Optional D-Wave simulated-annealing num_sweeps parameter.",
     )
     arguments = parser.parse_args()
+    if arguments.model_export_path and not arguments.model_export:
+        parser.error("--model-export-path requires --model-export")
     run = run_synthetic_portfolio_experiment(
         arguments.run_id,
         output_root=arguments.output_root,
@@ -372,6 +382,8 @@ def _main() -> None:
         classical_solver_id=arguments.classical_solver_id,
         mis_num_reads=arguments.mis_num_reads,
         mis_num_sweeps=arguments.mis_num_sweeps,
+        model_export_enabled=arguments.model_export,
+        model_export_path=arguments.model_export_path,
     )
     print(run.run_directory)
 

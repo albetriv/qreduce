@@ -81,7 +81,7 @@ single-pass. I riferimenti alle sezioni sono di `docs/specifications.md`.
 
 | Requisito | Implementazione | Test principale | Stato |
 |---|---|---|---|
-| 7: percorso `graph -> MIS -> candidate domain -> restrict -> classical -> post-check` | `run_single_pass` in `src/qreduce/pipeline/single_pass.py`; adapter portfolio in `src/qreduce/experiments/portfolio_domain.py` | `tests/experiments/test_portfolio_single_pass.py`; integrazioni SCIP/CPLEX quando disponibili | Coperto |
+| 7: percorso `graph -> MIS -> candidate domain -> restrict -> classical -> post-check` | `run_single_pass` in `src/qreduce/pipeline/single_pass.py`; adapter in `src/qreduce/experiments/portfolio_domain/` | `tests/experiments/test_portfolio_single_pass.py`; integrazioni SCIP/CPLEX quando disponibili | Coperto |
 | 8.1-8.2: candidate selezionate, ranking e dominio aggregato | `_select_diverse_samples`, `_candidate_domain_item_ids` e record audit nel single-pass | `tests/pipeline/test_single_pass_selection.py` | Coperto |
 | 8.3: cap stabile e dominio minimo | applicazione cap, `candidate_domain_min_items`, validazione adapter | `test_pipeline_enforces_adapter_minimum_before_building_a_manifest`; test di ranking/cap in `tests/pipeline/test_single_pass_selection.py` | Coperto |
 | 8.3: protezioni obbligatorie prima del cap | `ProtectionDeclaration.required_item_ids`; failure `protected_items_exceed_candidate_domain_cap` | `test_pipeline_retains_declared_protected_items_before_applying_cap`; `test_pipeline_fails_before_fixing_when_protected_items_exceed_cap` | Coperto |
@@ -89,7 +89,7 @@ single-pass. I riferimenti alle sezioni sono di `docs/specifications.md`.
 | 8.4, 10: fixing completo e manifest serializzabile | `FixingManifest`, adapter portfolio `restrict_problem`, controllo di coerenza prima della restriction | test fixing/manifest in `tests/experiments/test_portfolio_single_pass.py` | Coperto |
 | 12.1-12.2: validazione strutturale, repair deterministico, esiti auditabili | validazione MWIS e `_repair_sample`; `CandidateRecord.repair_status`/`repair_actions` | test repair e candidate record in `tests/pipeline/test_single_pass_selection.py` | Coperto |
 | 12.3: diversita` post-validazione e reason di scarto | `_select_diverse_samples`; `CandidateRecord.rejection_reason` | `test_diversity_audit_records_the_observed_rejection_reason` | Coperto |
-| 16.2, 17: risultato serializzabile e artifact runner | `SinglePassRunResult.to_dict`; runner interno | `tests/experiments/test_runner.py` | Coperto |
+| 16.2, 17: risultato serializzabile e artifact runner | `SinglePassRunResult.to_dict`; runner interno | `tests/experiments/test_runner.py` | Parziale: verificare tutte le metriche richieste |
 | 16.3, 20.8: provenance policy senza selezione automatica | `PolicyProvenance` in config risolta | `tests/test_config.py`; artifact runner | Coperto |
 | 9, 20.6: domini monotoni, stop iterativi, per-round artifact | Nessun loop multi-round nel single-pass | Non applicabile al percorso M05 corrente | Non implementato: M08 |
 | 9.5, 18: recovery e rollback | Nessun recovery implicito; fixing terminale nel singolo round | Non applicabile al percorso M05 corrente | Non implementato: M08 |

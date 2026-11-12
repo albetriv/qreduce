@@ -3,6 +3,7 @@
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from qreduce.artifacts.metadata import sha256_hex
@@ -69,6 +70,19 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
     canonical_mwis_problem = (
         _read_json_object(canonical_path) if canonical_path.is_file() else None
     )
+    model_export = manifest.get("model_export")
+    extra_hashes = {}
+    if isinstance(model_export, dict) and model_export.get("external") is False:
+        path = model_export.get("path")
+        if not isinstance(path, str) or Path(path).suffix.lower() not in {".lp", ".mps"}:
+            raise ExperimentArtifactError("Invalid model export path in manifest.")
+        filename = Path(path).name
+        try:
+            extra_hashes[filename] = sha256((directory / filename).read_bytes()).hexdigest()
+        except OSError as error:
+            raise ExperimentArtifactError(f"Cannot load model export {filename}.") from error
+        if extra_hashes[filename] != model_export.get("sha256"):
+            raise ExperimentArtifactError(f"Content hash mismatch for artifact {filename}.")
     _validate_content_hashes(
         manifest,
         {
@@ -81,7 +95,7 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
                 if canonical_mwis_problem is not None
                 else {}
             ),
-        },
+        }, extra_hashes,
     )
     return ExperimentRunArtifacts(
         run_directory=directory,
@@ -117,14 +131,15 @@ def _require_string(values: Mapping[str, object], field: str) -> None:
 
 
 def _validate_content_hashes(
-    manifest: Mapping[str, object], files: Mapping[str, object]
+    manifest: Mapping[str, object], files: Mapping[str, object],
+    extra_hashes: Mapping[str, str],
 ) -> None:
     expected_hashes = manifest.get("files")
     if not isinstance(expected_hashes, dict):
         raise ExperimentArtifactError(
             "Artifact manifest must contain a file-hash object."
         )
-    if set(expected_hashes) != set(files):
+    if set(expected_hashes) != set(files) | set(extra_hashes):
         raise ExperimentArtifactError(
             "Artifact manifest file hashes do not match the published files."
         )
@@ -134,3 +149,6 @@ def _validate_content_hashes(
             raise ExperimentArtifactError(
                 f"Content hash mismatch for artifact {filename}."
             )
+    for filename, digest in extra_hashes.items():
+        if expected_hashes[filename] != digest:
+            raise ExperimentArtifactError(f"Content hash mismatch for artifact {filename}.")

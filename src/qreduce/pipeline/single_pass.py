@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
 
@@ -141,6 +142,7 @@ def run_single_pass(
     *,
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
+    _model_export_write_path: str | None = None,
 ) -> SinglePassRunResult:
     """Run one reduction using built-in solver factories and optional extensions."""
 
@@ -151,6 +153,15 @@ def run_single_pass(
             PipelineStage.VALIDATION,
             validation.terminal_reason,
             _issues_message(validation),
+        )
+    if (
+        config.classical_solve.model_export_enabled
+        and _model_export_write_path is None
+        and Path(config.classical_solve.model_export_path).exists()
+    ):
+        return _failed(
+            config, PipelineStage.VALIDATION, TerminalReason.INVALID_CONFIGURATION,
+            "Model export path already exists; refusing to overwrite it.",
         )
     started_at = perf_counter()
     mis_solver_registry = mis_solver_registry or builtin_mis_solver_registry()
@@ -638,9 +649,16 @@ def run_single_pass(
             random_seed=config.classical_solve.random_seed,
             threads=config.classical_solve.threads,
             model_export_enabled=config.classical_solve.model_export_enabled,
+            model_export_path=(
+                _model_export_write_path or config.classical_solve.model_export_path
+            ),
             requested_solver_id=config.classical_solve.classical_solver_id,
         ),
     )
+    if _model_export_write_path and classical_result.model_export_path:
+        classical_result = replace(
+            classical_result, model_export_path=config.classical_solve.model_export_path
+        )
     if not classical_result.solver_claimed_feasible:
         return _failed(
             config,

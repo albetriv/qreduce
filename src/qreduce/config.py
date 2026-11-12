@@ -57,6 +57,15 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     execution = config.mis_execution
     classical = config.classical_solve
 
+    if classical.model_export_enabled and (
+        not isinstance(classical.model_export_path, str)
+        or not classical.model_export_path.strip()
+    ):
+        _add_issue(
+            issues, "missing_export_path", "classical_solve.model_export_path",
+            "Model export requires an explicit non-blank file path.",
+        )
+
     _require_nonempty(issues, "schema_version", config.schema_version)
     _require_nonempty(issues, "run_identity.run_id", config.run_identity.run_id)
     _require_nonempty(issues, "mis_solver_id", config.mis_solver_id)

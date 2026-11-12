@@ -82,6 +82,7 @@ class ClassicalSolveOptions:
     objective_recomputation_relative_tolerance: float
     postcheck_mode: PostcheckMode
     random_seed: int | None = None
+    model_export_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
