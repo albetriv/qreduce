@@ -6,7 +6,11 @@ from dataclasses import replace
 
 import pytest
 
-from qreduce.domains import DomainValidationResult, ProtectionDeclaration
+from qreduce.domains import (
+    DomainValidationResult,
+    LogicalVariableCounts,
+    ProtectionDeclaration,
+)
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
@@ -87,6 +91,10 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     )
 
     assert result.retained_item_ids
+    assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
+    assert result.residual_variable_counts == LogicalVariableCounts(
+        len(result.retained_item_ids), 0, len(result.retained_item_ids)
+    )
     assert result.fixing_manifest is not None
     assert result.selected_mis_samples
     assert result.mis_compilation_result is not None
@@ -109,6 +117,81 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     assert serialized_result["fixing_manifest"] is not None
     assert serialized_result["mis_execution_result"] is not None
     json.dumps(serialized_result)
+
+
+def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioProblem) -> None:
+    class MissingCounts:
+        def build_conflict_graph(self, problem):
+            raise AssertionError("Graph must not be built")
+
+    result = run_single_pass(portfolio_problem, MissingCounts(), make_config())
+    assert result.run_result.stage is PipelineStage.VALIDATION
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert "describe_logical_variables" in result.run_result.diagnostic_message
+    assert result.original_variable_counts is None
+
+
+def test_invalid_original_counts_fail_before_graph(portfolio_problem: PortfolioProblem) -> None:
+    class InvalidCounts(MeanVariancePortfolioAdapter):
+        def describe_logical_variables(self, problem):
+            return {"binary_free": 3}
+
+        def build_conflict_graph(self, problem, state=None):
+            raise AssertionError("Graph must not be built")
+
+    result = run_single_pass(
+        portfolio_problem, InvalidCounts(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+    )
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert "LogicalVariableCounts" in result.run_result.diagnostic_message
+
+
+def test_invalid_residual_counts_preserve_original_and_fail_before_solve(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    class InvalidResidualCounts(MeanVariancePortfolioAdapter):
+        def describe_logical_variables(self, problem):
+            if problem is portfolio_problem:
+                return LogicalVariableCounts(3, 0, 3)
+            raise ValueError("residual counts unavailable")
+
+    result = run_single_pass(
+        portfolio_problem,
+        InvalidResidualCounts(PortfolioGraphPolicy("test", "1", 0.25)),
+        make_config(),
+    )
+    assert result.run_result.stage is PipelineStage.RESTRICTION
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
+    assert result.residual_variable_counts is None
+    assert result.classical_result is None
+    assert result.fixing_manifest is not None
+
+
+def test_graph_failure_retains_original_counts(portfolio_problem: PortfolioProblem) -> None:
+    class BrokenGraph(MeanVariancePortfolioAdapter):
+        def build_conflict_graph(self, problem, state=None):
+            raise ValueError("graph failed")
+
+    result = run_single_pass(
+        portfolio_problem, BrokenGraph(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+    )
+    assert result.run_result.terminal_reason is TerminalReason.GRAPH_CONSTRUCTION_FAILED
+    assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
+    assert result.residual_variable_counts is None
+
+
+def test_counts_method_exception_is_normalized(portfolio_problem: PortfolioProblem) -> None:
+    class BrokenCounts(MeanVariancePortfolioAdapter):
+        def describe_logical_variables(self, problem):
+            raise RuntimeError("cannot describe model")
+
+    result = run_single_pass(
+        portfolio_problem, BrokenCounts(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+    )
+    assert result.run_result.stage is PipelineStage.VALIDATION
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.diagnostic_message == "cannot describe model"
 
 
 def test_pipeline_retains_declared_protected_items_before_applying_cap(

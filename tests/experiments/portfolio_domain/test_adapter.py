@@ -2,6 +2,7 @@
 
 import pytest
 
+from qreduce.domains import LogicalVariableCounts
 from qreduce.experiments.portfolio_domain import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
@@ -52,6 +53,8 @@ def test_excluded_assets_have_both_delta_and_weight_fixings(portfolio_problem: P
     assert residual_problem.global_constraint_descriptions == ("sum_i x_i = 1",)
     assert residual_problem.variable_count == 6
     assert residual_problem.constraint_count == 9
+    assert adapter.describe_logical_variables(problem) == LogicalVariableCounts(3, 0, 3)
+    assert adapter.describe_logical_variables(residual_problem) == LogicalVariableCounts(2, 0, 2)
 
 
 def test_candidate_domain_must_retains_enough_upper_bound_capacity(portfolio_problem: PortfolioProblem) -> None:

@@ -5,6 +5,7 @@ from qreduce.domains.contracts import (
     FinalSolutionValidationResult,
     FixingEntry,
     FixingManifest,
+    LogicalVariableCounts,
     ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "FinalSolutionValidationResult",
     "FixingEntry",
     "FixingManifest",
+    "LogicalVariableCounts",
     "ProtectionDeclaration",
     "ReducibleProblemAdapter",
 ]

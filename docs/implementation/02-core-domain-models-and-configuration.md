@@ -94,6 +94,7 @@ milestone che lo rende eseguibile.
 
 | Requisito | Stato | Implementazione verificata | Test/evidenza | Decisione o milestone successiva |
 |---|---|---|---|---|
+| 13, 16.2: conteggi logici originali e residui | Coperto nel single-pass | `LogicalVariableCounts`, metodo obbligatorio adapter e campi del risultato | `tests/domains/test_logical_variable_counts.py`, test portfolio e runner | Distinti dai conteggi fisici solver; adapter esterni da aggiornare |
 | 18: cap, minimo dominio, numero candidate, ratio minima, target binarie, budget E2E | Coperto come contratto | `ReductionPolicy` in `src/qreduce/models.py`; validazione in `src/qreduce/config.py` | `tests/test_config.py` valida bounds, tipi, range e budget | `min_reduction_ratio` e `target_binary_variables` diventano stop criteria solo con M08 multi-round |
 | 18: protezioni `mandatory`, `user_locked`, `safe_retained`, `incumbent_supported` | Coperto nel contratto adapter, non nella run config | `ProtectionDeclaration` in `src/qreduce/domains/contracts.py` | `tests/domains/test_protection_declaration.py` | La sorgente delle protezioni e` l'adapter per round; non e` definito un override config che possa disabilitare una protezione mandatory |
 | 8.3, 18: `incumbent_protection_mode` | Coperto nella dichiarazione adapter | `ProtectionDeclaration.incumbent_protection_mode` (`required` o `best_effort`) | `tests/domains/test_protection_declaration.py`; `tests/pipeline/test_single_pass_selection.py` | Se M08 richiedera` un override di run, deve definire precedenza fra adapter, policy e incumbent |

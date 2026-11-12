@@ -5,6 +5,7 @@ from qreduce.domains.contracts import (
     FinalSolutionValidationResult,
     FixingEntry,
     FixingManifest,
+    LogicalVariableCounts,
 )
 from qreduce.experiments.portfolio_domain.models import (
     PortfolioGraphPolicy,
@@ -25,6 +26,30 @@ class MeanVariancePortfolioAdapter:
 
     def identify_reducible_items(self, problem: PortfolioProblem) -> list[str]:
         return list(problem.asset_ids)
+
+    def describe_logical_variables(
+        self, problem: PortfolioProblem | PortfolioResidualProblem
+    ) -> LogicalVariableCounts:
+        """Count explicit model decisions, excluding manifest-fixed variables."""
+
+        if isinstance(problem, PortfolioResidualProblem):
+            original = problem.original_problem
+            fixed = {
+                name for entry in problem.fixing_manifest.entries
+                for name in entry.variable_values
+            }
+            mapping = problem.variable_mapping
+        elif isinstance(problem, PortfolioProblem):
+            original = problem
+            fixed = set()
+            mapping = PortfolioVariableMapping.for_problem(problem)
+        else:
+            raise TypeError("Unsupported portfolio problem for logical variable counts.")
+        return LogicalVariableCounts(
+            binary_free=sum(mapping.delta_variable_by_asset[asset] not in fixed for asset in original.asset_ids),
+            integer_free=0,
+            continuous_free=sum(mapping.x_variable_by_asset[asset] not in fixed for asset in original.asset_ids),
+        )
 
     def build_conflict_graph(self, problem: PortfolioProblem, state: object | None = None) -> ReductionGraph:
         del state

@@ -82,6 +82,14 @@ poetry install --with experiments
 
 QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e ne registra configurazione, provenance ed esiti. Non include un workflow di calibrazione, benchmark o selezione automatica della policy: riferimenti classici, metriche di qualita`, soglie e separazione fra tuning e valutazione finale restano responsabilita` dell'applicazione o dell'adapter di dominio.
 
+Gli adapter di dominio devono implementare `describe_logical_variables(problem)`
+e restituire `LogicalVariableCounts` per problema originale e residuo. I conteggi
+escludono le variabili esplicitamente fissate e le ausiliarie dei solver; non
+richiedono un solve per dedurre fixing impliciti. Gli adapter precedenti devono
+essere aggiornati: l'assenza del metodo produce `adapter_failure`. Il risultato
+espone `original_variable_counts` e `residual_variable_counts`; quest'ultimo e`
+assente finche` il residuo non e` costruito e descritto con successo.
+
 ## Integrazione concettuale
 
 ```text

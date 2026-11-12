@@ -12,6 +12,7 @@ from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
     FinalSolutionValidationResult,
     FixingManifest,
+    LogicalVariableCounts,
     ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
@@ -106,6 +107,8 @@ class SinglePassRunResult:
 
     run_result: RunResult
     resolved_config: ResolvedRunConfig
+    original_variable_counts: LogicalVariableCounts | None = None
+    residual_variable_counts: LogicalVariableCounts | None = None
     retained_item_ids: tuple[str, ...] = ()
     fixing_manifest: FixingManifest | None = None
     selected_mis_samples: tuple[RawMISSample, ...] = ()
@@ -136,6 +139,66 @@ class SinglePassRunResult:
 
 
 def run_single_pass(
+    problem: object,
+    adapter: ReducibleProblemAdapter,
+    config: ResolvedRunConfig,
+    *,
+    mis_solver_registry: MISSolverRegistry | None = None,
+    classical_solver_registry: ClassicalSolverRegistry | None = None,
+    _model_export_write_path: str | None = None,
+) -> SinglePassRunResult:
+    """Validate mandatory logical counts and preserve them across partial outcomes."""
+
+    validation = validate_resolved_run_config(config)
+    if not validation.is_valid:
+        return _failed(config, PipelineStage.VALIDATION, validation.terminal_reason, _issues_message(validation))
+    try:
+        describe = getattr(adapter, "describe_logical_variables", None)
+        if not callable(describe):
+            raise TypeError("Adapter must implement describe_logical_variables.")
+        original_counts = _validate_logical_counts(describe(problem))
+    except Exception as error:  # noqa: BLE001 - Adapter contract failures are normalized.
+        return _failed(config, PipelineStage.VALIDATION, TerminalReason.ADAPTER_FAILURE, str(error))
+    tracking_adapter = _LogicalCountsAdapter(adapter)
+    result = _run_single_pass(
+        problem, tracking_adapter, config,
+        mis_solver_registry=mis_solver_registry,
+        classical_solver_registry=classical_solver_registry,
+        _model_export_write_path=_model_export_write_path,
+    )
+    return replace(
+        result, original_variable_counts=original_counts,
+        residual_variable_counts=tracking_adapter.residual_counts,
+    )
+
+
+def _validate_logical_counts(value: object) -> LogicalVariableCounts:
+    if not isinstance(value, LogicalVariableCounts):
+        raise TypeError("describe_logical_variables must return LogicalVariableCounts.")
+    return value
+
+
+class _LogicalCountsAdapter:
+    """Capture residual counts as part of restriction without changing domain objects."""
+
+    def __init__(self, adapter: ReducibleProblemAdapter) -> None:
+        self._adapter = adapter
+        self.residual_counts: LogicalVariableCounts | None = None
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._adapter, name)
+
+    def restrict_problem(
+        self, problem: object, retained_item_ids: tuple[str, ...], fixing_manifest: FixingManifest
+    ) -> object:
+        residual = self._adapter.restrict_problem(problem, retained_item_ids, fixing_manifest)
+        self.residual_counts = _validate_logical_counts(
+            self._adapter.describe_logical_variables(residual)
+        )
+        return residual
+
+
+def _run_single_pass(
     problem: object,
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,

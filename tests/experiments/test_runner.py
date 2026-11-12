@@ -91,6 +91,12 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     assert loaded.manifest["experiment_id"] == "portfolio-reference"
     assert loaded.manifest["run_id"] == "run-001"
     assert loaded.result["run_result"]["run_status"] == "failed"
+    assert loaded.result["original_variable_counts"] == {
+        "binary_free": 3, "integer_free": 0, "continuous_free": 3
+    }
+    assert loaded.result["residual_variable_counts"] == {
+        "binary_free": 2, "integer_free": 0, "continuous_free": 2
+    }
     assert loaded.result["candidate_records"][0]["selection_status"] == "selected"
     assert loaded.result["candidate_domain_item_records"]
     assert loaded.result["protection_declaration"]["mandatory_item_ids"] == []

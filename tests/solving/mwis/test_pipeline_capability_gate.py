@@ -1,6 +1,7 @@
 """Integration tests for the MIS capability gate in the single-pass pipeline."""
 
 from qreduce.capabilities import RuntimeCapabilities
+from qreduce.domains import LogicalVariableCounts
 from qreduce.models import (
     ClassicalSolveOptions,
     LambdaEdgePolicy,
@@ -25,6 +26,10 @@ from qreduce.status import (
 
 class GraphOnlyAdapter:
     """Adapter that supplies the graph needed before capability validation stops the run."""
+
+    def describe_logical_variables(self, problem: object) -> LogicalVariableCounts:
+        del problem
+        return LogicalVariableCounts(1, 0, 0)
 
     def build_conflict_graph(self, problem: object, state: object | None = None) -> ReductionGraph:
         del problem, state

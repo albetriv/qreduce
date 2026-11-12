@@ -90,6 +90,7 @@ single-pass. I riferimenti alle sezioni sono di `docs/specifications.md`.
 | 12.1-12.2: validazione strutturale, repair deterministico, esiti auditabili | validazione MWIS e `_repair_sample`; `CandidateRecord.repair_status`/`repair_actions` | test repair e candidate record in `tests/pipeline/test_single_pass_selection.py` | Coperto |
 | 12.3: diversita` post-validazione e reason di scarto | `_select_diverse_samples`; `CandidateRecord.rejection_reason` | `test_diversity_audit_records_the_observed_rejection_reason` | Coperto |
 | 16.2, 17: risultato serializzabile e artifact runner | `SinglePassRunResult.to_dict`; runner interno | `tests/experiments/test_runner.py`; matrice dettagliata in `06-single-pass-metrics-audit.md` | Parziale: colmare i gap individuati nell'audit |
+| 13, 16.2: conteggi logici delle variabili libere | `LogicalVariableCounts`; `describe_logical_variables` dell'adapter portfolio | `tests/experiments/portfolio_domain/test_adapter.py`; test single-pass e runner | Coperto per il contratto obbligatorio; esclusi fixing espliciti e ausiliarie solver |
 | 16.3, 20.8: provenance policy senza selezione automatica | `PolicyProvenance` in config risolta | `tests/test_config.py`; artifact runner | Coperto |
 | 9, 20.6: domini monotoni, stop iterativi, per-round artifact | Nessun loop multi-round nel single-pass | Non applicabile al percorso M05 corrente | Non implementato: M08 |
 | 9.5, 18: recovery e rollback | Nessun recovery implicito; fixing terminale nel singolo round | Non applicabile al percorso M05 corrente | Non implementato: M08 |

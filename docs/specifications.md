@@ -876,6 +876,9 @@ Un adapter deve fornire almeno:
 
 ```python
 class ReducibleProblemAdapter:
+    def describe_logical_variables(self, problem) -> LogicalVariableCounts:
+        ...
+
     def identify_reducible_items(self, problem) -> list[str]:
         ...
 
@@ -925,6 +928,18 @@ L'adapter e` responsabile di:
 - validare la soluzione finale rispetto al problema originale.
 
 Ogni `item_id` restituito dall'adapter deve essere unico, serializzabile e stabile almeno per tutta la durata del run. Il framework deve rifiutare item duplicati, pesi non finiti, archi con endpoint assenti e reason mancanti per archi o fixing.
+
+L'adapter deve descrivere i conteggi delle variabili logiche libere del problema
+originale e residuo con `LogicalVariableCounts(binary_free, integer_free,
+continuous_free)`, tre interi non negativi obbligatori e disgiunti. Le variabili
+fissate esplicitamente da bounds coincidenti o fixing noti all'adapter sono
+escluse, anche se fisicamente presenti nel modello; non e` richiesta inferenza
+esaustiva dai vincoli o un solve aggiuntivo. Le ausiliarie introdotte dal backend
+non sono incluse. Il metodo e` obbligatorio: assenza, eccezione o risultato non
+valido producono `adapter_failure` normalizzata. I conteggi originali validi
+restano disponibili nelle failure successive; quelli residui sono assenti fino
+alla costruzione e descrizione del residuo. Gli adapter preesistenti devono
+essere aggiornati a questo contratto incompatibile.
 
 ## 14. Backend classici
 

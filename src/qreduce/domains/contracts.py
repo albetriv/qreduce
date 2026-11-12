@@ -11,6 +11,24 @@ from qreduce.mwis import ReductionGraph
 
 
 @dataclass(frozen=True, slots=True)
+class LogicalVariableCounts:
+    """Logical free variables, excluding explicit fixings and solver auxiliaries."""
+
+    binary_free: int
+    integer_free: int
+    continuous_free: int
+
+    def __post_init__(self) -> None:
+        for name in ("binary_free", "integer_free", "continuous_free"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer.")
+
+    def to_dict(self) -> dict[str, object]:
+        return to_primitive(self)
+
+
+@dataclass(frozen=True, slots=True)
 class DomainValidationResult:
     """Serializable validation result for one proposed candidate domain."""
 
@@ -184,6 +202,8 @@ class FinalSolutionValidationResult:
 
 class ReducibleProblemAdapter(Protocol):
     """Minimum boundary between the provider-neutral kernel and a domain model."""
+
+    def describe_logical_variables(self, problem: object) -> LogicalVariableCounts: ...
 
     def identify_reducible_items(self, problem: object) -> list[str]: ...
 

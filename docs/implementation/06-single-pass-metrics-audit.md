@@ -13,6 +13,11 @@ Il risultato e` serializzato interamente in `run_result.json` dal runner; dati
 in campi diversi da `metrics` restano comunque disponibili ai consumer. I test
 citati sono evidenze puntuali, non necessariamente test esaustivi del requisito.
 
+Aggiornamento successivo: i conteggi logici obbligatori originali e residui
+sono implementati da `LogicalVariableCounts` e dall'adapter portfolio. Le prime
+tre righe sottostanti descrivono i gap individuati al momento dell'audit,
+ora coperti dal contratto e dai test; il resto della matrice resta da verificare.
+
 ## Matrice requisito -> evidenza -> gap
 
 | Requisito 16.2 | Evidenza nel codice e nei test | Stato e intervento |
@@ -48,8 +53,8 @@ disponibili non vengano persi durante la failure.
 
 ## Priorita` e confini
 
-1. **M02/M05:** definire contratti per dimensioni del problema logico e metriche
-   di dominio, distinguendo item, variabili e ausiliarie dei backend.
+1. **M02/M05:** mantenere verificati i conteggi logici implementati e definire il
+   contratto delle metriche di dominio, distinto dalle ausiliarie dei backend.
 2. **M05:** definire le metriche del singolo round, inclusi ratio, conteggi
    repair e tempi/failure, poi aggiungere test deterministici per stage raggiunti
    e non raggiunti. La formula marginale e` gia` nella sezione 9.3; non
