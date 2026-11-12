@@ -1,6 +1,7 @@
 """Optional live test for the portfolio experiment's local MIS and CPLEX choices."""
 
 import importlib.util
+from dataclasses import replace
 
 import pytest
 
@@ -93,3 +94,21 @@ def test_cplex_solves_portfolio_after_local_greedy_reduction(
     assert result.classical_result is not None
     assert result.classical_result.requested_solver_id == "cplex"
     assert result.classical_result.effective_solver_id == "cplex"
+
+
+def test_cplex_exports_residual_model(portfolio_problem, tmp_path) -> None:
+    path = tmp_path / "residual.lp"
+    config = make_live_config()
+    config = replace(config, classical_solve=replace(
+        config.classical_solve, model_export_enabled=True, model_export_path=str(path)
+    ))
+    result = run_single_pass(
+        portfolio_problem,
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        config,
+    )
+    if result.classical_result and result.classical_result.classical_solver_status is ClassicalSolverStatus.UNAVAILABLE:
+        pytest.skip(result.classical_result.diagnostic_message or "CPLEX runtime unavailable")
+    assert result.classical_result is not None
+    assert result.classical_result.model_export_path == str(path)
+    assert path.is_file() and path.stat().st_size > 0

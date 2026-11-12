@@ -6,7 +6,7 @@ from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
 
-from qreduce.artifacts.metadata import redact_metadata, to_primitive
+from qreduce.artifacts.metadata import redact_metadata, sha256_hex, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
 from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
@@ -121,6 +121,12 @@ class SinglePassRunResult:
     classical_result: ClassicalSolveResult | None = None
     postcheck_result: FinalSolutionValidationResult | None = None
     domain_evaluation_metrics: tuple[DomainEvaluationMetric, ...] | None = None
+    objective_sense: str = "minimize"
+    original_primal_bound: float | None = None
+    original_dual_bound: float | None = None
+    original_bound_provenance: str = "none"
+    original_problem_optimality_claim: str = "none"
+    residual_problem_optimality_claim: str = "unavailable"
     metrics: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -149,6 +155,61 @@ def run_single_pass(
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     _model_export_write_path: str | None = None,
 ) -> SinglePassRunResult:
+    """Execute one run and record end-to-end time for every terminal outcome."""
+    started_at = perf_counter()
+    input_hash = None
+    describe_input = getattr(adapter, "describe_input", None)
+    if callable(describe_input):
+        try:
+            input_hash = sha256_hex(redact_metadata(to_primitive(describe_input(problem))))
+        except Exception:  # noqa: BLE001 - Input identity is optional for opaque adapters.
+            input_hash = None
+    result = _run_single_pass_with_counts(
+        problem, adapter, config, mis_solver_registry=mis_solver_registry,
+        classical_solver_registry=classical_solver_registry,
+        _model_export_write_path=_model_export_write_path,
+        _started_at=started_at,
+    )
+    metrics = dict(result.metrics)
+    metrics["end_to_end_runtime_seconds"] = perf_counter() - started_at
+    if result.candidate_records or "unique_sample_count" in metrics:
+        metrics["unique_sample_count"] = len(result.candidate_records)
+        metrics["processed_unique_sample_count"] = sum(
+            record.repair_status != "not_processed_after_deduplication"
+            for record in result.candidate_records
+        )
+        metrics["repaired_candidate_count"] = sum(
+            record.repair_status == "repaired" for record in result.candidate_records
+        )
+    if result.candidate_domain_item_records:
+        total = len(result.candidate_domain_item_records)
+        retained = sum(record.decision == "retained" for record in result.candidate_domain_item_records)
+        metrics["round_reduction_ratio"] = (total - retained) / total
+        metrics["cumulative_reduction_ratio"] = metrics["round_reduction_ratio"]
+    classical = result.classical_result
+    residual_claim = "unavailable"
+    if classical is not None and classical.solver_claimed_feasible:
+        residual_claim = "certified_optimal" if classical.is_optimal else (
+            "gap_bounded" if classical.gap is not None else "feasible_incumbent"
+        )
+    primal = None
+    if result.run_result.adoption_status is AdoptionStatus.ADOPTED and result.postcheck_result:
+        primal = result.postcheck_result.objective_recomputed
+    return replace(result, metrics=metrics, run_result=replace(
+        result.run_result, policy_hash=config.policy_provenance.policy_hash, input_hash=input_hash,
+    ), original_primal_bound=primal, residual_problem_optimality_claim=residual_claim)
+
+
+def _run_single_pass_with_counts(
+    problem: object,
+    adapter: ReducibleProblemAdapter,
+    config: ResolvedRunConfig,
+    *,
+    mis_solver_registry: MISSolverRegistry | None = None,
+    classical_solver_registry: ClassicalSolverRegistry | None = None,
+    _model_export_write_path: str | None = None,
+    _started_at: float | None = None,
+) -> SinglePassRunResult:
     """Validate mandatory logical counts and preserve them across partial outcomes."""
 
     validation = validate_resolved_run_config(config)
@@ -167,6 +228,7 @@ def run_single_pass(
         mis_solver_registry=mis_solver_registry,
         classical_solver_registry=classical_solver_registry,
         _model_export_write_path=_model_export_write_path,
+        _started_at=_started_at,
     )
     result = replace(
         result, original_variable_counts=original_counts,
@@ -229,6 +291,7 @@ def _run_single_pass(
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     _model_export_write_path: str | None = None,
+    _started_at: float | None = None,
 ) -> SinglePassRunResult:
     """Run one reduction using built-in solver factories and optional extensions."""
 
@@ -249,7 +312,7 @@ def _run_single_pass(
             config, PipelineStage.VALIDATION, TerminalReason.INVALID_CONFIGURATION,
             "Model export path already exists; refusing to overwrite it.",
         )
-    started_at = perf_counter()
+    started_at = _started_at if _started_at is not None else perf_counter()
     mis_solver_registry = mis_solver_registry or builtin_mis_solver_registry()
     classical_solver_registry = classical_solver_registry or builtin_classical_solver_registry()
     try:
@@ -277,7 +340,10 @@ def _run_single_pass(
             str(error),
         )
 
-    capabilities = mis_solver.capabilities()
+    try:
+        capabilities = mis_solver.capabilities()
+    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+        return _failed(config, PipelineStage.MIS, TerminalReason.MIS_BACKEND_UNAVAILABLE, str(error))
     required_problem_form = _select_problem_form(capabilities.supported_problem_forms)
     if required_problem_form is None:
         return _failed(
@@ -303,7 +369,8 @@ def _run_single_pass(
     if not compilation_timeout.validation.is_valid:
         return _budget_exhausted(config, PipelineStage.MIS)
     assert compilation_timeout.timeout_seconds is not None
-    compilation = mis_solver.compile(
+    try:
+        compilation = mis_solver.compile(
         canonical_problem,
         MISCompilationRequest(
             run_id=config.run_identity.run_id,
@@ -316,7 +383,11 @@ def _run_single_pass(
             requested_execution_mode=capabilities.execution_mode,
             required_problem_form=required_problem_form,
         ),
-    )
+        )
+        if not isinstance(compilation, MISCompilationResult):
+            raise TypeError("MIS backend must return MISCompilationResult.")
+    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+        return _failed(config, PipelineStage.MIS, TerminalReason.MIS_COMPILATION_FAILED, str(error))
     if compilation.compiled_job is None:
         return _failed(
             config,
@@ -335,7 +406,8 @@ def _run_single_pass(
             config, PipelineStage.MIS, mis_compilation_result=compilation
         )
     assert execution_timeout.timeout_seconds is not None
-    execution = mis_solver.solve(
+    try:
+        execution = mis_solver.solve(
         compilation.compiled_job,
         MISBackendRequest(
             run_id=config.run_identity.run_id,
@@ -347,7 +419,15 @@ def _run_single_pass(
             residual_time_budget_seconds=execution_timeout.timeout_seconds,
             execution_parameters=config.mis_execution.provider_parameters,
         ),
-    )
+        )
+        if not isinstance(execution, MISBackendResult):
+            raise TypeError("MIS backend must return MISBackendResult.")
+    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+        return _failed(
+            config, PipelineStage.MIS, TerminalReason.MIS_EXECUTION_FAILED, str(error),
+            mis_compilation_result=compilation,
+            metrics=_run_metrics(started_at, mis_compilation_result=compilation),
+        )
     if execution.completion_status not in {
         MISCompletionStatus.COMPLETED,
         MISCompletionStatus.TIME_LIMITED,
@@ -590,6 +670,9 @@ def _run_single_pass(
             "The candidate domain is smaller than the adapter's minimum_required_items.",
             retained_item_ids,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -604,6 +687,15 @@ def _run_single_pass(
         )
     try:
         fixing_manifest = adapter.build_fixing_manifest(problem, retained_item_ids)
+        if isinstance(fixing_manifest, FixingManifest):
+            fixing_manifest = replace(
+                fixing_manifest, round_index=0,
+                source_candidate_ids=tuple(
+                    record.candidate_id for record in candidate_records
+                    if record.selection_status == "selected"
+                ),
+                policy_version=graph.graph_policy_version,
+            )
     except Exception as error:  # noqa: BLE001 - Adapter restriction failures are normalized.
         return _failed(
             config,
@@ -612,7 +704,9 @@ def _run_single_pass(
             str(error),
             retained_item_ids,
             selected_mis_samples=selected_samples,
-            fixing_manifest=fixing_manifest if "fixing_manifest" in locals() else None,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -636,6 +730,9 @@ def _run_single_pass(
             retained_item_ids,
             fixing_manifest=fixing_manifest,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -661,6 +758,9 @@ def _run_single_pass(
             retained_item_ids,
             fixing_manifest=fixing_manifest,
             selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
             mis_compilation_result=compilation,
             mis_execution_result=execution,
             metrics=_candidate_metrics(
@@ -724,7 +824,8 @@ def _run_single_pass(
                 retained_item_ids,
             ),
         )
-    classical_result = classical_solver.solve(
+    try:
+        classical_result = classical_solver.solve(
         reduced_problem,
         ClassicalSolveRequest(
             run_id=config.run_identity.run_id,
@@ -740,7 +841,21 @@ def _run_single_pass(
             ),
             requested_solver_id=config.classical_solve.classical_solver_id,
         ),
-    )
+        )
+        if not isinstance(classical_result, ClassicalSolveResult):
+            raise TypeError("Classical backend must return ClassicalSolveResult.")
+    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+        return _failed(
+            config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
+            str(error), retained_item_ids, fixing_manifest=fixing_manifest,
+            selected_mis_samples=selected_samples, candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
+            mis_compilation_result=compilation, mis_execution_result=execution,
+            metrics=_candidate_metrics(started_at, execution, compilation,
+                                       deduplicated.samples, valid_samples,
+                                       selected_samples, retained_item_ids),
+        )
     if _model_export_write_path and classical_result.model_export_path:
         classical_result = replace(
             classical_result, model_export_path=config.classical_solve.model_export_path
@@ -771,13 +886,31 @@ def _run_single_pass(
                 classical_result,
             ),
         )
-    postcheck = adapter.validate_final_solution(
-        problem,
-        dict(classical_result.variable_values),
-        fixing_manifest,
-        config.classical_solve,
-        solver_objective_value=classical_result.objective_value,
-    )
+    try:
+        postcheck = adapter.validate_final_solution(
+            problem,
+            dict(classical_result.variable_values),
+            fixing_manifest,
+            config.classical_solve,
+            solver_objective_value=classical_result.objective_value,
+        )
+        if not isinstance(postcheck, FinalSolutionValidationResult):
+            raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
+    except Exception as error:  # noqa: BLE001 - Adapter failures must be normalized.
+        return _failed(
+            config, PipelineStage.POSTCHECK, TerminalReason.ADAPTER_FAILURE,
+            f"The adapter failed during post-check: {error}",
+            retained_item_ids, classical_result,
+            fixing_manifest=fixing_manifest, selected_mis_samples=selected_samples,
+            candidate_records=candidate_records,
+            candidate_domain_item_records=candidate_domain_item_records,
+            protection_declaration=protection_declaration,
+            mis_compilation_result=compilation, mis_execution_result=execution,
+            metrics=_candidate_metrics(
+                started_at, execution, compilation, deduplicated.samples,
+                valid_samples, selected_samples, retained_item_ids, classical_result,
+            ),
+        )
     if not postcheck.postcheck_feasible:
         return SinglePassRunResult(
             run_result=RunResult(
@@ -1048,6 +1181,8 @@ def _run_metrics(
     if postcheck_result is not None:
         metrics["postcheck_feasible"] = postcheck_result.postcheck_feasible
         metrics["postcheck_failure_reasons"] = postcheck_result.failure_reasons
+        if postcheck_result.objective_recomputed is not None:
+            metrics["objective_recomputed"] = postcheck_result.objective_recomputed
     return metrics
 
 

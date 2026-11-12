@@ -17,6 +17,15 @@ possono restituire metriche di dominio con valore, unita`, convenzione e
 provenance, oppure una sequenza vuota. Il metodo non viene chiamato se il
 post-check non e` raggiunto; in quel caso il campo del risultato e` `None`.
 Un errore del metodo produce `adapter_failure` e conserva i risultati precedenti.
+Anche eccezioni o risultati non validi del post-check producono `adapter_failure`,
+conservando il risultato del solve e il fixing manifest senza adottare la soluzione.
+Il manifest degli esperimenti include la provenance della policy redatta.
+Le metriche single-pass distinguono sample uniche prima del cap, sample elaborate
+e candidate riparate; la ratio misura item del grafo, non variabili logiche.
+Il fixing manifest distingue origine e garanzia per ogni entry e registra round,
+candidate selezionate e versione della policy del grafo. Gli adapter possono
+fornire `describe_input` per calcolare un hash dell'input serializzabile redatto;
+se assente o non serializzabile, l'hash resta indisponibile.
 
 ## Specifiche e roadmap
 

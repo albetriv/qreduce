@@ -19,6 +19,11 @@ tre righe sottostanti descrivono i gap individuati al momento dell'audit,
 ora coperti dal contratto e dai test; il resto della matrice resta da verificare.
 Anche il contratto delle metriche di dominio e` ora implementato per il
 single-pass: la relativa riga descrive il gap storico, non lo stato corrente.
+Le eccezioni e i risultati invalidi del post-check sono ora normalizzati come
+`adapter_failure`, preservando il risultato classico e i dati precedenti.
+Ratio single-pass, conteggi pre/post cap e repair, timer end-to-end e
+`policy_hash` fornito sono ora esposti; le righe storiche corrispondenti non
+attestano lo stato corrente. Restano da verificare tutti i rami di failure.
 
 ## Matrice requisito -> evidenza -> gap
 

@@ -677,6 +677,12 @@ Una soluzione classica feasible del problema ridotto e` anche una soluzione feas
 
 Un risultato puo` dichiarare `original_problem_optimality_claim = certified` soltanto se una procedura separata, un full-domain solve o una regola certificata dimostra la corrispondente garanzia rispetto al problema originale. In assenza di tale procedura, il risultato deve riportare la qualita` soltanto rispetto al problema residuo.
 
+Il contratto residuale corrente e` di minimizzazione. Nel single-pass il bound
+primale originale e` riportato solo per una soluzione adottata con obiettivo
+ricomputato dall'adapter; dual bound e ottimalita` originali restano non
+disponibili/non certificati. La dichiarazione sul residuo proviene dallo status
+del solver e non e` una certificazione sul problema originale.
+
 ## 11. Backend MIS, compilation e adapter di provider
 
 ### 11.1 Principio di indipendenza dal provider
@@ -1062,6 +1068,11 @@ integrality_compliance
 tolerances_used
 ```
 
+Se il metodo di post-check dell'adapter solleva un'eccezione o restituisce un
+tipo non valido, il run termina con `adapter_failure`, senza adottare la
+soluzione; il risultato classico e gli altri dati intermedi gia` ottenuti
+rimangono disponibili. Il post-check non ha prodotto un risultato valido.
+
 Le tolleranze devono essere configurate e serializzate:
 
 ```text
@@ -1121,6 +1132,15 @@ domain-specific evaluation metrics supplied by the adapter or caller, with metri
 run status and terminal reason
 ```
 
+Nel single-pass `unique_sample_count` conta i vettori distinti prima del limite
+`max_distinct_samples`; `processed_unique_sample_count` conta quelli effettivamente
+elaborati dopo il limite. `repaired_candidate_count` conta i record riparati con
+successo tra quelli elaborati, anche se successivamente non selezionati. Le ratio
+del round e cumulativa coincidono per un singolo round e misurano gli item del
+grafo dopo protezioni e cap, non il numero di variabili logiche. Sono assenti
+prima della costruzione del dominio. Il tempo end-to-end nel risultato comprende
+validazione, pipeline e valutazione di dominio fino al ritorno del risultato.
+
 Nel single-pass corrente l'adapter implementa obbligatoriamente
 `evaluate_domain_metrics(problem, classical_result, postcheck_result)`. Il metodo
 e` invocato dopo un post-check eseguito, anche se negativo; se il post-check non
@@ -1169,6 +1189,12 @@ Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benc
 ## 17. Risultato in memoria, esperimenti interni e riproducibilita`
 
 L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
+
+Per input opachi l'adapter puo` esporre `describe_input(problem)` con una
+rappresentazione canonica priva di dati sensibili. Se disponibile e serializzabile,
+il kernel registra `input_hash` come SHA-256 del JSON canonico redatto; altrimenti
+il valore e` `None`, senza dedurre identita` dall'hash di file. La redazione puo`
+rendere identici input diversi e non sostituisce l'esclusione dei dati sensibili.
 
 L'export del modello residuo e` una scrittura esplicitamente richiesta tramite
 `model_export_enabled`, disabilitata per default nell'esperimento. Per l'uso

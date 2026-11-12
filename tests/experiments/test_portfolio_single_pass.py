@@ -27,7 +27,11 @@ from qreduce.models import (
 from qreduce.pipeline import run_single_pass
 from qreduce.solving.mwis import MISSolverRegistry
 from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
-from qreduce.solving.residual import ClassicalSolverRegistry, CplexClassicalBackend
+from qreduce.solving.residual import (
+    ClassicalSolveResult,
+    ClassicalSolverRegistry,
+    CplexClassicalBackend,
+)
 from qreduce.status import (
     ClassicalSolverStatus,
     PipelineStage,
@@ -92,10 +96,16 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
 
     assert result.retained_item_ids
     assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
+    assert result.run_result.input_hash is not None
     assert result.residual_variable_counts == LogicalVariableCounts(
         len(result.retained_item_ids), 0, len(result.retained_item_ids)
     )
     assert result.fixing_manifest is not None
+    assert result.fixing_manifest.round_index == 0
+    assert result.fixing_manifest.source_candidate_ids
+    assert result.fixing_manifest.policy_version == "1"
+    assert all(entry.fixing_origin == "mis_heuristic" and entry.guarantee_level == "heuristic"
+               for entry in result.fixing_manifest.entries)
     assert result.selected_mis_samples
     assert result.mis_compilation_result is not None
     assert result.mis_execution_result is not None
@@ -114,10 +124,66 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     assert result.classical_result.effective_solver_id is None
     assert result.metrics["raw_sample_count"] == 1
     assert result.metrics["candidate_domain_size"] == len(result.retained_item_ids)
+    assert result.metrics["round_reduction_ratio"] == (3 - len(result.retained_item_ids)) / 3
+    assert result.metrics["cumulative_reduction_ratio"] == result.metrics["round_reduction_ratio"]
+    assert result.metrics["repaired_candidate_count"] == 0
+    assert result.metrics["unique_sample_count"] >= result.metrics["processed_unique_sample_count"]
     serialized_result = result.to_dict()
     assert serialized_result["fixing_manifest"] is not None
     assert serialized_result["mis_execution_result"] is not None
     json.dumps(serialized_result)
+
+
+@pytest.mark.parametrize("mode", ["exception", "invalid"])
+def test_postcheck_adapter_failure_preserves_classical_result(portfolio_problem, mode) -> None:
+    class Backend:
+        def solve(self, reduced_problem, request):
+            return ClassicalSolveResult(
+                ClassicalSolverStatus.OPTIMAL, None, True, 1.0, 1.0, 0.0,
+                True, False, 0.1, variable_values={},
+            )
+
+    class BrokenAdapter(MeanVariancePortfolioAdapter):
+        def validate_final_solution(self, *args, **kwargs):
+            if mode == "exception":
+                raise ValueError("postcheck error")
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("test", Backend)
+    config = make_config()
+    config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
+    result = run_single_pass(
+        portfolio_problem, BrokenAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config, classical_solver_registry=registry,
+    )
+    assert result.run_result.stage is PipelineStage.POSTCHECK
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.adoption_status.value == "not_adopted"
+    assert result.classical_result is not None
+    assert result.fixing_manifest is not None
+    assert result.candidate_records
+    assert result.postcheck_result is None
+
+
+@pytest.mark.parametrize("mode", ["exception", "invalid"])
+def test_classical_backend_failure_preserves_candidate_data(portfolio_problem, mode) -> None:
+    class Backend:
+        def solve(self, reduced_problem, request):
+            if mode == "exception":
+                raise RuntimeError("backend error")
+            return "invalid"
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("test", Backend)
+    config = make_config()
+    config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
+    result = run_single_pass(
+        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config, classical_solver_registry=registry,
+    )
+    assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_SOLVER_FAILED
+    assert result.fixing_manifest is not None
+    assert result.candidate_records and result.candidate_domain_item_records
 
 
 def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioProblem) -> None:
@@ -129,6 +195,7 @@ def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioPr
     assert result.run_result.stage is PipelineStage.VALIDATION
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert "describe_logical_variables" in result.run_result.diagnostic_message
+    assert result.metrics["end_to_end_runtime_seconds"] >= 0
     assert result.original_variable_counts is None
 
 

@@ -26,6 +26,10 @@ class MeanVariancePortfolioAdapter:
     def __init__(self, graph_policy: PortfolioGraphPolicy) -> None:
         self._graph_policy = graph_policy
 
+    def describe_input(self, problem: PortfolioProblem) -> object:
+        """Expose the synthetic input for deterministic run identification."""
+        return problem
+
     def evaluate_domain_metrics(
         self, problem: object, classical_result: ClassicalSolveResult,
         postcheck_result: FinalSolutionValidationResult,
@@ -126,7 +130,7 @@ class MeanVariancePortfolioAdapter:
                     mapping.delta_variable_by_asset[asset_id]: 0.0,
                     mapping.x_variable_by_asset[asset_id]: 0.0,
                 },
-                reason="heuristic_candidate_domain_exclusion",
+                reason="mis_heuristic_exclusion",
             )
             for asset_id in excluded
         )

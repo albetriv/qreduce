@@ -152,12 +152,28 @@ class FixingEntry:
     item_id: str
     variable_values: Mapping[str, float]
     reason: str
+    fixing_origin: str = "mis_heuristic"
+    guarantee_level: str = "heuristic"
+    proof_reference: str | None = None
+    user_request_reference: str | None = None
 
     def __post_init__(self) -> None:
         if not self.item_id.strip():
             raise ValueError("item_id cannot be blank.")
         if not self.reason.strip():
             raise ValueError("reason cannot be blank.")
+        if self.fixing_origin not in {"mis_heuristic", "certified_rule", "user_mandated"}:
+            raise ValueError("Invalid fixing origin.")
+        if self.guarantee_level not in {"heuristic", "safe", "user_imposed"}:
+            raise ValueError("Invalid fixing guarantee level.")
+        if self.guarantee_level == "safe" and (
+            not isinstance(self.proof_reference, str) or not self.proof_reference.strip()
+        ):
+            raise ValueError("A safe fixing requires a proof reference.")
+        if self.fixing_origin == "mis_heuristic" and self.guarantee_level != "heuristic":
+            raise ValueError("A MIS heuristic fixing cannot claim safety or user imposition.")
+        if self.guarantee_level == "user_imposed" and self.fixing_origin != "user_mandated":
+            raise ValueError("A user-imposed fixing requires user-mandated origin.")
         values = dict(self.variable_values)
         if not values or any(not variable_name.strip() for variable_name in values):
             raise ValueError("variable_values must contain non-blank variable names.")
@@ -178,6 +194,9 @@ class FixingManifest:
     entries: tuple[FixingEntry, ...]
     origin: str
     provenance: Mapping[str, object] = field(default_factory=dict)
+    round_index: int = 0
+    source_candidate_ids: tuple[str, ...] = ()
+    policy_version: str | None = None
 
     def __post_init__(self) -> None:
         retained = tuple(self.retained_item_ids)
@@ -188,6 +207,10 @@ class FixingManifest:
             raise ValueError("Retained and excluded item IDs must not overlap.")
         if not self.origin.strip():
             raise ValueError("origin cannot be blank.")
+        if not isinstance(self.round_index, int) or isinstance(self.round_index, bool) or self.round_index < 0:
+            raise ValueError("round_index must be a non-negative integer.")
+        if any(not isinstance(value, str) or not value.strip() for value in self.source_candidate_ids):
+            raise ValueError("source_candidate_ids must be non-blank strings.")
         entry_item_ids = tuple(entry.item_id for entry in self.entries)
         if len(set(entry_item_ids)) != len(entry_item_ids):
             raise ValueError("Fixing manifest entries must be unique per item.")
@@ -196,6 +219,7 @@ class FixingManifest:
         object.__setattr__(self, "retained_item_ids", retained)
         object.__setattr__(self, "excluded_item_ids", excluded)
         object.__setattr__(self, "entries", tuple(self.entries))
+        object.__setattr__(self, "source_candidate_ids", tuple(self.source_candidate_ids))
         object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
 
     def to_dict(self) -> dict[str, object]:

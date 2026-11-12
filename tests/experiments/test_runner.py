@@ -22,6 +22,7 @@ from qreduce.models import (
     ClassicalSolveOptions,
     LambdaEdgePolicy,
     MISExecutionOptions,
+    PolicyProvenance,
     ReductionPolicy,
     ResolvedRunConfig,
     RunIdentity,
@@ -192,6 +193,22 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
         "asset-b",
         "asset-c",
     ]
+
+
+def test_manifest_preserves_redacted_policy_provenance(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+    config = replace(_config("policy-run"), policy_provenance=PolicyProvenance(
+        policy_id="policy-1", policy_version="v1", policy_hash="abc",
+        policy_source="https://example.com/?token=secret",
+    ))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    run = run_experiment("policy", _problem(), adapter, config, output_root=tmp_path)
+    loaded = load_experiment_run(run.run_directory)
+    provenance = loaded.manifest["policy_provenance"]
+    assert provenance == loaded.config["policy_provenance"]
+    assert provenance["policy_id"] == "policy-1"
+    assert run.result.run_result.policy_hash == "abc"
+    assert "secret" not in provenance["policy_source"]
 
 
 def test_runner_refuses_to_overwrite_a_published_experiment(

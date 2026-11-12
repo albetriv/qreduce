@@ -26,6 +26,10 @@ def test_default_portfolio_path_solves_with_scip(tmp_path) -> None:
         RunStatus.PARTIAL_SUCCESS,
     }
     assert run.result.run_result.adoption_status.value == "adopted"
+    assert run.result.original_problem_optimality_claim == "none"
+    assert run.result.original_dual_bound is None
+    assert run.result.original_primal_bound is not None
+    assert run.result.residual_problem_optimality_claim == "certified_optimal"
     assert run.result.classical_result is not None
     assert run.result.classical_result.requested_solver_id == "scip"
     assert run.result.classical_result.effective_solver_id == "scip"

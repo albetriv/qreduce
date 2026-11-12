@@ -174,6 +174,7 @@ def _write_artifacts(
         "run_id": result.run_result.run_id,
         "run_status": result.run_result.run_status.value,
         "config_hash": result.run_result.config_hash,
+        "policy_provenance": config["policy_provenance"],
         "files": content_hashes,
         "model_export": model_export,
     }
