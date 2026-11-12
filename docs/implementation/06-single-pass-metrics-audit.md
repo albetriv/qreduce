@@ -35,11 +35,11 @@ Ogni riga indica se il requisito e` **Risolto** (implementato e testato),
 | Candidate valide | Risolto | `valid_candidate_count` in `metrics` | `_candidate_metrics` |
 | Candidate selezionate | Risolto | `selected_candidate_count` in `metrics` | `_candidate_metrics` |
 | Dimensione candidate domain | Risolto | `candidate_domain_size` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
-| Fattibilita` solve residuo | Risolto | `classical_solver_claimed_feasible` in `metrics`; `ClassicalSolverStatus` | `test_classical_solver_infeasible_is_serialized_with_candidate_data`; test SCIP integration |
+| Fattibilita` solve residuo | Risolto | `classical_solver_claimed_feasible` in `metrics`; `ClassicalSolverStatus` | `test_classical_solver_infeasible_is_serialized_with_candidate_data`; `test_time_limit_with_feasible_incumbent_produces_partial_success`; test SCIP integration |
 | Fattibilita` post-check | Risolto | `postcheck_feasible` in `metrics`; `PostcheckStatus` in `RunResult` | `tests/experiments/portfolio_domain/test_postcheck.py` |
 | Obiettivo solver | Risolto | `objective_value` in `metrics` e `classical_result` | Test SCIP integration |
 | Obiettivo ricalcolato | Risolto | `objective_recomputed` in `metrics` quando disponibile | `original_primal_bound` in `SinglePassRunResult` |
-| Bound e gap | Risolto | `best_bound`, `solver_gap` in `metrics` | Campi in `ClassicalSolveResult` |
+| Bound e gap | Risolto | `best_bound`, `solver_gap` in `metrics` | Campi in `ClassicalSolveResult`; `test_time_limit_with_feasible_incumbent_produces_partial_success` verifica gap > 0 |
 | Seed e parametri effettivi | Risolto | `effective_execution_parameters` in `MISBackendResult` e `ClassicalSolveResult` | `tests/solving/mwis/test_contracts.py` |
 | Metriche di dominio | Risolto | `DomainEvaluationMetric`, `evaluate_domain_metrics` | `tests/domains/test_evaluation_metrics.py` |
 | Run status | Risolto | `RunResult.run_status` | Tutti i test end-to-end |

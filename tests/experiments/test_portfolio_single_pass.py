@@ -241,6 +241,119 @@ def test_classical_solver_infeasible_is_serialized_with_candidate_data(
     json.dumps(serialized)
 
 
+def test_time_limit_with_feasible_incumbent_produces_partial_success(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """A time-limited solve with incumbent can be adopted as partial_success after post-check."""
+
+    # The backend must return variable_values consistent with the fixing manifest.
+    # The pipeline will fix excluded assets; the retained assets get solver values.
+    class TimeLimitedBackend:
+        def solve(self, reduced_problem, request):
+            # Build variable values matching the actual retained/excluded items.
+            # Portfolio problem has 3 assets with upper_bound=0.70 each.
+            # Sum must equal 1.0. With 2 retained assets, we distribute 0.5 + 0.5 = 1.0.
+            variable_values = {}
+            mapping = reduced_problem.variable_mapping
+            excluded_ids = {e.item_id for e in reduced_problem.fixing_manifest.entries}
+            retained_ids = [aid for aid in portfolio_problem.asset_ids if aid not in excluded_ids]
+
+            # Compute objective for the solution we're returning
+            # Mean-variance: risk_aversion * x^T * cov * x - expected_returns^T * x
+            problem = reduced_problem.original_problem
+            x_values: dict[str, float] = {}
+
+            for i, asset_id in enumerate(portfolio_problem.asset_ids):
+                delta_name = mapping.delta_variable_by_asset[asset_id]
+                x_name = mapping.x_variable_by_asset[asset_id]
+                if asset_id in excluded_ids:
+                    # Excluded: fixed to 0
+                    variable_values[delta_name] = 0.0
+                    variable_values[x_name] = 0.0
+                    x_values[asset_id] = 0.0
+                else:
+                    # Retained: split weight evenly among retained assets
+                    weight = 1.0 / len(retained_ids)
+                    variable_values[delta_name] = 1.0
+                    variable_values[x_name] = weight
+                    x_values[asset_id] = weight
+
+            # Recompute objective exactly as the postcheck does
+            quadratic_term = 0.0
+            for left_idx, left_id in enumerate(problem.asset_ids):
+                for right_idx, right_id in enumerate(problem.asset_ids):
+                    quadratic_term += x_values[left_id] * problem.covariance[left_idx][right_idx] * x_values[right_id]
+            objective = problem.risk_aversion * quadratic_term - sum(
+                problem.expected_returns[aid] * x_values[aid] for aid in problem.asset_ids
+            )
+
+            return ClassicalSolveResult(
+                classical_solver_status=ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT,
+                terminal_reason=None,
+                solver_claimed_feasible=True,
+                objective_value=objective,
+                best_bound=objective - 0.01,  # small gap
+                gap=0.01 / abs(objective) if objective != 0 else 0.0,
+                is_optimal=False,
+                is_time_limited=True,
+                runtime_seconds=10.0,
+                variable_values=variable_values,
+                requested_solver_id="timelimit_test",
+                effective_solver_id="timelimit_test",
+            )
+            return ClassicalSolveResult(
+                classical_solver_status=ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT,
+                terminal_reason=None,
+                solver_claimed_feasible=True,
+                objective_value=0.123,  # arbitrary feasible value
+                best_bound=0.1,
+                gap=0.2,
+                is_optimal=False,
+                is_time_limited=True,
+                runtime_seconds=10.0,
+                variable_values=variable_values,
+                requested_solver_id="timelimit_test",
+                effective_solver_id="timelimit_test",
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("timelimit_test", TimeLimitedBackend)
+    config = make_config()
+    config = replace(
+        config,
+        classical_solve=replace(config.classical_solve, classical_solver_id="timelimit_test"),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config,
+        classical_solver_registry=registry,
+    )
+
+    assert result.run_result.run_status is RunStatus.PARTIAL_SUCCESS
+    assert result.run_result.stage is PipelineStage.POSTCHECK
+    assert result.run_result.terminal_reason is None
+    assert result.run_result.classical_solver_status is ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT
+    assert result.run_result.postcheck_status.value == "passed"
+    assert result.run_result.adoption_status.value == "adopted"
+    assert result.classical_result is not None
+    assert result.classical_result.is_time_limited is True
+    assert result.classical_result.solver_claimed_feasible is True
+    assert result.classical_result.gap == pytest.approx(result.classical_result.gap)  # gap is computed, not hardcoded
+    assert result.classical_result.gap > 0  # time limited implies a non-zero gap
+    assert result.postcheck_result is not None
+    assert result.postcheck_result.postcheck_feasible is True
+    assert result.domain_evaluation_metrics is not None
+    assert result.residual_problem_optimality_claim == "gap_bounded"
+    assert result.original_primal_bound is not None
+    serialized = result.to_dict()
+    assert serialized["run_result"]["run_status"] == "partial_success"
+    assert serialized["run_result"]["classical_solver_status"] == "time_limit_with_feasible_incumbent"
+    assert serialized["classical_result"]["gap"] > 0
+    json.dumps(serialized)
+
+
 def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioProblem) -> None:
     class MissingCounts:
         def build_conflict_graph(self, problem):

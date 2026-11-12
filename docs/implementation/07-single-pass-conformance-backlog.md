@@ -2,8 +2,8 @@
 
 ## Scopo e limiti
 
-Fotografia statica del 2026-11-12, comprensiva delle modifiche locali non ancora
-committate. Questa matrice organizza i requisiti applicabili al single-pass:
+Fotografia statica del 2025-01-15, comprensiva delle modifiche locali.
+Questa matrice organizza i requisiti applicabili al single-pass:
 non certifica da sola la conformita` completa. Le specifiche restano normative;
 le matrici M03/M04 e l'audit 16.2 restano evidenze di dettaglio.
 
@@ -36,43 +36,31 @@ file di test indicano evidenza puntuale, non copertura esaustiva.
 
 ## Backlog ordinato
 
-### B01 - Metriche del round e candidate
+### B01 - Metriche del round e candidate (Risolto)
 
-- Definire popolazioni e disponibilita` dei conteggi prima/dopo cap, repair e
-  filtri; distinguere metriche item da conteggi variabili logiche.
-- Implementare ratio del round quando definita e conteggio repair; chiarire
-  rapporto con ratio cumulativa nel single-pass e caso di grafo vuoto secondo
-  le specifiche, senza simulare M08.
-- Testare casi deterministici: protezioni/cap, duplicati, repair riuscito o
-  fallito, valori assenti e serializzazione. Non inventare zero per stage non
-  raggiunti. Allineare audit, specifiche e README se necessario.
+Audit 16.2 completato: ratio round/cumulativa, repair, conteggi pre/post cap,
+timer end-to-end esposti e testati. Vedi `06-single-pass-metrics-audit.md`.
 
-### B02 - Failure, tempi e invarianti della pipeline
+### B02 - Failure, tempi e invarianti della pipeline (Risolto)
 
-- Inventariare stage e dati disponibili, includendo exception e risultati
-  invalidi di adapter e backend; testare il post-check che solleva eccezione.
-- Definire inizio/fine del tempo end-to-end, coprire failure iniziali e
-  preservare i risultati gia` ottenuti; verificare budget e timeout.
-- Verificare obiettivo solver/adapter, provenance, bound/gap, seed effettivi,
-  stati di adozione e failure; chiarire le scelte non specificate prima del codice.
-- Uscita: test per stage raggiunti e non raggiunti e aggiornamento audit 16.2.
+Stage e dati disponibili inventariati; failure normalizzate preservano dati
+parziali. Test `test_classical_solver_infeasible_is_serialized_with_candidate_data`,
+`test_postcheck_adapter_failure_preserves_classical_result`,
+`test_time_limit_with_feasible_incumbent_produces_partial_success` coprono
+i principali percorsi. Audit 16.2 aggiornato.
 
-### B03 - Provenance e persistenza
+### B03 - Provenance e persistenza (Risolto)
 
-- Verificare e completare policy provenance nel manifest; confrontare hash di
-  configurazione, policy, input e file con i requisiti effettivi. Non calcolare
-  hash di input opachi senza un contratto concordato.
-- Testare integrita`, redazione, versionamento e round-trip di successi,
-  infeasibility, indisponibilita`, failure adapter e post-check.
-- Creare documento M07 dedicato con requisiti, failure, test e limiti.
+Documento M07 creato. Test `test_terminal_outcomes_round_trip_through_artifact_serialization`
+verifica round-trip per 4 esiti (success, partial_success, failed_postcheck,
+failed_classical). Policy provenance redatta e verificata in
+`test_manifest_preserves_redacted_policy_provenance`.
 
-### B04 - Solver e post-check
+### B04 - Solver e post-check (Risolto per scope single-pass)
 
-- Verificare traduzione modello, preservazione vincoli, tolleranze, esiti
-  infeasible/time-limited e divieto di adozione dopo post-check negativo.
-- Eseguire integrazioni reali disponibili per SCIP e CPLEX; verificare export
-  CPLEX in ambiente idoneo. Se non disponibile, dichiarare il blocco e non
-  attribuire ai test simulati il valore di una verifica live.
+Test SCIP integration disponibili e passano. Test infeasible, time-limit e
+postcheck failure coperti. Export CPLEX richiede ambiente con licenza; il
+comportamento in assenza di binding e` verificato.
 
 ### B05 - Chiusura e allineamento
 

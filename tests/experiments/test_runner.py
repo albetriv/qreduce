@@ -382,3 +382,80 @@ def test_export_cleanup_when_artifact_publication_fails(monkeypatch, tmp_path: P
     assert not (tmp_path / "external.lp").exists()
     assert not (tmp_path / "portfolio-reference" / "write-failure").exists()
     assert not list(tmp_path.glob(".qreduce-export.*"))
+
+
+@pytest.mark.parametrize("scenario", [
+    "success",
+    "partial_success",
+    "failed_postcheck",
+    "failed_classical",
+])
+def test_terminal_outcomes_round_trip_through_artifact_serialization(
+    monkeypatch, tmp_path: Path, scenario: str
+) -> None:
+    """Every terminal outcome is persisted and loaded with correct status fields."""
+
+    expected = {
+        "success": (RunStatus.SUCCESS, None, ClassicalSolverStatus.OPTIMAL,
+                    PostcheckStatus.PASSED, AdoptionStatus.ADOPTED),
+        "partial_success": (RunStatus.PARTIAL_SUCCESS, None,
+                            ClassicalSolverStatus.TIME_LIMIT_WITH_FEASIBLE_INCUMBENT,
+                            PostcheckStatus.PASSED, AdoptionStatus.ADOPTED),
+        "failed_postcheck": (RunStatus.FAILED, TerminalReason.POSTCHECK_FAILED,
+                             ClassicalSolverStatus.OPTIMAL, PostcheckStatus.FAILED,
+                             AdoptionStatus.NOT_ADOPTED),
+        "failed_classical": (RunStatus.FAILED, TerminalReason.CLASSICAL_SOLVER_FAILED,
+                             ClassicalSolverStatus.NOT_RUN, PostcheckStatus.NOT_RUN,
+                             AdoptionStatus.NOT_ADOPTED),
+    }
+
+    def make_result(problem, adapter, config, **kwargs):
+        del problem, adapter, kwargs
+        run_status, terminal, solver_status, postcheck, adoption = expected[scenario]
+        return SinglePassRunResult(
+            resolved_config=config,
+            run_result=RunResult(
+                config.run_identity.run_id, run_status, PipelineStage.POSTCHECK,
+                terminal, solver_status, postcheck, adoption
+            ),
+            classical_result=ClassicalSolveResult(
+                solver_status, terminal if scenario == "failed_classical" else None,
+                solver_status not in (ClassicalSolverStatus.NOT_RUN, ClassicalSolverStatus.INFEASIBLE),
+                1.0 if solver_status != ClassicalSolverStatus.NOT_RUN else None,
+                1.0 if solver_status != ClassicalSolverStatus.NOT_RUN else None,
+                0.1 if scenario == "partial_success" else 0.0,
+                solver_status == ClassicalSolverStatus.OPTIMAL,
+                scenario == "partial_success",
+                0.1,
+            ) if scenario != "failed_classical" else None,
+            postcheck_result=FinalSolutionValidationResult(
+                postcheck == PostcheckStatus.PASSED,
+                True, postcheck == PostcheckStatus.PASSED, True,
+                1.0 if postcheck == PostcheckStatus.PASSED else None,
+                True if postcheck == PostcheckStatus.PASSED else None,
+                () if postcheck == PostcheckStatus.PASSED else ("constraint_violation",),
+            ) if scenario not in ("failed_classical",) else None,
+        )
+
+    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", make_result)
+    run = run_experiment(
+        f"roundtrip-{scenario}", _problem(),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        _config(f"run-{scenario}"), output_root=tmp_path,
+    )
+
+    # Verify the in-memory result
+    run_status, terminal, solver_status, postcheck, adoption = expected[scenario]
+    assert run.result.run_result.run_status is run_status
+    assert run.result.run_result.terminal_reason is terminal
+    assert run.result.run_result.classical_solver_status is solver_status
+    assert run.result.run_result.postcheck_status is postcheck
+    assert run.result.run_result.adoption_status is adoption
+
+    # Verify round-trip through filesystem
+    loaded = load_experiment_run(run.run_directory)
+    assert loaded.result["run_result"]["run_status"] == run_status.value
+    assert loaded.result["run_result"]["terminal_reason"] == (terminal.value if terminal else None)
+    assert loaded.result["run_result"]["classical_solver_status"] == solver_status.value
+    assert loaded.result["run_result"]["postcheck_status"] == postcheck.value
+    assert loaded.result["run_result"]["adoption_status"] == adoption.value
