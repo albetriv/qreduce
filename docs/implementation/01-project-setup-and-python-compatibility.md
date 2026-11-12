@@ -20,13 +20,23 @@ l'indipendenza del kernel QReduce.
   dipendenze opzionali proprie.
 - Il kernel non importa direttamente SDK di provider MIS.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
+- La CI automatica non e` richiesta: test e lint sono verificati localmente.
+
+## Stato della verifica
+
+**Stato: Completata.** La verifica locale del 2026-11-12 ha confermato Python
+3.12.12 tramite Poetry, coerenza del lock con `poetry check --lock`, esecuzione
+di pytest (143 test superati) e Ruff. I test di indipendenza runtime e delle
+registry/capability verificano import senza SDK opzionali e failure esplicite
+senza fallback. `poetry.lock` e` versionato; `.cline-tmp/` e` ignorata da Git e
+da Cline e non fa parte del codice applicativo.
 
 ## Allineamento documentale richiesto
 
 Il valore in `pyproject.toml` e` la fonte tecnica della compatibilita` Python.
 Il README dichiara Python 3.12, coerentemente con il vincolo di packaging.
 
-Il README dovra` inoltre descrivere `poetry.lock` come file risolto e versionato;
+Il README descrive inoltre `poetry.lock` come file risolto e versionato;
 la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
 `poetry install` installa le dipendenze risolte.
 
@@ -53,7 +63,6 @@ MIQP support available: true | false | unknown
 effective solver: cplex | unavailable
 ```
 
-disponibili in ogni ambiente.
 I binding Python CPLEX, PySCIPOpt e D-Wave Ocean sono dichiarati nel gruppo
 Poetry `experiments`. Sono importati lazy dai backend core `cplex`, `scip` e
 `dwave_simulated_annealing`, quindi non sono richiesti per importare QReduce.
@@ -91,7 +100,8 @@ logic.
 ## Criteri di completamento
 
 - `poetry run pytest` e `poetry run ruff check .` sono eseguibili in Python 3.12.
-- README, `pyproject.toml` e CI dichiarano la stessa versione supportata.
+- README e `pyproject.toml` dichiarano la stessa versione supportata; i controlli
+  sono eseguiti localmente e non richiedono una CI automatica.
 - Nessuna dipendenza provider-specifica e` richiesta dal package core soltanto
   per importare `qreduce`.
 - Un solver richiesto e non disponibile puo` essere rappresentato come
