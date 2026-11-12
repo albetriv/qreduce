@@ -186,6 +186,61 @@ def test_classical_backend_failure_preserves_candidate_data(portfolio_problem, m
     assert result.candidate_records and result.candidate_domain_item_records
 
 
+def test_classical_solver_infeasible_is_serialized_with_candidate_data(
+    portfolio_problem: PortfolioProblem,
+) -> None:
+    """An infeasible residual problem preserves candidate data and serializes correctly."""
+
+    class InfeasibleBackend:
+        def solve(self, reduced_problem, request):
+            return ClassicalSolveResult(
+                classical_solver_status=ClassicalSolverStatus.INFEASIBLE,
+                terminal_reason=TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                solver_claimed_feasible=False,
+                objective_value=None,
+                best_bound=None,
+                gap=None,
+                is_optimal=False,
+                is_time_limited=False,
+                runtime_seconds=0.05,
+                requested_solver_id="infeasible_test",
+                effective_solver_id="infeasible_test",
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("infeasible_test", InfeasibleBackend)
+    config = make_config()
+    config = replace(
+        config,
+        classical_solve=replace(config.classical_solve, classical_solver_id="infeasible_test"),
+    )
+
+    result = run_single_pass(
+        portfolio_problem,
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config,
+        classical_solver_registry=registry,
+    )
+
+    assert result.run_result.run_status is RunStatus.FAILED
+    assert result.run_result.stage is PipelineStage.CLASSICAL
+    assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_SOLVER_INFEASIBLE
+    assert result.run_result.classical_solver_status is ClassicalSolverStatus.INFEASIBLE
+    assert result.run_result.adoption_status.value == "not_adopted"
+    assert result.classical_result is not None
+    assert result.classical_result.classical_solver_status is ClassicalSolverStatus.INFEASIBLE
+    assert result.classical_result.solver_claimed_feasible is False
+    assert result.fixing_manifest is not None
+    assert result.candidate_records
+    assert result.candidate_domain_item_records
+    assert result.postcheck_result is None
+    assert result.domain_evaluation_metrics is None
+    serialized = result.to_dict()
+    assert serialized["run_result"]["terminal_reason"] == "classical_solver_infeasible"
+    assert serialized["classical_result"]["classical_solver_status"] == "infeasible"
+    json.dumps(serialized)
+
+
 def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioProblem) -> None:
     class MissingCounts:
         def build_conflict_graph(self, problem):

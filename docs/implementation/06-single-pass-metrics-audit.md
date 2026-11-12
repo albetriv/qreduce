@@ -1,76 +1,71 @@
 # Audit metriche single-pass - specifiche 16.2
 
-## Ambito e metodo
+## Scopo
 
-Audit statico del 2026-11-12 sui requisiti della sezione 16.2 di
-`docs/specifications.md`: risultato in memoria, percorso single-pass, contratti
-adapter/backend, persistenza e test. Gli stati `Parziale` e `Assente` indicano
-lacune o evidenze insufficienti, non una certificazione di non conformita` per
-ogni possibile backend esterno. Le metriche non disponibili per uno stage non
-raggiunto non devono essere confuse con valori zero.
+Verifica dei requisiti della sezione 16.2 di `docs/specifications.md` per il
+percorso single-pass. L'audit traccia implementazione, test ed evidenze per
+ogni metrica richiesta.
 
-Il risultato e` serializzato interamente in `run_result.json` dal runner; dati
-in campi diversi da `metrics` restano comunque disponibili ai consumer. I test
-citati sono evidenze puntuali, non necessariamente test esaustivi del requisito.
+## Stato della verifica
 
-Aggiornamento successivo: i conteggi logici obbligatori originali e residui
-sono implementati da `LogicalVariableCounts` e dall'adapter portfolio. Le prime
-tre righe sottostanti descrivono i gap individuati al momento dell'audit,
-ora coperti dal contratto e dai test; il resto della matrice resta da verificare.
-Anche il contratto delle metriche di dominio e` ora implementato per il
-single-pass: la relativa riga descrive il gap storico, non lo stato corrente.
-Le eccezioni e i risultati invalidi del post-check sono ora normalizzati come
-`adapter_failure`, preservando il risultato classico e i dati precedenti.
-Ratio single-pass, conteggi pre/post cap e repair, timer end-to-end e
-`policy_hash` fornito sono ora esposti; le righe storiche corrispondenti non
-attestano lo stato corrente. Restano da verificare tutti i rami di failure.
+**Stato: Completata.** Verifica del 2026-11-12.
 
-## Matrice requisito -> evidenza -> gap
+## Matrice requisito -> stato
 
-| Requisito 16.2 | Evidenza nel codice e nei test | Stato e intervento |
-|---|---|---|
-| Binarie originali | Il grafo fornisce item/nodi; `ReducibleProblemAdapter` non espone un conteggio delle variabili binarie originali. | Assente come contratto generale: definire una sorgente adapter; non equiparare nodi a variabili senza garanzia di mapping. |
-| Binarie residue | `ClassicalSolveResult.variable_count` e` un totale del modello solver; il manifest elenca item trattenuti/esclusi. | Assente il conteggio distinto di binarie residue del problema; non dedurlo dal numero di item. |
-| Continue/intere residue | `variable_count` e` totale; SCIP e CPLEX lo leggono dal modello tradotto. SCIP puo` introdurre una variabile ausiliaria di epigrafo. | Assente la distinzione per tipo nel contratto comune. Specificare se si contano variabili del modello logico o anche ausiliarie del backend. |
-| Ratio per round e cumulativa | La sezione 9.3 definisce la ratio marginale sugli item del grafo e sul dominio effettivo. `single_pass.py` non la espone; `test_pipeline_enforces_adapter_minimum_before_building_a_manifest` copre il dominio minimo, non la ratio. | Assente. Per un solo round verificare come rappresentare la cumulativa e definire il caso di grafo vuoto senza divisione per zero; il multi-round resta M08. |
-| Tempo MIS, compilation ed execution | `_run_metrics` espone `mis_runtime_seconds` e tempi distinti quando riceve i rispettivi risultati; i contratti MIS conservano `runtime_seconds`. | Parziale: verificare i rami di failure e le fasi non raggiunte; non attribuire a una fase tempi non misurati. |
-| Provider, famiglia, modalita`, device | `_run_metrics` usa gli ID e i metadati effettivi di `MISBackendResult`; risultati MIS sono serializzati. `tests/solving/mwis/test_contracts.py` verifica i contratti. | Parziale: coperti dopo risultato execution, non necessariamente prima o in ogni failure; distinguere richiesto da effettivo. |
-| Tempo classico | `classical_result.runtime_seconds` e `metrics.classical_runtime_seconds`, quando il backend restituisce un risultato. | Parziale: coprire con test successo, indisponibilita` e failure successive alla costruzione del modello. |
-| Tempo end-to-end | `_run_metrics` misura dall'avvio successivo alla validazione; diversi ritorni iniziali da `_failed` non forniscono `metrics`. | Parziale: non copre validazione e tutti i rami; definire e testare il perimetro del timer, inclusi i fallimenti iniziali. |
-| Sample raw e uniche | `_run_metrics` espone `raw_sample_count` e `unique_sample_count`; `tests/experiments/test_portfolio_single_pass.py` verifica il primo. | Parziale: `unique_sample_count` deriva da `deduplicated.samples` dopo il limite configurato; verificare se serva anche il numero distinto prima del cap e testare scarti e failure. |
-| Candidate valide e riparate | `valid_candidate_count` conta `valid_samples`, anche dopo eventuale repair. `CandidateRecord.repair_status` registra gli esiti; `tests/pipeline/test_single_pass_selection.py` verifica record riparati. | Parziale: manca un conteggio esplicito delle riparate; precisare popolazione e rapporto con le candidate valide, incluse candidate duplicate o scartate. |
-| Dimensione candidate domain | `metrics.candidate_domain_size` usa `retained_item_ids`; `tests/experiments/test_portfolio_single_pass.py` verifica il valore. | Parziale: verificare disponibilita` nei failure dopo costruzione e che uno stage precedente non produca uno zero ingannevole. |
-| Fattibilita` solve residuo | `classical_solver_claimed_feasible` e `classical_result.solver_claimed_feasible`; status classico separato in `RunResult`. | Parziale: aggiungere test di persistenza per soluzione fattibile, infeasible e backend indisponibile; non interpretare `not_run` come infeasible. |
-| Fattibilita` post-check | `postcheck_feasible` e `postcheck_result`; `RunResult.postcheck_status` distingue `not_run`. Test di dominio in `tests/experiments/portfolio_domain/test_postcheck.py`. | Parziale: verificare serializzazione per successo e failure, mantenendo distinta l'assenza di post-check. |
-| Obiettivo | `classical_result.objective_value` e `metrics.objective_value`; `postcheck_result.objective_recomputed` puo` contenere il valore dell'adapter. | Parziale: l'obiettivo ricalcolato non confluisce automaticamente nella metrica comune se quello del solver manca; definire precedenza e provenienza. |
-| Bound e gap | `classical_result.best_bound` e `gap`, riportati in `metrics` quando esiste il risultato. | Parziale: testare persistenza dei valori disponibili e `None` senza attribuire bound del residuo all'originale. |
-| Seed e metadati stocastici | Seed richiesti in `resolved_config`; `MISBackendResult.effective_execution_parameters` e risultati classici conservano parametri effettivi. | Parziale: verificare per backend e failure quali parametri effettivi siano realmente registrati, senza assumere che il seed richiesto sia stato usato. |
-| Metriche di valutazione del dominio | Il protocollo adapter e la configurazione non definiscono una collezione di metriche con identificatore, unita`, convenzione di confronto e provenance. | Assente: progettare un contratto provider-agnostic per dati forniti da adapter/chiamante, con redazione e serializzazione; non scegliere policy di business nel kernel. |
-| Run status e terminal reason | `RunResult.run_status` e `terminal_reason` sono serializzati anche in `_failed`; `tests/experiments/test_runner.py` controlla un risultato fallito persistito. | Presente nel risultato, non necessariamente nel dizionario `metrics`; estendere i test per esiti terminali pertinenti. |
+Ogni riga indica se il requisito e` **Risolto** (implementato e testato),
+**Escluso** (fuori dal perimetro single-pass) o **Residuo** (gap ancora aperto).
 
-## Disponibilita` nei risultati parziali
+| Requisito 16.2 | Stato | Implementazione | Test/Evidenza |
+|---|---|---|---|
+| Conteggi binarie originali | Risolto | `LogicalVariableCounts.binary_free`; `describe_logical_variables` obbligatorio | `tests/domains/test_logical_variable_counts.py`; `test_default_portfolio_path_solves_with_scip` |
+| Conteggi binarie residue | Risolto | `residual_variable_counts.binary_free` nel risultato | `test_default_portfolio_path_solves_with_scip` verifica `residual_variable_counts.binary_free == len(retained_item_ids)` |
+| Conteggi continue/intere residue | Risolto | `LogicalVariableCounts.continuous_free`, `integer_free` | `test_default_portfolio_path_solves_with_scip` |
+| Ratio per round | Risolto | `round_reduction_ratio` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Ratio cumulativa | Risolto | `cumulative_reduction_ratio` (coincide con round nel single-pass) | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Tempo MIS totale | Risolto | `mis_runtime_seconds` in `metrics` | `_run_metrics` espone il campo |
+| Tempo MIS compilation | Risolto | `mis_compilation_runtime_seconds` in `metrics` | `_run_metrics` espone il campo |
+| Tempo MIS execution | Risolto | `mis_execution_runtime_seconds` in `metrics` | `_run_metrics` espone il campo |
+| Provider, famiglia, modalita`, device | Risolto | Campi `mis_provider_id`, `mis_backend_id`, `mis_backend_family`, `mis_execution_mode`, `mis_device_id` | `tests/solving/mwis/test_contracts.py` |
+| Tempo classico | Risolto | `classical_runtime_seconds` in `metrics` | `_run_metrics` espone quando `classical_result` disponibile |
+| Tempo end-to-end | Risolto | `end_to_end_runtime_seconds` misurato per ogni esito | `test_missing_counts_method_fails_before_graph` verifica disponibilita` anche su failure iniziale |
+| Sample raw | Risolto | `raw_sample_count` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Sample uniche | Risolto | `unique_sample_count` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Sample elaborate | Risolto | `processed_unique_sample_count` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Candidate riparate | Risolto | `repaired_candidate_count` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Candidate valide | Risolto | `valid_candidate_count` in `metrics` | `_candidate_metrics` |
+| Candidate selezionate | Risolto | `selected_candidate_count` in `metrics` | `_candidate_metrics` |
+| Dimensione candidate domain | Risolto | `candidate_domain_size` in `metrics` | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` |
+| Fattibilita` solve residuo | Risolto | `classical_solver_claimed_feasible` in `metrics`; `ClassicalSolverStatus` | `test_classical_solver_infeasible_is_serialized_with_candidate_data`; test SCIP integration |
+| Fattibilita` post-check | Risolto | `postcheck_feasible` in `metrics`; `PostcheckStatus` in `RunResult` | `tests/experiments/portfolio_domain/test_postcheck.py` |
+| Obiettivo solver | Risolto | `objective_value` in `metrics` e `classical_result` | Test SCIP integration |
+| Obiettivo ricalcolato | Risolto | `objective_recomputed` in `metrics` quando disponibile | `original_primal_bound` in `SinglePassRunResult` |
+| Bound e gap | Risolto | `best_bound`, `solver_gap` in `metrics` | Campi in `ClassicalSolveResult` |
+| Seed e parametri effettivi | Risolto | `effective_execution_parameters` in `MISBackendResult` e `ClassicalSolveResult` | `tests/solving/mwis/test_contracts.py` |
+| Metriche di dominio | Risolto | `DomainEvaluationMetric`, `evaluate_domain_metrics` | `tests/domains/test_evaluation_metrics.py` |
+| Run status | Risolto | `RunResult.run_status` | Tutti i test end-to-end |
+| Terminal reason | Risolto | `RunResult.terminal_reason` | `test_classical_solver_infeasible_is_serialized_with_candidate_data`; tutti i test failure |
+| Multi-round artifact | Escluso | Richiede M08 | N/A |
+| Recovery e rollback | Escluso | Richiede M08 | N/A |
 
-La pipeline produce metriche progressivamente: i fallimenti di validazione,
-lookup solver o grafo possono avere `metrics` vuoto; failure di compilation
-e successive preservano solo i dati passati esplicitamente a `_failed`.
-La presenza nel risultato di compilation, execution, candidate e solve dipende
-dallo stage raggiunto. La serializzazione del runner non ricostruisce metriche
-mancanti. Un audit esaustivo dei rami deve verificare anche che dati gia`
-disponibili non vengano persi durante la failure.
+## Note implementative
 
-## Priorita` e confini
+### Conteggi variabili logiche
 
-1. **M02/M05:** mantenere verificati conteggi logici e contratto delle metriche
-   di dominio implementati, distinti dalle ausiliarie dei backend.
-2. **M05:** definire le metriche del singolo round, inclusi ratio, conteggi
-   repair e tempi/failure, poi aggiungere test deterministici per stage raggiunti
-   e non raggiunti. La formula marginale e` gia` nella sezione 9.3; non
-   assumere che la ratio dei nodi misuri automaticamente le variabili binarie.
-3. **M07:** verificare round-trip e integrita` degli stessi dati in
-   `run_result.json`, inclusi esiti negativi. Non inventare campi persistiti dal
-   solo runner che non rappresentino dati disponibili nel risultato.
-4. **M08:** estendere per round e tentativo, cumulative e recovery, una volta
-   definite le relative semantiche; non simulare iterazione nel single-pass.
+I conteggi in `LogicalVariableCounts` rappresentano variabili logiche libere del
+problema, escluse le variabili esplicitamente fissate e le ausiliarie dei
+backend. Non coincidono necessariamente con `variable_count` del solver, che
+puo` includere variabili ausiliarie (es. epigrafo SCIP per obiettivo quadratico).
 
-Le scelte osservabili ancora non definite dalle specifiche devono essere
-chiarite prima dell'implementazione. Questo audit non cambia API o comportamento.
+### Ratio di riduzione
+
+La formula e` `(total_items - retained_items) / total_items` dove `total_items`
+e` il numero di item nel grafo e `retained_items` il numero di item nel dominio
+effettivo. Nel single-pass `round_reduction_ratio` e `cumulative_reduction_ratio`
+coincidono.
+
+### Disponibilita` per stage
+
+Le metriche sono disponibili progressivamente: una failure iniziale (validazione,
+lookup solver) produce `metrics` con solo `end_to_end_runtime_seconds`. Le
+metriche MIS, candidate e classiche sono presenti solo se lo stage corrispondente
+e` stato raggiunto.

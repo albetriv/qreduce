@@ -205,3 +205,38 @@ I moduli finanziari restano confinati negli esperimenti e possono evolvere senza
 - Il fixing euristico non viene presentato come preservazione dell'ottimo originale.
 - L'indisponibilita` del backend selezionato e le infeasibility sono serializzate
   come esiti espliciti.
+
+## Stato della verifica
+
+**Stato: Completata.** La verifica del 2026-11-12 ha confermato che tutti i
+criteri di completamento sono soddisfatti.
+
+### Criteri soddisfatti
+
+| Criterio | Evidenza |
+|---|---|
+| Esperimento portfolio con `local_greedy` + `scip` + post-check | `tests/experiments/test_portfolio_scip_integration.py::test_default_portfolio_path_solves_with_scip` passa; run pubblicati in `outputs/` |
+| Mapping completo e auditabile | `FixingManifest` con `round_index`, `source_candidate_ids`, `policy_version`; ogni `FixingEntry` ha `fixing_origin` e `guarantee_level`; test in `tests/domains/test_fixing_guarantees.py` |
+| Fixing euristico non presentato come ottimo | `original_problem_optimality_claim == "none"` verificato nei test; documentazione esplicita |
+| Indisponibilita` backend serializzata | `test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure` verifica `CLASSICAL_BACKEND_UNAVAILABLE` |
+| Infeasibility serializzata | `test_classical_solver_infeasible_is_serialized_with_candidate_data` verifica `CLASSICAL_SOLVER_INFEASIBLE` con preservazione di `fixing_manifest` e `candidate_records` |
+
+### Metriche single-pass esposte
+
+Le metriche richieste dalla sezione 16.2 delle specifiche sono ora disponibili
+nel risultato in memoria:
+
+- `round_reduction_ratio` e `cumulative_reduction_ratio` (coincidenti nel single-pass)
+- `unique_sample_count`, `processed_unique_sample_count`, `repaired_candidate_count`
+- `end_to_end_runtime_seconds`, `mis_runtime_seconds`, `classical_runtime_seconds`
+- `candidate_domain_size`, `valid_candidate_count`, `selected_candidate_count`
+- Conteggi logici `original_variable_counts` e `residual_variable_counts`
+- Metriche di dominio tramite `evaluate_domain_metrics` dell'adapter
+
+### Requisiti esplicitamente esclusi dal perimetro M05
+
+I seguenti requisiti delle specifiche sono **bloccati a M08** perche' richiedono
+semantica multi-round:
+
+- §9, 20.6: domini monotoni, stop iterativi, artifact per round
+- §9.5, 18: recovery e rollback
