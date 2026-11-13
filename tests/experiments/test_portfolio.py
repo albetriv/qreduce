@@ -1,5 +1,6 @@
 """Tests for the synthetic portfolio experiment runner and filesystem analysis data."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -102,6 +103,10 @@ def test_synthetic_portfolio_analysis_uses_persisted_artifacts(monkeypatch, tmp_
         graph_policy=graph_policy,
     )
     analysis = load_synthetic_portfolio_analysis(run.run_directory)
+
+    assert analysis.single_pass_result == analysis.artifacts.round_results[0]
+    legacy_artifacts = replace(analysis.artifacts, round_results=())
+    assert replace(analysis, artifacts=legacy_artifacts).single_pass_result == legacy_artifacts.result
 
     assert run.experiment_id == SYNTHETIC_PORTFOLIO_EXPERIMENT_ID
     assert run.result.run_result.run_status is RunStatus.FAILED  # SCIP missing

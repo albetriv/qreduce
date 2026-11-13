@@ -87,6 +87,13 @@ class SyntheticPortfolioAnalysis:
     correlation_threshold: float
     retained_item_ids: tuple[str, ...] | None
 
+    @property
+    def single_pass_result(self) -> Mapping[str, object]:
+        """Return the persisted round, or the legacy top-level single-pass result."""
+        if self.artifacts.round_results:
+            return self.artifacts.round_results[0]
+        return self.artifacts.result
+
     def node_rows(self) -> list[dict[str, object]]:
         """Return graph nodes in declared order for tables and plots."""
 

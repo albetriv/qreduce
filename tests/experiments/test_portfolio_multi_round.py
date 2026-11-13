@@ -1,6 +1,9 @@
 """Coverage for the larger persisted portfolio experiment."""
 
+import json
 from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,3 +56,23 @@ def test_correlation_remains_available_without_compiled_graph(tmp_path, monkeypa
     asset_ids, correlation, graph = load_multi_round_correlation_data(run.run_directory)
     assert len(asset_ids) == len(correlation) == 6
     assert graph is None
+
+
+def test_notebook_displays_persisted_round_and_partial_failure(tmp_path):
+    run = run_portfolio_multi_round_experiment("notebook", output_root=tmp_path, asset_count=6)
+    artifacts = load_experiment_run(run.run_directory)
+    notebook_path = (
+        Path(__file__).resolve().parents[2]
+        / "notebooks/experiments/004_synthetic_portfolio_multi_round.ipynb"
+    )
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    cell = next(cell for cell in notebook["cells"] if cell.get("id") == "86396ca6")
+    calls = []
+    namespace = {
+        "artifacts": SimpleNamespace(round_results=(artifacts.round_results[0], {"round_index": 1})),
+        "display_vertical": lambda values, **kwargs: calls.append((values, kwargs)),
+    }
+    # Execute this repository-owned notebook cell against persisted and partial rounds.
+    exec(compile("".join(cell["source"]), str(notebook_path), "exec"), namespace)  # noqa: S102
+    assert calls[0][0]["run_status"] == artifacts.round_results[0]["run_status"]
+    assert calls[2][0]["run_status"] is None
