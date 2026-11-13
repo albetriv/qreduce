@@ -180,6 +180,9 @@ produrre un run da analizzare:
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
   --run-id 002_scip \
+  --asset-count 12 \
+  --graph-edge-mode correlation_only \
+  --correlation-threshold 0.80 \
   --mis-solver-id local_greedy \
   --classical-solver-id scip
 ```
@@ -216,6 +219,9 @@ classico CPLEX, produrre prima artifact distinti:
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
   --run-id 003_dwave_cplex \
+  --asset-count 12 \
+  --graph-edge-mode correlation_only \
+  --correlation-threshold 0.80 \
   --mis-solver-id dwave_simulated_annealing \
   --classical-solver-id cplex \
   --mis-num-reads 100 \
@@ -227,6 +233,12 @@ carica `outputs/003_dwave_cplex/`. Il simulatore
 Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
 licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
 artifact analizzabile.
+
+Per entrambi i notebook le crocette rosse rappresentano gli archi effettivi del
+grafo persistito. Gli esempi usano la policy `correlation_only` con soglia
+0.80; un grafo senza archi non mostra crocette. I run già pubblicati non sono
+modificati: per ripubblicare con lo stesso run ID occorre prima archiviare o
+rimuovere la directory esistente.
 
 Anche per il percorso D-Wave/CPLEX, l'opzione `--asset-count` permette di
 generare portfolio piu` grandi:

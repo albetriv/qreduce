@@ -7,9 +7,9 @@ from qreduce.mwis.graph import ReductionGraph
 
 
 def plot_correlation_matrix(asset_ids, correlation, graph: ReductionGraph | None, threshold: float | None):
-    """Display signed correlations and outline actual graph edges in red."""
+    """Display signed correlations and mark actual graph edges with red crosses."""
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Patch, Rectangle
+    from matplotlib.lines import Line2D
 
     asset_ids = tuple(asset_ids)
     if (graph is not None and asset_ids != graph.node_ids) or len(correlation) != len(asset_ids) or any(
@@ -27,8 +27,8 @@ def plot_correlation_matrix(asset_ids, correlation, graph: ReductionGraph | None
                 ax.text(j, i, f"{value:.2f}", ha="center", va="center",
                         color="white" if value > 0.3 else "black")
             if graph is not None and left != right and tuple(sorted((left, right))) in graph.edge_reasons:
-                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
-                                       edgecolor="red", linewidth=2.5))
+                ax.plot(j, i, marker="x", color="red", markersize=12,
+                        markeredgewidth=2, linestyle="none", zorder=4)
     ax.set_xticks(range(len(asset_ids)), labels=asset_ids, rotation=45, ha="right")
     ax.set_yticks(range(len(asset_ids)), labels=asset_ids)
     title = "Asset correlation matrix"
@@ -36,7 +36,8 @@ def plot_correlation_matrix(asset_ids, correlation, graph: ReductionGraph | None
         title += f" (soglia assoluta: {threshold:g})"
     ax.set_title(title)
     if graph is not None:
-        ax.legend(handles=[Patch(facecolor="none", edgecolor="red", label="Arco nel grafo")],
+        ax.legend(handles=[Line2D([], [], marker="x", color="red", linestyle="none",
+                                  markeredgewidth=2, label="Arco nel grafo")],
                   loc="upper left", bbox_to_anchor=(1.2, 1))
     fig.tight_layout()
     return fig, ax

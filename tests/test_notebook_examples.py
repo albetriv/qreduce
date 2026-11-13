@@ -50,3 +50,44 @@ def test_plot_unknown_selection_has_no_legend() -> None:
         assert ax.get_legend() is None
     finally:
         plt.close(fig)
+
+
+def test_correlation_matrix_marks_only_actual_edges() -> None:
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    from qreduce.notebooks.plots import plot_correlation_matrix
+
+    graph = graph_example()["graph"]
+    correlation = ((1.0, 0.1, 0.99), (0.1, 1.0, 0.1), (0.99, 0.1, 1.0))
+    fig, ax = plot_correlation_matrix(graph.node_ids, correlation, graph, 0.9)
+    try:
+        indices = {node: index for index, node in enumerate(graph.node_ids)}
+        positions = {(line.get_xdata()[0], line.get_ydata()[0]) for line in ax.lines}
+        expected = {
+            (indices[left], indices[right])
+            for left, right in graph.edges
+        } | {
+            (indices[right], indices[left])
+            for left, right in graph.edges
+        }
+        assert positions == expected
+        assert all(line.get_marker() == "x" and line.get_color() == "red" for line in ax.lines)
+        assert not ax.patches
+        assert ax.get_legend().get_texts()[0].get_text() == "Arco nel grafo"
+    finally:
+        plt.close(fig)
+
+
+def test_correlation_matrix_without_graph_has_no_crosses() -> None:
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    from qreduce.notebooks.plots import plot_correlation_matrix
+
+    fig, ax = plot_correlation_matrix(("a", "b"), ((1.0, 0.9), (0.9, 1.0)), None, 0.8)
+    try:
+        assert not ax.lines
+        assert ax.get_legend() is None
+    finally:
+        plt.close(fig)
