@@ -20,18 +20,20 @@ The generator validates:
     - Covariance symmetric
     - All values finite
     - Correlations in [-1, 1]
-    - Covariance matrix positive semi-definite within tolerance
-    - Determinism: identical data for same policy and asset_count
+
+The sample covariance is positive semi-definite by construction; it is not
+subjected to a separate factorization. Identical policies produce identical data.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.random import PCG64, Generator
 
 from qreduce.experiments.portfolio_domain import PortfolioProblem
+from qreduce.experiments.portfolio_domain.models import _GENERATED_COVARIANCE
 
 if TYPE_CHECKING:
     from qreduce.experiments.portfolio_domain.models import (
@@ -53,6 +55,7 @@ class GeneratedPortfolioData:
     # Provenance for auditability
     generation_policy_id: str
     generation_policy_version: str
+    _generated_covariance: object = field(default=None, repr=False, compare=False)
 
     def to_problem(self) -> PortfolioProblem:
         """Convert to a PortfolioProblem instance."""
@@ -64,6 +67,9 @@ class GeneratedPortfolioData:
             upper_bounds=self.upper_bounds,
             retention_scores=self.retention_scores,
             risk_aversion=self.risk_aversion,
+            _covariance_origin=(
+                _GENERATED_COVARIANCE if self.covariance is self._generated_covariance else None
+            ),
         )
 
 
@@ -203,6 +209,7 @@ def generate_portfolio_data(
         risk_aversion=risk_aversion,
         generation_policy_id=policy.policy_id,
         generation_policy_version=policy.policy_version,
+        _generated_covariance=covariance,
     )
 
 
@@ -236,16 +243,6 @@ def _validate_covariance(cov: np.ndarray, n_assets: int) -> None:
     correlation_tolerance = 1e-6
     if np.any(correlation < -1 - correlation_tolerance) or np.any(correlation > 1 + correlation_tolerance):
         raise ValueError("Correlations must be in [-1, 1] within tolerance.")
-
-    # Check positive semi-definite (all eigenvalues >= -tolerance)
-    psd_tolerance = -1e-8
-    eigenvalues = np.linalg.eigvalsh(cov)
-    if np.any(eigenvalues < psd_tolerance):
-        min_eigenvalue = float(np.min(eigenvalues))
-        raise ValueError(
-            f"Covariance matrix is not positive semi-definite within tolerance. "
-            f"Minimum eigenvalue: {min_eigenvalue}"
-        )
 
 
 def default_generation_policy(

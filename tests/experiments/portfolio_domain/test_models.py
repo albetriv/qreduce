@@ -1,5 +1,7 @@
 """Tests for immutable mean-variance portfolio data contracts."""
 
+from dataclasses import replace
+
 import pytest
 
 from qreduce.experiments.portfolio_domain import (
@@ -33,6 +35,25 @@ def test_problem_rejects_nonsymmetric_covariance() -> None:
             retention_scores={"asset-a": 1.0, "asset-b": 1.0},
             risk_aversion=1.0,
         )
+
+
+@pytest.mark.parametrize("off_diagonal", [0.5, 1.0, 1.0 + 5e-9])
+def test_explicit_covariance_accepts_singular_and_nearly_psd(portfolio_problem, off_diagonal):
+    covariance = ((1.0, off_diagonal, 0.0), (off_diagonal, 1.0, 0.0), (0.0, 0.0, 1.0))
+    assert replace(portfolio_problem, covariance=covariance).covariance == covariance
+
+
+@pytest.mark.parametrize("off_diagonal", [1.0 + 2e-8, 2.0])
+def test_explicit_covariance_rejects_indefinite(portfolio_problem, off_diagonal):
+    covariance = ((1.0, off_diagonal, 0.0), (off_diagonal, 1.0, 0.0), (0.0, 0.0, 1.0))
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        replace(portfolio_problem, covariance=covariance)
+
+
+def test_explicit_covariance_rejects_indefinite_with_valid_pairwise_correlations(portfolio_problem):
+    covariance = ((1.0, -0.6, -0.6), (-0.6, 1.0, -0.6), (-0.6, -0.6, 1.0))
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        replace(portfolio_problem, covariance=covariance)
 
 
 def test_residual_problem_compiles_a_solver_agnostic_miqp(

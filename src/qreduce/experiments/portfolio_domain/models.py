@@ -2,9 +2,11 @@
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from types import MappingProxyType
 from typing import Literal
+
+import numpy as np
 
 from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.domains.contracts import FixingManifest
@@ -142,9 +144,16 @@ class PortfolioGraphPolicy:
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
 
+_GENERATED_COVARIANCE = object()
+
+
 @dataclass(frozen=True, slots=True)
 class PortfolioProblem:
-    """Validated mean-variance MIQP data with stable asset IDs."""
+    """Validated mean-variance data; explicit covariance uses shifted Cholesky.
+
+    The absolute diagonal shift is 1e-8; the Cholesky boundary is strict
+    and subject to floating-point rounding. The input matrix is not modified.
+    """
 
     asset_ids: tuple[str, ...]
     expected_returns: Mapping[str, float]
@@ -154,8 +163,9 @@ class PortfolioProblem:
     retention_scores: Mapping[str, float]
     risk_aversion: float
     covariance_symmetry_tolerance: float = 1e-12
+    _covariance_origin: InitVar[object] = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, _covariance_origin: object) -> None:
         asset_ids = tuple(self.asset_ids)
         if not asset_ids or any(not asset_id.strip() for asset_id in asset_ids) or len(set(asset_ids)) != len(asset_ids):
             raise ValueError("asset_ids must be non-empty, non-blank and unique.")
@@ -178,6 +188,14 @@ class PortfolioProblem:
                     raise ValueError("covariance must be symmetric within covariance_symmetry_tolerance.")
             if row[row_index] <= 0:
                 raise ValueError("covariance diagonal values must be greater than zero.")
+        if _covariance_origin is not _GENERATED_COVARIANCE:
+            matrix = np.asarray(covariance, dtype=float)
+            # Use the symmetric part when the input differs within tolerance.
+            matrix = 0.5 * matrix + 0.5 * matrix.T
+            try:
+                np.linalg.cholesky(matrix + 1e-8 * np.eye(len(asset_ids)))
+            except np.linalg.LinAlgError as exc:
+                raise ValueError("covariance must be positive semi-definite within tolerance.") from exc
         lower_bounds = self.lower_bounds
         upper_bounds = self.upper_bounds
         if any(lower_bounds[asset_id] > upper_bounds[asset_id] for asset_id in asset_ids):

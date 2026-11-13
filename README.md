@@ -110,6 +110,13 @@ generico, una policy raccomandata o una dipendenza della distribuzione; gli
 adapter di altri domini devono implementare il contratto QReduce con la propria
 semantica.
 
+Per il portfolio, le covarianze calcolate dalle serie sintetiche sono
+semidefinite positive per costruzione e non richiedono una fattorizzazione.
+Le matrici fornite esplicitamente a `PortfolioProblem` sono invece verificate
+con Cholesky dopo uno shift diagonale assoluto di `1e-8`, senza modificare
+la matrice originale. Il criterio e` stretto al confine ed e` soggetto ad
+arrotondamenti numerici; le matrici singolari sono ammesse entro la tolleranza.
+
 Gli adapter di dominio devono implementare `describe_logical_variables(problem)`
 e restituire `LogicalVariableCounts` per problema originale e residuo. I conteggi
 escludono le variabili esplicitamente fissate e le ausiliarie dei solver; non

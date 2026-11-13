@@ -1,6 +1,7 @@
 """Tests for the factorial portfolio data generator."""
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -158,6 +159,19 @@ class TestDefaultGenerationPolicy:
 
 class TestGeneratePortfolioData:
     """Tests for generate_portfolio_data with factorial model."""
+
+    def test_generated_problem_does_not_factorize_covariance(self, monkeypatch):
+        def fail(*args, **kwargs):
+            raise AssertionError("Generated covariance must not be factorized")
+
+        monkeypatch.setattr(np.linalg, "cholesky", fail)
+        generate_portfolio_data(default_generation_policy(6)).to_problem()
+
+    def test_replaced_generated_covariance_is_validated(self):
+        data = generate_portfolio_data(default_generation_policy(6))
+        covariance = tuple(tuple(1.0 if i == j else 2.0 for j in range(6)) for i in range(6))
+        with pytest.raises(ValueError, match="positive semi-definite"):
+            replace(data, covariance=covariance).to_problem()
 
     def test_generates_correct_dimensions(self):
         """Generated data has correct dimensions for various asset counts."""
