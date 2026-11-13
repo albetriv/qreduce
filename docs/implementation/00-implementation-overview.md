@@ -65,7 +65,7 @@ originale dopo fixing euristico.
 | M05 | Pipeline single-pass, candidate domain e fixing | Completata | Orchestrazione end-to-end, ranking/diversita`, repair, fixing manifest, budget e failure parziali | `pipeline/single_pass.py`, `domains/`, test pipeline e integrazione; audit 06 del 2026-11-12 | Mantenere coerenti metriche e contratti; M08 per multi-round. |
 | M06 | Solve residuo, post-check ed esperimento portfolio | Completata | Modello classico generico, backend `cplex` e `scip`, post-check, adapter portfolio dimostrativo | `solving/residual/`, test associati; integrazioni SCIP, CPLEX ed export eseguite localmente; audit 06 con matrice esiti completata; verifica del 2025-01-15 | Mantenere le invarianti del post-check, senza introdurre side effect impliciti nel kernel. |
 | M07 | Runner, artifact e notebook di analisi | Completata | Persistenza atomica degli esperimenti, manifest, loader e notebook che leggono artifact | `experiments/runner.py`, `experiments/artifacts.py`, notebook e test runner; test round-trip per 4 esiti terminali; verifica del 2025-01-15 | Mantenere copertura completa di provenance, hash e dati candidate richiesta dalle sezioni 16-17. |
-| M08 | Riduzione multi-round e recovery | Da implementare | Domini monotoni, criteri di stop, recovery dal medesimo round, artifact per round | La configurazione modella `max_reduction_rounds`, ma `config.py` accetta oggi solo `1` | Definire un documento di milestone dedicato, implementare il runner multi-round e aggiungere i test della sezione 20.6. |
+| M08 | Riduzione multi-round e recovery | Completata | Domini monotoni, criteri di stop, recovery dal medesimo round, artifact per round | `pipeline/multi_round.py`, `pipeline/recovery.py`, `pipeline/rounds.py`, test multi-round; audit del 2026-11-12 | Mantenere invarianti di monotonicità e provenance dei manifest. |
 
 Le milestone M01-M07 descrivono il nucleo obbligatorio previsto dalle
 specifiche. M08 e` anch'essa obbligatoria per dichiarare completo il progetto,
@@ -123,7 +123,7 @@ e gestione riproducibile di infeasibility, failure e post-check failed.
 | M02, M05, M07 | `06-single-pass-metrics-audit.md` | Matrice di evidenze e gap delle metriche della sezione 16.2. |
 | M01-M07 | `07-single-pass-conformance-backlog.md` | Mappa di conformita` single-pass e backlog di chiusura, esclusa M08. |
 | M07 | `08-experiment-artifacts.md` | Runner, artifact, loader, notebook ed evidenze ancora necessarie. |
-| M08 | Da creare | Design multi-round/recovery, compatibile con sezioni 9 e 20.6 delle specifiche. |
+| M08 | `09-multi-round-design.md` | Design iniziale e stato dei lavori multi-round/recovery. |
 
 ## Decisioni tecniche correnti e aperte
 

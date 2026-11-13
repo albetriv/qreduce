@@ -73,13 +73,12 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         issues, "classical_solve.classical_solver_id", classical.classical_solver_id
     )
 
-    if reduction.max_reduction_rounds != 1:
-        _add_issue(
-            issues,
-            "single_pass_only",
-            "reduction.max_reduction_rounds",
-            "The single-pass pipeline supports exactly one reduction round.",
-        )
+    _require_int_at_least(
+        issues,
+        "reduction.max_reduction_rounds",
+        reduction.max_reduction_rounds,
+        1,
+    )
     _require_int_at_least(
         issues,
         "reduction.candidate_domain_min_items",
@@ -126,6 +125,32 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         "reduction.max_end_to_end_runtime_seconds",
         reduction.max_end_to_end_runtime_seconds,
     )
+    _validate_recovery_policy(
+        issues,
+        "reduction.recovery_policy_on_domain_too_small",
+        reduction.recovery_policy_on_domain_too_small,
+    )
+    _validate_recovery_policy(
+        issues,
+        "reduction.recovery_policy_on_infeasible",
+        reduction.recovery_policy_on_infeasible,
+    )
+    _require_int_at_least(
+        issues,
+        "reduction.max_recovery_attempts",
+        reduction.max_recovery_attempts,
+        0,
+    )
+    if reduction.max_recovery_attempts > 0 and (
+        reduction.recovery_policy_on_domain_too_small == "fail"
+        and reduction.recovery_policy_on_infeasible == "fail"
+    ):
+        _add_issue(
+            issues,
+            "recovery_attempts_without_policy",
+            "reduction.max_recovery_attempts",
+            "max_recovery_attempts > 0 requires at least one recovery policy other than fail.",
+        )
 
     if config.lambda_edge is None and config.lambda_edge_policy is None:
         _add_issue(
@@ -369,3 +394,18 @@ def _require_optional_timeout(
 ) -> None:
     if value is not None:
         _require_finite_above_zero(issues, field, value)
+
+
+_VALID_RECOVERY_POLICIES = frozenset({"fail", "retry_with_larger_domain"})
+
+
+def _validate_recovery_policy(
+    issues: list[ValidationIssue], field: str, value: str
+) -> None:
+    if value not in _VALID_RECOVERY_POLICIES:
+        _add_issue(
+            issues,
+            "invalid_recovery_policy",
+            field,
+            f"Recovery policy must be one of: {', '.join(sorted(_VALID_RECOVERY_POLICIES))}.",
+        )

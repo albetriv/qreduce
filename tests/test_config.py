@@ -101,9 +101,9 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
     [
         (
             make_config(
-                reduction=replace(make_config().reduction, max_reduction_rounds=2)
+                reduction=replace(make_config().reduction, max_reduction_rounds=0)
             ),
-            "single_pass_only",
+            "integer_below_minimum",
         ),
         (
             make_config(
@@ -135,6 +135,33 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
                 lambda_edge_policy=LambdaEdgePolicy("experimental", "1", 2.0),
             ),
             "noncertifying_behavior_missing",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction, recovery_policy_on_domain_too_small="invalid"
+                )
+            ),
+            "invalid_recovery_policy",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction, recovery_policy_on_infeasible="unknown"
+                )
+            ),
+            "invalid_recovery_policy",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction,
+                    max_recovery_attempts=3,
+                    recovery_policy_on_domain_too_small="fail",
+                    recovery_policy_on_infeasible="fail",
+                )
+            ),
+            "recovery_attempts_without_policy",
         ),
     ],
 )

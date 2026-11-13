@@ -27,6 +27,9 @@ class ReductionPolicy:
     min_reduction_ratio: float
     target_binary_variables: int
     max_end_to_end_runtime_seconds: float
+    recovery_policy_on_domain_too_small: str = "fail"
+    recovery_policy_on_infeasible: str = "fail"
+    max_recovery_attempts: int = 0
 
 
 @dataclass(frozen=True, slots=True)

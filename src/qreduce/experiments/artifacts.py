@@ -1,6 +1,7 @@
 """Filesystem artifact contracts for repository-internal QReduce experiments."""
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -16,6 +17,7 @@ _REQUIRED_ARTIFACT_FILES = (
     "run_result.json",
     "run_manifest.json",
 )
+_ROUND_RESULT_PATTERN = re.compile(r"^round_(\d+)_result\.json$")
 
 
 class ExperimentArtifactError(RuntimeError):
@@ -33,6 +35,13 @@ class ExperimentRunArtifacts:
     problem: object
     result: Mapping[str, object]
     canonical_mwis_problem: Mapping[str, object] | None
+    round_results: tuple[Mapping[str, object], ...] = ()
+    recovery_attempts: tuple[Mapping[str, object], ...] = ()
+
+    @property
+    def is_multi_round(self) -> bool:
+        """True if this artifact was produced by a multi-round run."""
+        return self.manifest.get("run_mode") == "multi_round"
 
 
 def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
@@ -70,8 +79,14 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
     canonical_mwis_problem = (
         _read_json_object(canonical_path) if canonical_path.is_file() else None
     )
+
+    # Load multi-round artifacts if present
+    round_results, round_files = _load_round_results(directory, manifest)
+    recovery_attempts, recovery_file = _load_recovery_attempts(directory, manifest)
+
+    # Build extra hashes for model export
     model_export = manifest.get("model_export")
-    extra_hashes = {}
+    extra_hashes: dict[str, str] = {}
     if isinstance(model_export, dict) and model_export.get("external") is False:
         path = model_export.get("path")
         if not isinstance(path, str) or Path(path).suffix.lower() not in {".lp", ".mps"}:
@@ -83,20 +98,26 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
             raise ExperimentArtifactError(f"Cannot load model export {filename}.") from error
         if extra_hashes[filename] != model_export.get("sha256"):
             raise ExperimentArtifactError(f"Content hash mismatch for artifact {filename}.")
-    _validate_content_hashes(
-        manifest,
-        {
-            "config_used.json": config,
-            "experiment_metadata.json": experiment_metadata,
-            "problem.json": problem,
-            "run_result.json": result,
-            **(
-                {"canonical_mwis_problem.json": canonical_mwis_problem}
-                if canonical_mwis_problem is not None
-                else {}
-            ),
-        }, extra_hashes,
-    )
+
+    # Build files dict for hash validation
+    files_for_hash: dict[str, object] = {
+        "config_used.json": config,
+        "experiment_metadata.json": experiment_metadata,
+        "problem.json": problem,
+        "run_result.json": result,
+    }
+    if canonical_mwis_problem is not None:
+        files_for_hash["canonical_mwis_problem.json"] = canonical_mwis_problem
+
+    # Add round results to hash validation
+    files_for_hash.update(round_files)
+
+    # Add recovery attempts to hash validation
+    if recovery_file:
+        files_for_hash.update(recovery_file)
+
+    _validate_content_hashes(manifest, files_for_hash, extra_hashes)
+
     return ExperimentRunArtifacts(
         run_directory=directory,
         manifest=manifest,
@@ -105,7 +126,65 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
         problem=problem,
         result=result,
         canonical_mwis_problem=canonical_mwis_problem,
+        round_results=round_results,
+        recovery_attempts=recovery_attempts,
     )
+
+
+def _load_round_results(
+    directory: Path, manifest: Mapping[str, object]
+) -> tuple[tuple[Mapping[str, object], ...], dict[str, object]]:
+    """Load round_XX_result.json files if present in manifest."""
+    expected_hashes = manifest.get("files", {})
+    if not isinstance(expected_hashes, dict):
+        return (), {}
+
+    round_files: list[tuple[int, str, Mapping[str, object]]] = []
+    files_for_hash: dict[str, object] = {}
+
+    for filename in expected_hashes:
+        match = _ROUND_RESULT_PATTERN.match(filename)
+        if match:
+            round_index = int(match.group(1))
+            filepath = directory / filename
+            if not filepath.is_file():
+                raise ExperimentArtifactError(
+                    f"Round result file listed in manifest but missing: {filename}"
+                )
+            content = _read_json_object(filepath)
+            round_files.append((round_index, filename, content))
+            files_for_hash[filename] = content
+
+    # Sort by round index
+    round_files.sort(key=lambda x: x[0])
+    return tuple(r[2] for r in round_files), files_for_hash
+
+
+def _load_recovery_attempts(
+    directory: Path, manifest: Mapping[str, object]
+) -> tuple[tuple[Mapping[str, object], ...], dict[str, object]]:
+    """Load recovery_attempts.json if present in manifest."""
+    expected_hashes = manifest.get("files", {})
+    if not isinstance(expected_hashes, dict):
+        return (), {}
+
+    filename = "recovery_attempts.json"
+    if filename not in expected_hashes:
+        return (), {}
+
+    filepath = directory / filename
+    if not filepath.is_file():
+        raise ExperimentArtifactError(
+            f"Recovery attempts file listed in manifest but missing: {filename}"
+        )
+
+    content = _read_json(filepath)
+    if not isinstance(content, list):
+        raise ExperimentArtifactError(
+            f"Recovery attempts file must contain a JSON array: {filename}"
+        )
+
+    return tuple(content), {filename: content}  # type: ignore[misc]
 
 
 def _read_json(path: Path) -> object:

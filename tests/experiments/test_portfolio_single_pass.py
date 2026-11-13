@@ -714,6 +714,49 @@ def test_pipeline_supports_explicit_extension_registries(
     assert result.classical_result.terminal_reason is TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE
 
 
+def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_problem):
+    """A future orchestrator can preserve the round index through one execution."""
+    from qreduce.pipeline.single_pass import _run_single_pass_with_counts
+
+    observed = {}
+
+    class RecordingMIS(LocalGreedyMISBackend):
+        def compile(self, problem, request):
+            observed["compile"] = request.round_index
+            return super().compile(problem, request)
+
+        def solve(self, job, request):
+            observed["mis"] = request.round_index
+            return super().solve(job, request)
+
+    class RecordingClassical:
+        def solve(self, problem, request):
+            observed["classical"] = request.round_index
+            return ClassicalSolveResult(
+                ClassicalSolverStatus.INFEASIBLE,
+                TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                False, None, None, None, False, False, 0.0,
+            )
+
+    mis_registry = MISSolverRegistry(include_builtins=False)
+    mis_registry.register("recording", RecordingMIS)
+    classical_registry = ClassicalSolverRegistry(include_builtins=False)
+    classical_registry.register("recording", RecordingClassical)
+    config = make_config()
+    config = replace(
+        config, mis_solver_id="recording",
+        classical_solve=replace(config.classical_solve, classical_solver_id="recording"),
+    )
+    result = _run_single_pass_with_counts(
+        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        config, mis_solver_registry=mis_registry, classical_solver_registry=classical_registry,
+        _round_index=3,
+    )
+    assert observed == {"compile": 3, "mis": 3, "classical": 3}
+    assert result.fixing_manifest is not None
+    assert result.fixing_manifest.round_index == 3
+
+
 @pytest.mark.requires_dwave_simulator
 @pytest.mark.skipif(
     importlib.util.find_spec("dimod") is None or importlib.util.find_spec("dwave.samplers") is None,

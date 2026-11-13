@@ -72,3 +72,18 @@ def test_restrict_problem_refuses_an_invalid_manifest(portfolio_problem: Portfol
 
     with pytest.raises(ValueError, match="invalid candidate domain"):
         make_adapter().restrict_problem(portfolio_problem, ("asset-a",), None)  # type: ignore[arg-type]
+
+
+def test_residual_graph_and_manifest_do_not_reintroduce_excluded_items(portfolio_problem):
+    adapter = make_adapter()
+    first = adapter.build_fixing_manifest(portfolio_problem, ("asset-a", "asset-b"))
+    residual = adapter.restrict_problem(portfolio_problem, ("asset-a", "asset-b"), first)
+    assert adapter.identify_reducible_items(residual) == ["asset-a", "asset-b"]
+    graph = adapter.build_conflict_graph(residual)
+    assert graph.node_ids == ("asset-a", "asset-b")
+    assert set(graph.node_weights) == set(graph.node_ids)
+    assert not adapter.validate_candidate_domain(residual, ("asset-a", "asset-c")).is_valid
+    second = adapter.build_fixing_manifest(residual, ("asset-a", "asset-b"))
+    final = adapter.restrict_problem(residual, ("asset-a", "asset-b"), second)
+    assert final.fixing_manifest.excluded_item_ids == ("asset-c",)
+    assert final.fixing_manifest.entries == first.entries

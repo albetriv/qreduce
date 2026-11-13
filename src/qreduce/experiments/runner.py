@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from tempfile import mkdtemp
+from typing import Literal
 
 from qreduce.artifacts.metadata import (
     pretty_json,
@@ -18,7 +19,12 @@ from qreduce.artifacts.metadata import (
 from qreduce.domains import ReducibleProblemAdapter
 from qreduce.experiments.artifacts import ARTIFACT_SCHEMA_VERSION
 from qreduce.models import ResolvedRunConfig
-from qreduce.pipeline import SinglePassRunResult, run_single_pass
+from qreduce.pipeline import (
+    MultiRoundRunResult,
+    SinglePassRunResult,
+    run_multi_round,
+    run_single_pass,
+)
 from qreduce.solving.mwis import MISSolverRegistry
 from qreduce.solving.residual import ClassicalSolverRegistry
 
@@ -29,7 +35,7 @@ class ExperimentRun:
 
     experiment_id: str
     run_directory: Path
-    result: SinglePassRunResult
+    result: SinglePassRunResult | MultiRoundRunResult
 
 
 def run_experiment(
@@ -38,6 +44,7 @@ def run_experiment(
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,
     *,
+    mode: Literal["single_pass", "multi_round"] = "single_pass",
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     output_root: str | Path = "outputs",
@@ -47,6 +54,9 @@ def run_experiment(
 
     A normalized QReduce failure is still a completed experiment and is persisted.
     A serialization or publication error raises and leaves no final run directory.
+
+    Args:
+        mode: "single_pass" for single reduction round, "multi_round" for iterative.
     """
 
     _require_identifier(experiment_id, "experiment_id")
@@ -86,19 +96,32 @@ def run_experiment(
             config = replace(config, classical_solve=replace(
                 config.classical_solve, model_export_path=str(export_path)
             ))
-        result = run_single_pass(
-            problem,
-            adapter,
-            config,
-            mis_solver_registry=mis_solver_registry,
-            classical_solver_registry=classical_solver_registry,
-            _model_export_write_path=str(write_path) if write_path else None,
-        )
-        exported = write_path if write_path and write_path.is_file() else None
-        if exported and result.classical_result and not result.classical_result.model_export_path:
-            result = replace(result, classical_result=replace(
-                result.classical_result, model_export_path=str(export_path)
-            ))
+
+        # Execute pipeline based on mode
+        if mode == "multi_round":
+            result: SinglePassRunResult | MultiRoundRunResult = run_multi_round(
+                problem,
+                adapter,
+                config,
+                mis_solver_registry=mis_solver_registry,
+                classical_solver_registry=classical_solver_registry,
+            )
+            exported = None  # Multi-round doesn't support model export yet
+        else:
+            result = run_single_pass(
+                problem,
+                adapter,
+                config,
+                mis_solver_registry=mis_solver_registry,
+                classical_solver_registry=classical_solver_registry,
+                _model_export_write_path=str(write_path) if write_path else None,
+            )
+            exported = write_path if write_path and write_path.is_file() else None
+            if exported and result.classical_result and not result.classical_result.model_export_path:
+                result = replace(result, classical_result=replace(
+                    result.classical_result, model_export_path=str(export_path)
+                ))
+
         _write_artifacts(
             temporary_root,
             experiment_id,
@@ -108,6 +131,7 @@ def run_experiment(
             exported,
             export_path,
             external_staging is not None,
+            mode,
         )
         if exported and external_staging is not None:
             os.link(exported, export_path)
@@ -130,11 +154,12 @@ def _write_artifacts(
     directory: Path,
     experiment_id: str,
     problem: object,
-    result: SinglePassRunResult,
+    result: SinglePassRunResult | MultiRoundRunResult,
     experiment_metadata: Mapping[str, object],
     exported: Path | None,
     export_path: Path | None,
     external_export: bool,
+    mode: str,
 ) -> None:
     config = result.resolved_config.to_dict()
     problem_data = redact_metadata(to_primitive(problem))
@@ -145,11 +170,30 @@ def _write_artifacts(
         "problem.json": problem_data,
         "run_result.json": result_data,
     }
-    compilation = result.mis_compilation_result
-    if compilation is not None and compilation.compiled_job is not None:
-        files["canonical_mwis_problem.json"] = (
-            compilation.compiled_job.compiled_problem.to_dict()
-        )
+
+    # For multi-round, also write per-round results
+    if isinstance(result, MultiRoundRunResult) and result.round_results:
+        for i, round_result in enumerate(result.round_results):
+            files[f"round_{i:02d}_result.json"] = round_result.to_dict()
+        if result.recovery_attempts:
+            files["recovery_attempts.json"] = [
+                {
+                    "attempt_index": a.attempt_index,
+                    "trigger_reason": a.trigger_reason.value if a.trigger_reason else None,
+                    "expanded_domain_size": a.expanded_domain_size,
+                    "previous_domain_size": a.previous_domain_size,
+                    "outcome": a.outcome,
+                }
+                for a in result.recovery_attempts
+            ]
+
+    # Single-pass specific: canonical MWIS problem
+    if isinstance(result, SinglePassRunResult):
+        compilation = result.mis_compilation_result
+        if compilation is not None and compilation.compiled_job is not None:
+            files["canonical_mwis_problem.json"] = (
+                compilation.compiled_job.compiled_problem.to_dict()
+            )
 
     content_hashes: dict[str, str] = {}
     for filename, contents in files.items():
@@ -173,11 +217,18 @@ def _write_artifacts(
         "experiment_id": experiment_id,
         "run_id": result.run_result.run_id,
         "run_status": result.run_result.run_status.value,
+        "run_mode": mode,
         "config_hash": result.run_result.config_hash,
         "policy_provenance": config["policy_provenance"],
         "files": content_hashes,
         "model_export": model_export,
     }
+
+    # Multi-round specific manifest fields
+    if isinstance(result, MultiRoundRunResult):
+        manifest["round_count"] = len(result.round_results)
+        manifest["recovery_attempt_count"] = len(result.recovery_attempts)
+
     _write_json(directory / "run_manifest.json", manifest)
 
 

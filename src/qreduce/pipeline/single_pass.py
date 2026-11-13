@@ -209,6 +209,7 @@ def _run_single_pass_with_counts(
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     _model_export_write_path: str | None = None,
     _started_at: float | None = None,
+    _round_index: int = 0,
 ) -> SinglePassRunResult:
     """Validate mandatory logical counts and preserve them across partial outcomes."""
 
@@ -229,6 +230,7 @@ def _run_single_pass_with_counts(
         classical_solver_registry=classical_solver_registry,
         _model_export_write_path=_model_export_write_path,
         _started_at=_started_at,
+        _round_index=_round_index,
     )
     result = replace(
         result, original_variable_counts=original_counts,
@@ -292,6 +294,7 @@ def _run_single_pass(
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     _model_export_write_path: str | None = None,
     _started_at: float | None = None,
+    _round_index: int = 0,
 ) -> SinglePassRunResult:
     """Run one reduction using built-in solver factories and optional extensions."""
 
@@ -374,7 +377,7 @@ def _run_single_pass(
         canonical_problem,
         MISCompilationRequest(
             run_id=config.run_identity.run_id,
-            round_index=0,
+            round_index=_round_index,
             node_order=graph.node_ids,
             residual_time_budget_seconds=compilation_timeout.timeout_seconds,
             requested_provider_id=capabilities.provider_id,
@@ -411,7 +414,7 @@ def _run_single_pass(
         compilation.compiled_job,
         MISBackendRequest(
             run_id=config.run_identity.run_id,
-            round_index=0,
+            round_index=_round_index,
             compiled_job_id=compilation.compiled_job.compiled_job_id,
             node_order=graph.node_ids,
             random_seed=config.mis_execution.random_seed,
@@ -689,7 +692,7 @@ def _run_single_pass(
         fixing_manifest = adapter.build_fixing_manifest(problem, retained_item_ids)
         if isinstance(fixing_manifest, FixingManifest):
             fixing_manifest = replace(
-                fixing_manifest, round_index=0,
+                fixing_manifest, round_index=_round_index,
                 source_candidate_ids=tuple(
                     record.candidate_id for record in candidate_records
                     if record.selection_status == "selected"
@@ -829,7 +832,7 @@ def _run_single_pass(
         reduced_problem,
         ClassicalSolveRequest(
             run_id=config.run_identity.run_id,
-            round_index=0,
+            round_index=_round_index,
             time_limit_seconds=config.classical_solve.time_limit_seconds,
             remaining_end_to_end_seconds=remaining_budget,
             mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,

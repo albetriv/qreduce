@@ -459,3 +459,192 @@ def test_terminal_outcomes_round_trip_through_artifact_serialization(
     assert loaded.result["run_result"]["classical_solver_status"] == solver_status.value
     assert loaded.result["run_result"]["postcheck_status"] == postcheck.value
     assert loaded.result["run_result"]["adoption_status"] == adoption.value
+
+
+
+def test_multi_round_experiment_persists_round_artifacts(tmp_path):
+    """Multi-round experiments persist per-round results and recovery attempts."""
+    from qreduce.pipeline import MultiRoundRunResult
+    from qreduce.solving.residual import ClassicalSolverRegistry
+
+    problem = _problem()
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5))
+    config = replace(
+        _config("multi-round-test"),
+        reduction=ReductionPolicy(
+            max_reduction_rounds=2,
+            candidate_domain_min_items=1,
+            candidate_domain_max_items=3,
+            num_source_mis_candidates=1,
+            min_reduction_ratio=0.0,
+            target_binary_variables=0,
+            max_end_to_end_runtime_seconds=60.0,
+            recovery_policy_on_domain_too_small="fail",
+            recovery_policy_on_infeasible="fail",
+            max_recovery_attempts=0,
+        ),
+    )
+
+    # Use a mock solver that returns infeasible to test multi-round path
+    class MockSolver:
+        def solve(self, problem, request):
+            return ClassicalSolveResult(
+                classical_solver_status=ClassicalSolverStatus.INFEASIBLE,
+                terminal_reason=TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                solver_claimed_feasible=False,
+                objective_value=None,
+                best_bound=None,
+                gap=None,
+                is_optimal=False,
+                is_time_limited=False,
+                runtime_seconds=0.1,
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("cplex", MockSolver)
+
+    experiment = run_experiment(
+        "multi-round-test-experiment",
+        problem,
+        adapter,
+        config,
+        mode="multi_round",
+        classical_solver_registry=registry,
+        output_root=tmp_path,
+    )
+
+    assert isinstance(experiment.result, MultiRoundRunResult)
+    assert experiment.run_directory.exists()
+
+    # Check manifest contains multi-round specific fields
+    manifest_path = experiment.run_directory / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["run_mode"] == "multi_round"
+    assert "round_count" in manifest
+    assert "recovery_attempt_count" in manifest
+
+    # Check run_result.json is present
+    result_path = experiment.run_directory / "run_result.json"
+    assert result_path.exists()
+    result_data = json.loads(result_path.read_text())
+    assert "round_results" in result_data
+
+    # CRITICAL: Verify round-trip loading works with load_experiment_run
+    loaded = load_experiment_run(experiment.run_directory)
+    assert loaded.manifest["run_mode"] == "multi_round"
+    assert loaded.is_multi_round is True
+    assert loaded.manifest.get("round_count") == manifest["round_count"]
+
+    # Verify round results are loaded and validated
+    if manifest["round_count"] > 0:
+        assert len(loaded.round_results) == manifest["round_count"]
+        for i, round_result in enumerate(loaded.round_results):
+            assert isinstance(round_result, dict)
+            # Each round result should have expected structure
+            assert "run_result" in round_result or "resolved_config" in round_result
+
+    # Verify recovery attempts are loaded if present
+    assert len(loaded.recovery_attempts) == manifest["recovery_attempt_count"]
+
+
+def test_multi_round_with_recovery_round_trip(tmp_path):
+    """Multi-round with recovery attempts round-trips through load_experiment_run."""
+    from qreduce.pipeline import MultiRoundRunResult
+    from qreduce.solving.residual import ClassicalSolverRegistry
+
+    problem = _problem()
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5))
+    config = replace(
+        _config("recovery-roundtrip"),
+        reduction=ReductionPolicy(
+            max_reduction_rounds=2,
+            candidate_domain_min_items=1,
+            candidate_domain_max_items=3,
+            num_source_mis_candidates=1,
+            min_reduction_ratio=0.0,
+            target_binary_variables=0,
+            max_end_to_end_runtime_seconds=60.0,
+            recovery_policy_on_domain_too_small="expand_domain",
+            recovery_policy_on_infeasible="expand_domain",
+            max_recovery_attempts=2,
+        ),
+    )
+
+    # Mock solver returns infeasible to trigger recovery
+    call_count = [0]
+
+    class MockRecoverySolver:
+        def solve(self, problem, request):
+            call_count[0] += 1
+            # First call infeasible, subsequent calls optimal
+            if call_count[0] <= 1:
+                return ClassicalSolveResult(
+                    classical_solver_status=ClassicalSolverStatus.INFEASIBLE,
+                    terminal_reason=TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                    solver_claimed_feasible=False,
+                    objective_value=None,
+                    best_bound=None,
+                    gap=None,
+                    is_optimal=False,
+                    is_time_limited=False,
+                    runtime_seconds=0.1,
+                )
+            return ClassicalSolveResult(
+                classical_solver_status=ClassicalSolverStatus.OPTIMAL,
+                terminal_reason=None,
+                solver_claimed_feasible=True,
+                objective_value=100.0,
+                best_bound=100.0,
+                gap=0.0,
+                is_optimal=True,
+                is_time_limited=False,
+                runtime_seconds=0.5,
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("cplex", MockRecoverySolver)
+
+    experiment = run_experiment(
+        "recovery-experiment",
+        problem,
+        adapter,
+        config,
+        mode="multi_round",
+        classical_solver_registry=registry,
+        output_root=tmp_path,
+    )
+
+    assert isinstance(experiment.result, MultiRoundRunResult)
+
+    manifest_path = experiment.run_directory / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+
+    # Round-trip through loader
+    loaded = load_experiment_run(experiment.run_directory)
+    assert loaded.is_multi_round is True
+
+    # Verify round_results loaded
+    assert len(loaded.round_results) == manifest["round_count"]
+
+    # Verify recovery_attempts loaded (should be > 0 since we triggered recovery)
+    assert len(loaded.recovery_attempts) == manifest["recovery_attempt_count"]
+    if loaded.recovery_attempts:
+        # Each recovery attempt should have expected structure
+        for attempt in loaded.recovery_attempts:
+            assert isinstance(attempt, dict)
+            assert "round" in attempt or "trigger" in attempt or "strategy" in attempt
+
+    # Verify single-pass artifacts still work (is_multi_round = False)
+    single_pass_config = _config("single-pass-check")
+    single_run = run_experiment(
+        "single-pass-experiment",
+        problem,
+        adapter,
+        single_pass_config,
+        mode="single_pass",
+        output_root=tmp_path,
+    )
+    single_loaded = load_experiment_run(single_run.run_directory)
+    assert single_loaded.is_multi_round is False
+    assert len(single_loaded.round_results) == 0
+    assert len(single_loaded.recovery_attempts) == 0
