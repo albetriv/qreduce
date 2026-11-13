@@ -2,7 +2,7 @@
 
 import pytest
 
-import qreduce.notebook_presentation as presentation
+from qreduce.notebooks import presentation
 
 
 def test_display_vertical_formats_nested_values(monkeypatch: pytest.MonkeyPatch) -> None:

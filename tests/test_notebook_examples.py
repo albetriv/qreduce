@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.notebook_examples import energy_example, graph_example
+from qreduce.notebooks.examples import energy_example, graph_example
 
 
 def test_graph_example_certifies_small_mwis() -> None:
@@ -24,7 +24,7 @@ def test_plot_reduction_graph_renders_nodes_edges_and_selection() -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    from qreduce.notebook_plots import plot_reduction_graph
+    from qreduce.notebooks.plots import plot_reduction_graph
 
     graph = graph_example()["graph"]
     fig, ax = plot_reduction_graph(graph, ("a", "c"), highlighted_label="Selezionati")
@@ -43,7 +43,7 @@ def test_plot_unknown_selection_has_no_legend() -> None:
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
 
-    from qreduce.notebook_plots import plot_reduction_graph
+    from qreduce.notebooks.plots import plot_reduction_graph
 
     fig, ax = plot_reduction_graph(graph_example()["graph"])
     try:

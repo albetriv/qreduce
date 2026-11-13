@@ -44,9 +44,9 @@ def builtin_classical_solver_registry() -> ClassicalSolverRegistry:
 def _builtin_factories() -> dict[str, Callable[[], ClassicalBackend]]:
     """Keep optional bindings lazy by importing backend modules, not their SDKs."""
 
-    from qreduce.solvers import BuiltinClassicalSolverId
     from qreduce.solving.residual.cplex_backend import CplexClassicalBackend
     from qreduce.solving.residual.scip_backend import ScipClassicalBackend
+    from qreduce.solving.solver_ids import BuiltinClassicalSolverId
 
     return {
         BuiltinClassicalSolverId.CPLEX: CplexClassicalBackend,
