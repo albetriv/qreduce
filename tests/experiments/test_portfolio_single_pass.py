@@ -85,7 +85,7 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     )
     config = make_config()
     adapter = MeanVariancePortfolioAdapter(
-        PortfolioGraphPolicy("integration-policy", "1", 0.25)
+        PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
     )
 
     result = run_single_pass(
@@ -154,7 +154,7 @@ def test_postcheck_adapter_failure_preserves_classical_result(portfolio_problem,
     config = make_config()
     config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
     result = run_single_pass(
-        portfolio_problem, BrokenAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        portfolio_problem, BrokenAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, classical_solver_registry=registry,
     )
     assert result.run_result.stage is PipelineStage.POSTCHECK
@@ -179,7 +179,7 @@ def test_classical_backend_failure_preserves_candidate_data(portfolio_problem, m
     config = make_config()
     config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
     result = run_single_pass(
-        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, classical_solver_registry=registry,
     )
     assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_SOLVER_FAILED
@@ -218,7 +218,7 @@ def test_classical_solver_infeasible_is_serialized_with_candidate_data(
 
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config,
         classical_solver_registry=registry,
     )
@@ -327,7 +327,7 @@ def test_time_limit_with_feasible_incumbent_produces_partial_success(
 
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config,
         classical_solver_registry=registry,
     )
@@ -377,7 +377,7 @@ def test_invalid_original_counts_fail_before_graph(portfolio_problem: PortfolioP
             raise AssertionError("Graph must not be built")
 
     result = run_single_pass(
-        portfolio_problem, InvalidCounts(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+        portfolio_problem, InvalidCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert "LogicalVariableCounts" in result.run_result.diagnostic_message
@@ -394,7 +394,7 @@ def test_invalid_residual_counts_preserve_original_and_fail_before_solve(
 
     result = run_single_pass(
         portfolio_problem,
-        InvalidResidualCounts(PortfolioGraphPolicy("test", "1", 0.25)),
+        InvalidResidualCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         make_config(),
     )
     assert result.run_result.stage is PipelineStage.RESTRICTION
@@ -411,7 +411,7 @@ def test_graph_failure_retains_original_counts(portfolio_problem: PortfolioProbl
             raise ValueError("graph failed")
 
     result = run_single_pass(
-        portfolio_problem, BrokenGraph(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+        portfolio_problem, BrokenGraph(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.terminal_reason is TerminalReason.GRAPH_CONSTRUCTION_FAILED
     assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
@@ -424,7 +424,7 @@ def test_counts_method_exception_is_normalized(portfolio_problem: PortfolioProbl
             raise RuntimeError("cannot describe model")
 
     result = run_single_pass(
-        portfolio_problem, BrokenCounts(PortfolioGraphPolicy("test", "1", 0.25)), make_config()
+        portfolio_problem, BrokenCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.stage is PipelineStage.VALIDATION
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
@@ -459,7 +459,7 @@ def test_pipeline_retains_declared_protected_items_before_applying_cap(
 
     result = run_single_pass(
         portfolio_problem,
-        ProtectedPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        ProtectedPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
 
@@ -488,7 +488,7 @@ def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
     result = run_single_pass(
         portfolio_problem,
         TooManyProtectedPortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         config,
     )
@@ -533,7 +533,7 @@ def test_pipeline_records_best_effort_protection_excluded_by_cap(
 
     result = run_single_pass(
         portfolio_problem,
-        BestEffortPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        BestEffortPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
 
@@ -561,7 +561,7 @@ def test_pipeline_rejects_protected_item_outside_reduction_graph(
     result = run_single_pass(
         portfolio_problem,
         UnknownProtectedPortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         make_config(),
     )
@@ -585,7 +585,7 @@ def test_pipeline_rejects_duplicate_protected_item_ids(
     result = run_single_pass(
         portfolio_problem,
         DuplicateProtectedPortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         make_config(),
     )
@@ -621,7 +621,7 @@ def test_pipeline_enforces_adapter_minimum_before_building_a_manifest(
     result = run_single_pass(
         portfolio_problem,
         MinimumEnforcingPortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         config,
     )
@@ -661,7 +661,7 @@ def test_pipeline_rejects_inconsistent_manifest_before_restriction(
     result = run_single_pass(
         portfolio_problem,
         InconsistentManifestPortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         config,
     )
@@ -701,7 +701,7 @@ def test_pipeline_supports_explicit_extension_registries(
 
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
         mis_solver_registry=mis_registry,
         classical_solver_registry=classical_registry,
@@ -749,7 +749,7 @@ def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_pro
         classical_solve=replace(config.classical_solve, classical_solver_id="recording"),
     )
     result = _run_single_pass_with_counts(
-        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, mis_solver_registry=mis_registry, classical_solver_registry=classical_registry,
         _round_index=3,
     )
@@ -787,7 +787,7 @@ def test_pipeline_selects_dwave_simulated_annealing_qubo_backend(
 
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
 

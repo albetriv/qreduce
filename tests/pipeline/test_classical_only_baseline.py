@@ -512,8 +512,8 @@ class TestClassicalOnlyWithRealSolver:
         assert result.reduction_round_count == 0
         assert result.cumulative_fixing_manifest.origin == "no_reduction"
         
-        # All assets should be retained (synthetic portfolio has 5 assets)
-        assert len(result.final_retained_item_ids) == 5
+        # All assets should be retained (default synthetic portfolio has 30 assets)
+        assert len(result.final_retained_item_ids) == 30
         assert len(result.cumulative_fixing_manifest.excluded_item_ids) == 0
 
 

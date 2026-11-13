@@ -73,16 +73,63 @@ class MeanVariancePortfolioAdapter:
             problem = problem.original_problem
         edges: list[tuple[str, str]] = []
         edge_reasons: dict[tuple[str, str], str] = {}
+        policy = self._graph_policy
+        threshold = policy.correlation_absolute_threshold
+
         for left_index, left_asset_id in enumerate(item_ids):
-            for right_asset_id in item_ids[left_index + 1 :]:
+            for right_asset_id in item_ids[left_index + 1:]:
                 absolute_correlation = abs(problem.correlation(left_asset_id, right_asset_id))
-                if absolute_correlation >= self._graph_policy.correlation_absolute_threshold:
+
+                # Both modes require correlation threshold
+                if absolute_correlation < threshold:
+                    continue
+
+                if policy.edge_mode == "correlation_only":
+                    # Only correlation threshold applies
                     edge = (left_asset_id, right_asset_id) if left_asset_id < right_asset_id else (right_asset_id, left_asset_id)
                     edges.append(edge)
                     edge_reasons[edge] = (
-                        f"abs_correlation={absolute_correlation:.12g} >= "
-                        f"threshold={self._graph_policy.correlation_absolute_threshold:.12g}"
+                        f"edge_mode=correlation_only; "
+                        f"abs_correlation={absolute_correlation:.6g} >= threshold={threshold:.6g}"
                     )
+
+                elif policy.edge_mode == "near_duplicate":
+                    # Additional checks for near-duplicate semantics
+                    mu_left = problem.expected_returns[left_asset_id]
+                    mu_right = problem.expected_returns[right_asset_id]
+                    var_left = problem.covariance[problem.asset_index(left_asset_id)][problem.asset_index(left_asset_id)]
+                    var_right = problem.covariance[problem.asset_index(right_asset_id)][problem.asset_index(right_asset_id)]
+
+                    epsilon = 1e-12
+
+                    # Relative return difference
+                    max_abs_mu = max(abs(mu_left), abs(mu_right), epsilon)
+                    relative_return_diff = abs(mu_left - mu_right) / max_abs_mu
+
+                    # Relative variance difference
+                    max_var = max(var_left, var_right, epsilon)
+                    relative_variance_diff = abs(var_left - var_right) / max_var
+
+                    max_return_diff = policy.near_duplicate_max_relative_return_difference
+                    max_variance_diff = policy.near_duplicate_max_relative_variance_difference
+
+                    assert max_return_diff is not None  # Validated in policy __post_init__
+                    assert max_variance_diff is not None
+
+                    # Check near-duplicate criteria
+                    return_ok = relative_return_diff <= max_return_diff
+                    variance_ok = relative_variance_diff <= max_variance_diff
+
+                    if return_ok and variance_ok:
+                        edge = (left_asset_id, right_asset_id) if left_asset_id < right_asset_id else (right_asset_id, left_asset_id)
+                        edges.append(edge)
+                        edge_reasons[edge] = (
+                            f"edge_mode=near_duplicate; "
+                            f"abs_correlation={absolute_correlation:.6g} >= threshold={threshold:.6g}; "
+                            f"relative_return_difference={relative_return_diff:.6g} <= max={max_return_diff:.6g}; "
+                            f"relative_variance_difference={relative_variance_diff:.6g} <= max={max_variance_diff:.6g}"
+                        )
+
         ordered_edges = tuple(sorted(edges))
         return ReductionGraph(
             node_ids=item_ids,

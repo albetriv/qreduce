@@ -28,7 +28,7 @@ def make_tolerances() -> ClassicalSolveOptions:
 
 
 def make_manifest(problem: PortfolioProblem):
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25, edge_mode="correlation_only"))
     return adapter.build_fixing_manifest(problem, ("asset-a", "asset-b"))
 
 

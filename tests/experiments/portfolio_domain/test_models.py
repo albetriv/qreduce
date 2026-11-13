@@ -40,7 +40,7 @@ def test_residual_problem_compiles_a_solver_agnostic_miqp(
 ) -> None:
     """The portfolio experiment supplies math, not a CPLEX- or SCIP-specific model."""
 
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25, edge_mode="correlation_only"))
     retained = ("asset-a", "asset-b")
     residual_problem = adapter.restrict_problem(
         portfolio_problem,

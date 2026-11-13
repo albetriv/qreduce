@@ -14,7 +14,7 @@ def make_request(*, remaining_budget: float = 10.0) -> ClassicalSolveRequest:
 
 
 def make_residual_problem(problem: PortfolioProblem):
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("policy", "1", 0.25, edge_mode="correlation_only"))
     retained = ("asset-a", "asset-b")
     return adapter.restrict_problem(problem, retained, adapter.build_fixing_manifest(problem, retained))
 

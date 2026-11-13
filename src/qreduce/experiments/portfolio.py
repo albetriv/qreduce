@@ -5,6 +5,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from qreduce.experiments.artifacts import (
     ExperimentArtifactError,
@@ -28,7 +29,40 @@ from qreduce.models import (
 from qreduce.mwis import ReductionGraph
 from qreduce.status import PostcheckMode
 
+if TYPE_CHECKING:
+    from qreduce.experiments.portfolio_domain.models import (
+        SyntheticPortfolioGenerationPolicy,
+    )
+
 SYNTHETIC_PORTFOLIO_EXPERIMENT_ID = "synthetic-portfolio-single-pass"
+
+
+def default_graph_policy(
+    edge_mode: str = "near_duplicate",
+    *,
+    correlation_threshold: float = 0.90,
+    near_duplicate_max_relative_return_difference: float = 0.10,
+    near_duplicate_max_relative_variance_difference: float = 0.10,
+) -> PortfolioGraphPolicy:
+    """Create a default graph policy with the specified edge mode.
+
+    Args:
+        edge_mode: Either "correlation_only" or "near_duplicate"
+        correlation_threshold: Absolute correlation threshold for edges
+        near_duplicate_max_relative_return_difference: Max relative return diff (near_duplicate only)
+        near_duplicate_max_relative_variance_difference: Max relative variance diff (near_duplicate only)
+
+    Returns:
+        PortfolioGraphPolicy configured with the specified parameters
+    """
+    return PortfolioGraphPolicy(
+        policy_id=f"synthetic-portfolio-{edge_mode}",
+        policy_version="1",
+        correlation_absolute_threshold=correlation_threshold,
+        edge_mode=edge_mode,  # type: ignore[arg-type]
+        near_duplicate_max_relative_return_difference=near_duplicate_max_relative_return_difference,
+        near_duplicate_max_relative_variance_difference=near_duplicate_max_relative_variance_difference,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +73,7 @@ class SyntheticPortfolioInputs:
     graph_policy: PortfolioGraphPolicy
     adapter: MeanVariancePortfolioAdapter
     config: ResolvedRunConfig
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +123,9 @@ class SyntheticPortfolioAnalysis:
 def build_synthetic_portfolio_inputs(
     run_id: str,
     *,
-    asset_count: int = 5,
+    asset_count: int = 30,
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None,
+    graph_policy: PortfolioGraphPolicy | None = None,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
@@ -98,9 +135,10 @@ def build_synthetic_portfolio_inputs(
 
     Args:
         run_id: Unique identifier for the run.
-        asset_count: Number of assets in the synthetic portfolio. Must be >= 5.
-            Default is 5, which uses the canonical 5-asset dataset for backward
-            compatibility with existing tests and notebooks.
+        asset_count: Number of assets in the synthetic portfolio. Must be >= 6.
+            Default is 30 for meaningful reduction experiments.
+        generation_policy: Optional generation policy. If None, uses default_generation_policy().
+        graph_policy: Optional graph policy. If None, uses default_graph_policy() with near_duplicate.
         mis_solver_id: MIS solver to use.
         classical_solver_id: Classical solver to use.
         mis_num_reads: Optional D-Wave num_reads parameter.
@@ -110,20 +148,37 @@ def build_synthetic_portfolio_inputs(
         SyntheticPortfolioInputs with problem, adapter, and configuration.
 
     Raises:
-        ValueError: If asset_count < 5 or if D-Wave parameters are used with
+        ValueError: If asset_count < 6 or if D-Wave parameters are used with
             a non-D-Wave solver.
     """
-    from qreduce.experiments.portfolio_generator import generate_portfolio_data
+    from qreduce.experiments.portfolio_generator import (
+        default_generation_policy,
+        generate_portfolio_data,
+    )
 
-    portfolio_data = generate_portfolio_data(asset_count)
+    if asset_count < 6:
+        raise ValueError("asset_count must be at least 6 for meaningful experiments.")
+
+    # Use provided policies or defaults
+    if generation_policy is None:
+        generation_policy = default_generation_policy(asset_count)
+    elif generation_policy.asset_count != asset_count:
+        raise ValueError(
+            f"generation_policy.asset_count ({generation_policy.asset_count}) "
+            f"does not match asset_count ({asset_count})."
+        )
+
+    if graph_policy is None:
+        graph_policy = default_graph_policy()
+
+    portfolio_data = generate_portfolio_data(generation_policy)
     problem = portfolio_data.to_problem()
 
     # Scale candidate_domain_max_items proportionally to asset_count
-    # For 5 assets: max_items = 3 (original)
-    # For larger: scale proportionally, minimum 3
+    # For 30 assets: max_items = 18 (60%)
+    # Minimum is 3 to allow meaningful reduction
     candidate_domain_max_items = max(3, (asset_count * 3) // 5)
 
-    graph_policy = PortfolioGraphPolicy("synthetic-portfolio-policy", "1", 0.25)
     config = ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(
@@ -180,6 +235,7 @@ def build_synthetic_portfolio_inputs(
         graph_policy=graph_policy,
         adapter=MeanVariancePortfolioAdapter(graph_policy),
         config=config,
+        generation_policy=generation_policy,
     )
 
 
@@ -187,7 +243,9 @@ def run_synthetic_portfolio_experiment(
     run_id: str,
     *,
     output_root: str | Path = "outputs",
-    asset_count: int = 5,
+    asset_count: int = 30,
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None,
+    graph_policy: PortfolioGraphPolicy | None = None,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
@@ -200,8 +258,10 @@ def run_synthetic_portfolio_experiment(
     Args:
         run_id: Unique identifier for the run.
         output_root: Root directory for experiment artifacts.
-        asset_count: Number of assets in the synthetic portfolio. Must be >= 5.
-            Default is 5 for backward compatibility.
+        asset_count: Number of assets in the synthetic portfolio. Must be >= 6.
+            Default is 30 for meaningful reduction experiments.
+        generation_policy: Optional generation policy. If None, uses default.
+        graph_policy: Optional graph policy. If None, uses near_duplicate default.
         mis_solver_id: MIS solver to use.
         classical_solver_id: Classical solver to use.
         mis_num_reads: Optional D-Wave num_reads parameter.
@@ -215,11 +275,19 @@ def run_synthetic_portfolio_experiment(
     inputs = build_synthetic_portfolio_inputs(
         run_id,
         asset_count=asset_count,
+        generation_policy=generation_policy,
+        graph_policy=graph_policy,
         mis_solver_id=mis_solver_id,
         classical_solver_id=classical_solver_id,
         mis_num_reads=mis_num_reads,
         mis_num_sweeps=mis_num_sweeps,
     )
+    experiment_metadata: dict[str, object] = {
+        "portfolio_graph_policy": inputs.graph_policy,
+    }
+    if inputs.generation_policy is not None:
+        experiment_metadata["generation_policy"] = inputs.generation_policy
+
     return run_experiment(
         SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
         inputs.problem,
@@ -230,7 +298,7 @@ def run_synthetic_portfolio_experiment(
             model_export_path=model_export_path,
         )),
         output_root=output_root,
-        experiment_metadata={"portfolio_graph_policy": inputs.graph_policy},
+        experiment_metadata=experiment_metadata,
     )
 
 
@@ -432,16 +500,74 @@ def _main() -> None:
     parser.add_argument(
         "--asset-count",
         type=int,
-        default=5,
-        help="Number of assets in the synthetic portfolio. Must be >= 5. Default: 5.",
+        default=30,
+        help="Number of assets in the synthetic portfolio. Must be >= 6. Default: 30.",
+    )
+    # Graph edge mode options
+    parser.add_argument(
+        "--graph-edge-mode",
+        choices=("correlation_only", "near_duplicate"),
+        default="near_duplicate",
+        help="Graph edge semantics: correlation_only or near_duplicate. Default: near_duplicate.",
+    )
+    parser.add_argument(
+        "--correlation-threshold",
+        type=float,
+        default=0.90,
+        help="Absolute correlation threshold for edges. Default: 0.90.",
+    )
+    parser.add_argument(
+        "--near-duplicate-max-relative-return-difference",
+        type=float,
+        default=0.10,
+        help="Max relative return difference for near_duplicate edges. Default: 0.10.",
+    )
+    parser.add_argument(
+        "--near-duplicate-max-relative-variance-difference",
+        type=float,
+        default=0.10,
+        help="Max relative variance difference for near_duplicate edges. Default: 0.10.",
+    )
+    # Generation policy options
+    parser.add_argument(
+        "--generation-seed",
+        type=int,
+        default=42,
+        help="Random seed for generation policy. Default: 42.",
+    )
+    parser.add_argument(
+        "--observation-count",
+        type=int,
+        help="Number of historical observations. Default: 10 * asset_count.",
     )
     arguments = parser.parse_args()
     if arguments.model_export_path and not arguments.model_export:
         parser.error("--model-export-path requires --model-export")
+    if arguments.asset_count < 6:
+        parser.error("--asset-count must be at least 6")
+
+    # Build generation policy
+    from qreduce.experiments.portfolio_generator import default_generation_policy
+    generation_policy = default_generation_policy(
+        arguments.asset_count,
+        random_seed=arguments.generation_seed,
+        observation_count=arguments.observation_count,
+    )
+
+    # Build graph policy
+    graph_policy = default_graph_policy(
+        edge_mode=arguments.graph_edge_mode,
+        correlation_threshold=arguments.correlation_threshold,
+        near_duplicate_max_relative_return_difference=arguments.near_duplicate_max_relative_return_difference,
+        near_duplicate_max_relative_variance_difference=arguments.near_duplicate_max_relative_variance_difference,
+    )
+
     run = run_synthetic_portfolio_experiment(
         arguments.run_id,
         output_root=arguments.output_root,
         asset_count=arguments.asset_count,
+        generation_policy=generation_policy,
+        graph_policy=graph_policy,
         mis_solver_id=arguments.mis_solver_id,
         classical_solver_id=arguments.classical_solver_id,
         mis_num_reads=arguments.mis_num_reads,

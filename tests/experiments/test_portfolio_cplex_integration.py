@@ -71,7 +71,7 @@ def test_cplex_solves_portfolio_after_local_greedy_reduction(
     result = run_single_pass(
         portfolio_problem,
         MeanVariancePortfolioAdapter(
-            PortfolioGraphPolicy("integration-policy", "1", 0.25)
+            PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
         ),
         make_live_config(),
     )
@@ -104,7 +104,7 @@ def test_cplex_exports_residual_model(portfolio_problem, tmp_path) -> None:
     ))
     result = run_single_pass(
         portfolio_problem,
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
     if result.classical_result and result.classical_result.classical_solver_status is ClassicalSolverStatus.UNAVAILABLE:

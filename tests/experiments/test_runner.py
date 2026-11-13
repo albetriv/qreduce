@@ -105,7 +105,7 @@ def test_domain_metrics_persist_and_redact(monkeypatch, tmp_path: Path) -> None:
                                            "https://example.com/?token=secret")]
 
     run = run_experiment("metrics", _problem(), EvaluatingAdapter(
-        PortfolioGraphPolicy("test", "1", 0.25)), _config("run"), output_root=tmp_path)
+        PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), _config("run"), output_root=tmp_path)
     assert run.result.domain_evaluation_metrics[0].value is None
     metric = load_experiment_run(run.run_directory).result["domain_evaluation_metrics"][0]
     assert metric["metric_id"] == "quality"
@@ -125,7 +125,7 @@ def test_domain_metric_failure_preserves_postcheck(monkeypatch, mode) -> None:
             metric = DomainEvaluationMetric("quality", 1, "unitless", "higher", "test")
             return [metric, metric]
 
-    adapter = EvaluatingAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    adapter = EvaluatingAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
     if mode == "missing":
         adapter.evaluate_domain_metrics = None
     result = run_single_pass(_problem(), adapter, _config("run"))
@@ -147,7 +147,7 @@ def test_metrics_run_after_failed_postcheck(monkeypatch) -> None:
                 False, True, False, True, None, None, ("constraint",)))
 
     monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", failed_postcheck)
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
     result = run_single_pass(_problem(), adapter, _config("run"))
     assert result.run_result.terminal_reason is TerminalReason.POSTCHECK_FAILED
     assert result.domain_evaluation_metrics == ()
@@ -165,7 +165,9 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     run = run_experiment(
         "portfolio-reference",
         _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy(
+            "test-policy", "1", 0.25, edge_mode="correlation_only"
+        )),
         _config("run-001"),
         output_root=tmp_path,
     )
@@ -214,7 +216,7 @@ def test_manifest_preserves_redacted_policy_provenance(monkeypatch, tmp_path: Pa
         policy_id="policy-1", policy_version="v1", policy_hash="abc",
         policy_source="https://example.com/?token=secret",
     ))
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
     run = run_experiment("policy", _problem(), adapter, config, output_root=tmp_path)
     loaded = load_experiment_run(run.run_directory)
     provenance = loaded.manifest["policy_provenance"]
@@ -236,7 +238,7 @@ def test_runner_refuses_to_overwrite_a_published_experiment(
     arguments = (
         "portfolio-reference",
         _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25, edge_mode="correlation_only")),
         _config("run-001"),
     )
     run_experiment(
@@ -275,7 +277,7 @@ def test_loader_rejects_artifacts_changed_after_publication(
     run = run_experiment(
         "portfolio-reference",
         _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test-policy", "1", 0.25, edge_mode="correlation_only")),
         _config("run-001"),
         output_root=tmp_path,
     )
@@ -292,7 +294,7 @@ def test_direct_pipeline_rejects_missing_export_path() -> None:
     config = _config("missing-path")
     config = replace(config, classical_solve=replace(config.classical_solve, model_export_enabled=True))
     result = run_single_pass(
-        _problem(), MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)), config
+        _problem(), MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), config
     )
     assert result.run_result.terminal_reason.value == "invalid_configuration"
     assert "file path" in result.run_result.diagnostic_message
@@ -306,7 +308,7 @@ def test_direct_pipeline_exports_to_requested_path_and_refuses_overwrite(tmp_pat
         config.classical_solve, classical_solver_id="scip", model_export_enabled=True,
         model_export_path=str(target),
     ))
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
     result = run_single_pass(_problem(), adapter, config)
     assert target.is_file()
     assert result.classical_result.model_export_path == str(target)
@@ -325,7 +327,7 @@ def test_missing_backend_does_not_publish_model(monkeypatch, tmp_path: Path) -> 
     config = replace(config, classical_solve=replace(config.classical_solve, model_export_enabled=True))
     run = run_experiment(
         "portfolio-reference", _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, output_root=tmp_path,
     )
     assert run.result.run_result.run_status is RunStatus.FAILED
@@ -344,7 +346,7 @@ def test_model_export_is_published_and_auditable(tmp_path: Path, external: bool)
     ))
     run = run_experiment(
         "portfolio-reference", _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, output_root=tmp_path,
     )
     model = custom or run.run_directory / "residual_model.lp"
@@ -370,7 +372,7 @@ def test_external_export_refuses_existing_file(tmp_path: Path) -> None:
     with pytest.raises(FileExistsError):
         run_experiment(
             "portfolio-reference", _problem(),
-            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
             config, output_root=tmp_path,
         )
     assert target.read_text(encoding="utf-8") == "keep"
@@ -391,7 +393,7 @@ def test_export_cleanup_when_artifact_publication_fails(monkeypatch, tmp_path: P
     with pytest.raises(OSError, match="publication failed"):
         run_experiment(
             "portfolio-reference", _problem(),
-            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+            MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
             config, output_root=tmp_path,
         )
     assert not (tmp_path / "external.lp").exists()
@@ -455,7 +457,7 @@ def test_terminal_outcomes_round_trip_through_artifact_serialization(
     monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", make_result)
     run = run_experiment(
         f"roundtrip-{scenario}", _problem(),
-        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25)),
+        MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         _config(f"run-{scenario}"), output_root=tmp_path,
     )
 
@@ -482,7 +484,7 @@ def test_multi_round_experiment_persists_round_artifacts(tmp_path):
     from qreduce.solving.residual import ClassicalSolverRegistry
 
     problem = _problem()
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5, edge_mode="correlation_only"))
     config = replace(
         _config("multi-round-test"),
         reduction=ReductionPolicy(
@@ -565,7 +567,7 @@ def test_multi_round_with_recovery_round_trip(tmp_path):
     from qreduce.solving.residual import ClassicalSolverRegistry
 
     problem = _problem()
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5, edge_mode="correlation_only"))
     config = replace(
         _config("recovery-roundtrip"),
         reduction=ReductionPolicy(
@@ -665,7 +667,7 @@ def test_classical_only_baseline_persists_correct_artifacts(tmp_path):
     from qreduce.solving.residual import ClassicalSolverRegistry
 
     problem = _problem()
-    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5))
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.5, edge_mode="correlation_only"))
     config = replace(
         _config("classical-only-test"),
         reduction=ReductionPolicy(

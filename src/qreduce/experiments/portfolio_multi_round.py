@@ -3,17 +3,25 @@
 import argparse
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from qreduce.experiments.artifacts import ExperimentArtifactError, load_experiment_run
 from qreduce.experiments.portfolio import (
+    PortfolioGraphPolicy,
     _correlation_matrix,
     _numeric_matrix,
     _require_mapping,
     _string_tuple,
     build_synthetic_portfolio_inputs,
+    default_graph_policy,
 )
 from qreduce.experiments.runner import ExperimentRun, run_experiment
 from qreduce.mwis import ReductionGraph
+
+if TYPE_CHECKING:
+    from qreduce.experiments.portfolio_domain.models import (
+        SyntheticPortfolioGenerationPolicy,
+    )
 
 
 def load_multi_round_correlation_data(run_directory: str | Path):
@@ -47,20 +55,40 @@ def load_multi_round_correlation_data(run_directory: str | Path):
 
 
 def run_portfolio_multi_round_experiment(
-    run_id: str, *, output_root: str | Path = "outputs", asset_count: int = 30
+    run_id: str,
+    *,
+    output_root: str | Path = "outputs",
+    asset_count: int = 30,
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None,
+    graph_policy: PortfolioGraphPolicy | None = None,
 ) -> ExperimentRun:
-    """Publish a reproducible larger portfolio run with at most three rounds."""
+    """Publish a reproducible larger portfolio run with at most three rounds.
+
+    Args:
+        run_id: Unique identifier for the run.
+        output_root: Root directory for experiment artifacts.
+        asset_count: Number of assets. Must be >= 6.
+        generation_policy: Optional generation policy. If None, uses default.
+        graph_policy: Optional graph policy. If None, uses near_duplicate default.
+
+    Returns:
+        ExperimentRun with the run directory and result.
+    """
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
         raise ValueError("asset_count must be an integer greater than or equal to 6.")
 
-    from qreduce.experiments.portfolio_generator import generate_portfolio_data
+    # Use the shared inputs builder
+    if graph_policy is None:
+        graph_policy = default_graph_policy()
 
-    # Use the shared generator for the portfolio data
-    portfolio_data = generate_portfolio_data(asset_count)
-    problem = portfolio_data.to_problem()
+    inputs = build_synthetic_portfolio_inputs(
+        run_id,
+        asset_count=asset_count,
+        generation_policy=generation_policy,
+        graph_policy=graph_policy,
+    )
 
-    # Get base config from single-pass inputs (with 5 assets, we only need the config)
-    inputs = build_synthetic_portfolio_inputs(run_id)
+    # Override config for multi-round
     config = replace(
         inputs.config,
         reduction=replace(
@@ -70,9 +98,20 @@ def run_portfolio_multi_round_experiment(
             target_binary_variables=0,
         ),
     )
+
+    experiment_metadata: dict[str, object] = {
+        "portfolio_graph_policy": inputs.graph_policy,
+    }
+    if inputs.generation_policy is not None:
+        experiment_metadata["generation_policy"] = inputs.generation_policy
+
     return run_experiment(
-        "synthetic-portfolio-multi-round", problem, inputs.adapter, config,
+        "synthetic-portfolio-multi-round",
+        inputs.problem,
+        inputs.adapter,
+        config,
         output_root=output_root,
+        experiment_metadata=experiment_metadata,
     )
 
 
@@ -81,9 +120,46 @@ def _main() -> None:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--output-root", default="outputs")
     parser.add_argument("--asset-count", type=int, default=30)
+    # Graph edge mode options
+    parser.add_argument(
+        "--graph-edge-mode",
+        choices=("correlation_only", "near_duplicate"),
+        default="near_duplicate",
+        help="Graph edge semantics. Default: near_duplicate.",
+    )
+    parser.add_argument("--correlation-threshold", type=float, default=0.90)
+    parser.add_argument("--near-duplicate-max-relative-return-difference", type=float, default=0.10)
+    parser.add_argument("--near-duplicate-max-relative-variance-difference", type=float, default=0.10)
+    # Generation policy options
+    parser.add_argument("--generation-seed", type=int, default=42)
+    parser.add_argument("--observation-count", type=int)
     args = parser.parse_args()
+
+    if args.asset_count < 6:
+        parser.error("--asset-count must be at least 6")
+
+    # Build generation policy
+    from qreduce.experiments.portfolio_generator import default_generation_policy
+    generation_policy = default_generation_policy(
+        args.asset_count,
+        random_seed=args.generation_seed,
+        observation_count=args.observation_count,
+    )
+
+    # Build graph policy
+    graph_policy = default_graph_policy(
+        edge_mode=args.graph_edge_mode,
+        correlation_threshold=args.correlation_threshold,
+        near_duplicate_max_relative_return_difference=args.near_duplicate_max_relative_return_difference,
+        near_duplicate_max_relative_variance_difference=args.near_duplicate_max_relative_variance_difference,
+    )
+
     run = run_portfolio_multi_round_experiment(
-        args.run_id, output_root=args.output_root, asset_count=args.asset_count
+        args.run_id,
+        output_root=args.output_root,
+        asset_count=args.asset_count,
+        generation_policy=generation_policy,
+        graph_policy=graph_policy,
     )
     print(run.run_directory)
 
