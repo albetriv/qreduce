@@ -188,7 +188,25 @@ class MeanVariancePortfolioAdapter:
         reduced_problem: PortfolioResidualProblem,
         fixing_manifest: FixingManifest,
     ) -> object:
-        """Build the classical optimization model from the reduced portfolio problem."""
+        """Build the classical optimization model from the reduced portfolio problem.
+
+        .. deprecated:: 0.6.0
+            This method is no longer called by the pipeline. The pipeline now
+            passes the result of ``restrict_problem()`` directly to the classical
+            solver, which calls ``build_classical_model()`` internally via the
+            ``ClassicalModelProvider`` protocol.
+
+            This method is retained for backward compatibility with code that
+            may call it directly, but will be removed in a future version.
+        """
+        import warnings
+
+        warnings.warn(
+            "build_residual_model is deprecated. The pipeline now passes "
+            "the restricted problem (ClassicalModelProvider) directly to the solver.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return reduced_problem.build_classical_model()
 
     def validate_final_solution(
@@ -199,8 +217,9 @@ class MeanVariancePortfolioAdapter:
         tolerances: ClassicalSolveOptions,
         solver_objective_value: float | None = None,
     ) -> FinalSolutionValidationResult:
-        if not isinstance(solution, dict):
-            raise TypeError("Portfolio post-check expects a variable-value dictionary.")
+        from collections.abc import Mapping
+        if not isinstance(solution, Mapping):
+            raise TypeError("Portfolio post-check expects a variable-value mapping.")
         return validate_portfolio_solution(
             problem=original_problem,
             variable_values=solution,

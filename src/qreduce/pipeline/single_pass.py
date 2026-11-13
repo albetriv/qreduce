@@ -1,10 +1,13 @@
 """Domain-neutral single-pass MWIS reduction and residual solve orchestration."""
 
+from __future__ import annotations
+
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from qreduce.artifacts.metadata import redact_metadata, sha256_hex, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
@@ -50,6 +53,9 @@ from qreduce.status import (
     RunStatus,
     TerminalReason,
 )
+
+if TYPE_CHECKING:
+    from qreduce.pipeline.unified import PipelineRunResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,8 +160,25 @@ def run_single_pass(
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     _model_export_write_path: str | None = None,
-) -> SinglePassRunResult:
-    """Execute one run and record end-to-end time for every terminal outcome."""
+) -> PipelineRunResult:
+    """Execute one run and record end-to-end time for every terminal outcome.
+
+    .. deprecated:: 0.6.0
+        Use :func:`qreduce.pipeline.run_pipeline` instead with
+        ``max_reduction_rounds=1`` in the configuration.
+
+    Note:
+        As of 0.7.0, this function returns PipelineRunResult instead of the
+        legacy SinglePassRunResult. Code using this deprecated function should
+        migrate to run_pipeline().
+    """
+    import warnings
+
+    warnings.warn(
+        "run_single_pass is deprecated. Use run_pipeline with max_reduction_rounds=1 instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     started_at = perf_counter()
     input_hash = None
     describe_input = getattr(adapter, "describe_input", None)
@@ -195,9 +218,65 @@ def run_single_pass(
     primal = None
     if result.run_result.adoption_status is AdoptionStatus.ADOPTED and result.postcheck_result:
         primal = result.postcheck_result.objective_recomputed
-    return replace(result, metrics=metrics, run_result=replace(
+
+    # Update internal result with computed values
+    internal_result = replace(result, metrics=metrics, run_result=replace(
         result.run_result, policy_hash=config.policy_provenance.policy_hash, input_hash=input_hash,
     ), original_primal_bound=primal, residual_problem_optimality_claim=residual_claim)
+
+    # Convert to PipelineRunResult
+    return _convert_single_pass_to_pipeline(internal_result)
+
+
+def _convert_single_pass_to_pipeline(result: SinglePassRunResult) -> PipelineRunResult:
+    """Convert a SinglePassRunResult to PipelineRunResult.
+
+    This is used by the deprecated run_single_pass function to return the
+    unified PipelineRunResult type.
+    """
+    from qreduce.pipeline.unified import PipelineRunResult, ReductionRoundResult
+
+    # Create the single round result
+    runtime = result.metrics.get("end_to_end_runtime_seconds")
+    round_reduction = result.metrics.get("round_reduction_ratio")
+    round_result = ReductionRoundResult(
+        round_index=0,
+        run_status=result.run_result.run_status,
+        stage=result.run_result.stage,
+        terminal_reason=result.run_result.terminal_reason,
+        selected_mis_samples=result.selected_mis_samples,
+        candidate_records=result.candidate_records,
+        candidate_domain_item_records=result.candidate_domain_item_records,
+        mis_compilation_result=result.mis_compilation_result,
+        mis_execution_result=result.mis_execution_result,
+        fixing_manifest=result.fixing_manifest,
+        retained_item_ids=result.retained_item_ids,
+        classical_result=result.classical_result,
+        postcheck_result=result.postcheck_result,
+        runtime_seconds=runtime if isinstance(runtime, int | float) else None,
+        round_reduction_ratio=round_reduction if isinstance(round_reduction, int | float) else None,
+    )
+
+    return PipelineRunResult(
+        run_result=result.run_result,
+        resolved_config=result.resolved_config,
+        round_results=(round_result,),
+        recovery_attempts=(),
+        cumulative_fixing_manifest=result.fixing_manifest,
+        final_retained_item_ids=result.retained_item_ids,
+        original_variable_counts=result.original_variable_counts,
+        residual_variable_counts=result.residual_variable_counts,
+        classical_result=result.classical_result,
+        postcheck_result=result.postcheck_result,
+        domain_evaluation_metrics=result.domain_evaluation_metrics,
+        objective_sense=result.objective_sense,
+        original_primal_bound=result.original_primal_bound,
+        original_dual_bound=result.original_dual_bound,
+        original_bound_provenance=result.original_bound_provenance,
+        original_problem_optimality_claim=result.original_problem_optimality_claim,
+        residual_problem_optimality_claim=result.residual_problem_optimality_claim,
+        metrics=result.metrics,
+    )
 
 
 def _run_single_pass_with_counts(

@@ -35,5 +35,5 @@ def test_default_portfolio_path_solves_with_scip(tmp_path) -> None:
     assert run.result.classical_result.effective_solver_id == "scip"
     assert run.result.classical_result.classical_solver_status is ClassicalSolverStatus.OPTIMAL
     assert run.result.original_variable_counts.binary_free == 5
-    assert run.result.residual_variable_counts.binary_free == len(run.result.retained_item_ids)
-    assert run.result.residual_variable_counts.continuous_free == len(run.result.retained_item_ids)
+    assert run.result.residual_variable_counts.binary_free == len(run.result.final_retained_item_ids)
+    assert run.result.residual_variable_counts.continuous_free == len(run.result.final_retained_item_ids)

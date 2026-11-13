@@ -1,23 +1,27 @@
-"""Single-pass and multi-round orchestration for QReduce."""
+"""Single-pass, multi-round, and unified orchestration for QReduce."""
 
 from qreduce.pipeline.multi_round import (
-    MultiRoundRunResult,
     RecoveryAttempt,
     run_multi_round,
 )
 from qreduce.pipeline.single_pass import (
     CandidateDomainItemRecord,
     CandidateRecord,
-    SinglePassRunResult,
     run_single_pass,
+)
+from qreduce.pipeline.unified import (
+    PipelineRunResult,
+    ReductionRoundResult,
+    run_pipeline,
 )
 
 __all__ = [
     "CandidateDomainItemRecord",
     "CandidateRecord",
-    "MultiRoundRunResult",
+    "PipelineRunResult",
     "RecoveryAttempt",
-    "SinglePassRunResult",
+    "ReductionRoundResult",
     "run_multi_round",
+    "run_pipeline",
     "run_single_pass",
 ]

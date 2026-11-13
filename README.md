@@ -188,7 +188,7 @@ directory del run. Con `--model-export-path /percorso/modello.lp` si sceglie
 invece un file `.lp` o `.mps`; la directory esterna deve gia` esistere e un
 file esistente non viene sovrascritto. Il manifest registra formato e hash.
 L'export predefinito segue la pubblicazione atomica del run; un file esterno
-non fa parte della stessa transazione. Nell'uso diretto di `run_single_pass`,
+non fa parte della stessa transazione. Nell'uso diretto di `run_pipeline`,
 chi abilita l'export deve fornire `model_export_path` nella configurazione.
 Il loader verifica l'hash del modello interno al run; l'hash del file esterno
 e` registrato nel manifest, ma non viene verificato dal loader.
@@ -224,7 +224,7 @@ si arresta al primo successo o successo parziale.
 
 Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
 
-I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare `run_single_pass`.
+I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare direttamente la pipeline.
 
 ## Documentazione
 
@@ -232,7 +232,7 @@ I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal 
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria: grafo
 MWIS ed equivalenza QUBO/Ising. La logica degli esempi risiede in
-`src/qreduce/notebook_examples.py`; questi notebook non esportano artifact e non
+`src/qreduce/notebooks/examples.py`; questi notebook non esportano artifact e non
 sono benchmark o raccomandazioni di policy. I notebook in `notebooks/experiments/`
 sono invece dedicati all'analisi degli artifact gia` prodotti.
 I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare

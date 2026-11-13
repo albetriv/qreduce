@@ -14,7 +14,9 @@ from qreduce.experiments.portfolio_multi_round import (
 def test_multi_round_portfolio_publishes_larger_instance(tmp_path):
     run = run_portfolio_multi_round_experiment("larger", output_root=tmp_path)
     artifacts = load_experiment_run(run.run_directory)
-    assert artifacts.is_multi_round
+    # With unified pipeline, has_reduction is True for any run with rounds
+    assert artifacts.has_reduction
+    assert artifacts.reduction_round_count >= 1  # May stop at first successful round
     assert len(artifacts.problem["asset_ids"]) == 30
     assert artifacts.config["reduction"]["max_reduction_rounds"] == 3
     assert len(artifacts.round_results) == artifacts.manifest["round_count"]

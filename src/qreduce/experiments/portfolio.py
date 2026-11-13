@@ -219,10 +219,20 @@ def load_synthetic_portfolio_analysis(
         raise ExperimentArtifactError(
             "Artifact directory does not contain the synthetic portfolio experiment."
         )
+
+    # Schema 1.1: canonical MWIS data is inside round_results
+    # Schema 1.0: canonical_mwis_problem.json is a separate file
     graph_data = artifacts.canonical_mwis_problem
+    if graph_data is None and artifacts.round_results:
+        # Try to extract from round_results (schema 1.1)
+        round_0 = artifacts.round_results[0]
+        compilation = round_0.get("mis_compilation_result") or {}
+        job = compilation.get("compiled_job") or {}
+        graph_data = job.get("compiled_problem")
+
     if graph_data is None:
         raise ExperimentArtifactError(
-            "Synthetic portfolio analysis requires canonical_mwis_problem.json."
+            "Synthetic portfolio analysis requires canonical MWIS problem data."
         )
     graph = _rebuild_graph(graph_data)
     problem = _require_mapping(artifacts.problem, "problem.json")
@@ -264,15 +274,33 @@ def _rebuild_graph(canonical_problem: Mapping[str, object]) -> ReductionGraph:
     if any(len(edge) != 2 for edge in edges):
         raise ExperimentArtifactError("Each graph edge must contain exactly two node IDs.")
     edge_reasons: dict[tuple[str, str], str] = {}
-    for record in _require_sequence(graph_data.get("edge_reasons"), "graph.edge_reasons"):
-        record_data = _require_mapping(record, "graph.edge_reasons entry")
-        edge_values = tuple(_string_tuple(record_data.get("edge"), "graph.edge_reasons.edge"))
-        if len(edge_values) != 2:
-            raise ExperimentArtifactError("Each graph edge reason must reference exactly two node IDs.")
-        reason = record_data.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
-            raise ExperimentArtifactError("Each graph edge reason must be a non-blank string.")
-        edge_reasons[(edge_values[0], edge_values[1])] = reason
+    edge_reasons_data = graph_data.get("edge_reasons")
+    if isinstance(edge_reasons_data, dict):
+        # edge_reasons as dict (newer format from to_primitive with tuple keys as strings)
+        for edge_key, reason in edge_reasons_data.items():
+            # Parse edge key like "('asset-a', 'asset-b')" or just use edges
+            if not isinstance(reason, str) or not reason.strip():
+                raise ExperimentArtifactError("Each graph edge reason must be a non-blank string.")
+        # Build edge_reasons from edges list assuming same order
+        for edge in edges:
+            # Try to find matching reason
+            edge_key = str(edge)  # tuple string repr
+            if edge_key in edge_reasons_data:
+                edge_reasons[edge] = edge_reasons_data[edge_key]
+            else:
+                # Fallback: use edge index from edges list
+                edge_reasons[edge] = "persisted edge"
+    else:
+        # edge_reasons as array (original format from to_dict)
+        for record in _require_sequence(edge_reasons_data, "graph.edge_reasons"):
+            record_data = _require_mapping(record, "graph.edge_reasons entry")
+            edge_values = tuple(_string_tuple(record_data.get("edge"), "graph.edge_reasons.edge"))
+            if len(edge_values) != 2:
+                raise ExperimentArtifactError("Each graph edge reason must reference exactly two node IDs.")
+            reason = record_data.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ExperimentArtifactError("Each graph edge reason must be a non-blank string.")
+            edge_reasons[(edge_values[0], edge_values[1])] = reason
     graph_policy_id = graph_data.get("graph_policy_id")
     graph_policy_version = graph_data.get("graph_policy_version")
     if not isinstance(graph_policy_id, str) or not isinstance(graph_policy_version, str):
@@ -288,6 +316,10 @@ def _rebuild_graph(canonical_problem: Mapping[str, object]) -> ReductionGraph:
 
 
 def _retained_item_ids(result: Mapping[str, object]) -> tuple[str, ...] | None:
+    # Schema 1.1: final_retained_item_ids or cumulative_fixing_manifest at top level
+    if "final_retained_item_ids" in result:
+        return _string_tuple(result.get("final_retained_item_ids"), "run_result.final_retained_item_ids")
+    # Schema 1.0: fixing_manifest and retained_item_ids at top level
     if result.get("fixing_manifest") is None:
         return None
     return _string_tuple(result.get("retained_item_ids"), "run_result.retained_item_ids")

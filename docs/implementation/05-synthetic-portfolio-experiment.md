@@ -1,5 +1,12 @@
 # 05 - Synthetic mean-variance portfolio experiment
 
+> **Nota**: Questo documento descrive il design originale del percorso single-pass
+> per l'esperimento portfolio (milestone M05). La pipeline è stata successivamente
+> unificata: il nuovo entry point è `run_pipeline` e il tipo di risultato è
+> `PipelineRunResult`. Le funzioni `run_single_pass` e `run_multi_round` sono
+> deprecate ma rimangono disponibili per compatibilità. Vedere la sezione M09 in
+> `09-multi-round-design.md` per i dettagli.
+
 ## Scopo
 
 Definire un esperimento interno di ottimizzazione media-varianza di portafoglio che genera un MIQP residuo solver-agnostico. Il portfolio resta confinato negli esperimenti; i solver built-in `local_greedy`, `dwave_simulated_annealing`, `cplex` e `scip` appartengono invece alla libreria e non importano il dominio portfolio.

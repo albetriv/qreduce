@@ -1,5 +1,10 @@
 # 02 - Core domain models and configuration
 
+> **Nota**: Questo documento descrive i modelli originali della pipeline.
+> Con l'unificazione della pipeline (M09), il tipo di risultato principale è
+> ora `PipelineRunResult` e i tipi `SinglePassRunResult` e `MultiRoundRunResult`
+> sono deprecati. Vedere `09-multi-round-design.md` per i dettagli.
+
 ## Scopo
 
 Definire i contratti dati minimi per configurazione risolta, policy, capability,

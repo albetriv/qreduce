@@ -2,6 +2,11 @@
 
 Stato: **implementata**. L'orchestratore multi-round è eseguibile e coperto da test.
 
+> **Nota**: Con la pipeline unificata (M09), `max_reduction_rounds` può essere 0, 1, o >1.
+> La sezione seguente descrive l'implementazione legacy `run_multi_round`, ora deprecata
+> a favore di `run_pipeline`. Vedere la sezione M09 alla fine del documento per l'API
+> attuale.
+
 ## Requisiti delle specifiche
 
 Il runner applica le sezioni 9 delle specifiche: ogni round parte dal problema
@@ -14,23 +19,28 @@ e tutti i fixing cumulativi.
 
 ### Configurazione (`src/qreduce/models.py`)
 
-`ReductionPolicy` include i parametri di recovery:
+`ReductionPolicy` include i parametri di controllo:
 
 ```python
-max_reduction_rounds: int                      # >= 1, default 1
+max_reduction_rounds: int                      # >= 0, default 1
 recovery_policy_on_domain_too_small: str       # "fail" | "retry_with_larger_domain"
 recovery_policy_on_infeasible: str             # "fail" | "retry_with_larger_domain"
 max_recovery_attempts: int                     # >= 0
 ```
 
+Semantica di `max_reduction_rounds`:
+- `0`: baseline classico, nessuna riduzione MWIS, solve diretto del problema originale
+- `1`: un singolo round di riduzione
+- `>1`: riduzione iterativa con recovery opzionale
+
 La validazione in `config.py` verifica:
-- `max_reduction_rounds >= 1` (rimosso il vincolo single-pass)
-- Policy di recovery valide
-- `max_recovery_attempts > 0` richiede almeno una policy diversa da `fail`
+- `max_reduction_rounds >= 0`
+- Se `max_reduction_rounds == 0`, le policy di recovery devono essere `"fail"`
+- `max_recovery_attempts > 0` richiede almeno una policy diversa da `"fail"` e `max_reduction_rounds >= 1`
 
-### Orchestratore (`src/qreduce/pipeline/multi_round.py`)
+### Orchestratore (implementazione interna)
 
-`run_multi_round` implementa l'iterazione:
+L'implementazione interna `_run_multi_round_impl` gestisce l'iterazione:
 
 1. **Loop sui round**: chiama `_run_single_pass_with_counts` con `_round_index`
    corretto, passando il problema residuo del round precedente.
@@ -133,20 +143,34 @@ Test di configurazione in `tests/test_config.py` coprono i nuovi parametri.
 
 Test del runner in `tests/experiments/test_runner.py`:
 - **`test_multi_round_experiment_persists_round_artifacts`**: verifica persistenza
-  artifact multi-round, manifest con `run_mode`, `round_count`, `recovery_attempt_count`
+  artifact multi-round, manifest con `round_count`, `recovery_attempt_count`
 
-## Integrazione Runner M07
+## Integrazione Runner
 
-Il runner `run_experiment` supporta `mode="multi_round"`:
-- Esegue `run_multi_round` invece di `run_single_pass`
-- Persiste `round_XX_result.json` per ogni round
+Il runner `run_experiment` usa internamente `run_pipeline`:
+- Il comportamento è determinato da `config.reduction.max_reduction_rounds`
+- Persiste `round_XX_result.json` per ogni round di riduzione
 - Persiste `recovery_attempts.json` se presenti
-- Il manifest include `run_mode`, `round_count`, `recovery_attempt_count`
+- Il manifest (schema 1.1) include:
+  - `round_count`: numero di round di riduzione eseguiti
+  - `is_classical_only`: true se `max_reduction_rounds=0`
+  - `has_reduction`: true se almeno un round di riduzione
+  - `recovery_attempt_count`: numero di tentativi di recovery
+  - `fixing_manifest`: manifest cumulativo serializzato
+
+> **Nota**: Il parametro `mode` è stato rimosso. Il comportamento è ora
+> determinato esclusivamente da `max_reduction_rounds` nella configurazione.
 
 ## Esportazione
 
-`run_multi_round`, `MultiRoundRunResult` e `RecoveryAttempt` sono esportati da
-`qreduce.pipeline`.
+`run_pipeline`, `PipelineRunResult` e `ReductionRoundResult` sono i tipi
+principali esportati da `qreduce.pipeline`.
+
+Le funzioni e tipi legacy rimangono disponibili ma sono deprecati:
+- `run_multi_round` (deprecato, usa `run_pipeline`)
+- `run_single_pass` (deprecato, usa `run_pipeline` con `max_reduction_rounds=1`)
+- `MultiRoundRunResult` (usa `PipelineRunResult`)
+- `SinglePassRunResult` (usa `PipelineRunResult` o `ReductionRoundResult`)
 
 ## Invarianti garantite
 
@@ -157,3 +181,154 @@ Il runner `run_experiment` supporta `mode="multi_round"`:
 - **Recovery operativa**: l'espansione del dominio modifica effettivamente P_t
 - **Post-check cumulativo**: validazione finale contro problema originale + tutti i fixing
 - **Failure path espliciti**: errori adapter in recovery producono `ADAPTER_FAILURE`
+
+---
+
+## M09: pipeline unificata e baseline classical-only
+
+Stato: **implementata**. La pipeline unificata `run_pipeline` sostituisce le funzioni
+legacy `run_single_pass` e `run_multi_round`.
+
+### Motivazione
+
+La separazione tra single-pass e multi-round creava ridondanza nella configurazione
+(parametro `mode`) e nel runner. La pipeline unificata usa un singolo entry point
+che determina il comportamento in base a `max_reduction_rounds`:
+
+- `0`: Baseline classical-only (nessuna riduzione MWIS)
+- `1`: Singolo round di riduzione
+- `>1`: Riduzione iterativa con recovery opzionale
+
+### Implementazione (`src/qreduce/pipeline/unified.py`)
+
+`run_pipeline` è il nuovo entry point che:
+1. Valida la configurazione
+2. Esegue `_run_classical_only()` se `max_reduction_rounds=0`
+3. Altrimenti esegue `_run_reduction_pipeline()` (che delega a `run_multi_round`)
+
+#### Baseline classical-only (`max_reduction_rounds=0`)
+
+Quando `max_reduction_rounds=0`:
+- **Non viene invocato alcun componente MWIS** (grafo, solver, canonicalizzazione)
+- Il problema originale viene risolto classicamente senza riduzione
+- Il manifest ha `origin="no_reduction"` con tutti gli item retained
+- `original_variable_counts == residual_variable_counts`
+- `round_results=()` e `is_classical_only=True`
+
+Questo percorso serve come **baseline classica** per confrontare i risultati con
+la riduzione MWIS attivata.
+
+### Tipo di risultato unificato (`PipelineRunResult`)
+
+```python
+@dataclass(frozen=True, slots=True)
+class PipelineRunResult:
+    run_result: RunResult
+    resolved_config: ResolvedRunConfig
+    round_results: tuple[ReductionRoundResult, ...]  # vuoto per classical-only
+    recovery_attempts: tuple[RecoveryAttempt, ...]
+    cumulative_fixing_manifest: FixingManifest | None
+    final_retained_item_ids: tuple[str, ...]
+    original_variable_counts: LogicalVariableCounts | None
+    residual_variable_counts: LogicalVariableCounts | None
+    classical_result: ClassicalSolveResult | None
+    postcheck_result: FinalSolutionValidationResult | None
+    domain_evaluation_metrics: tuple[DomainEvaluationMetric, ...] | None
+    metrics: Mapping[str, object]
+
+    @property
+    def is_classical_only(self) -> bool:
+        return len(self.round_results) == 0
+
+    @property
+    def has_reduction(self) -> bool:
+        return len(self.round_results) > 0
+
+    @property
+    def reduction_round_count(self) -> int:
+        return len(self.round_results)
+```
+
+### Deprecazione API legacy
+
+Le funzioni `run_single_pass` e `run_multi_round` sono deprecate e emettono
+`DeprecationWarning`:
+
+```python
+# DEPRECATO - usare run_pipeline
+from qreduce.pipeline import run_single_pass  # emette DeprecationWarning
+result = run_single_pass(problem, adapter, config)
+
+# NUOVO - pipeline unificata
+from qreduce.pipeline import run_pipeline
+result = run_pipeline(problem, adapter, config)  # max_reduction_rounds determina il comportamento
+```
+
+I tipi `SinglePassRunResult` e `MultiRoundRunResult` rimangono disponibili per
+compatibilità con codice esistente e per la rappresentazione interna dei round,
+ma `PipelineRunResult` è il tipo di risultato raccomandato.
+
+### Runner e artifact
+
+Il runner `run_experiment` usa internamente `run_pipeline`. Gli artifact prodotti
+includono:
+
+- Schema `1.1` con campi aggiuntivi:
+  - `is_classical_only: bool`
+  - `has_reduction: bool`
+  - `fixing_manifest: {...}` (manifest cumulativo serializzato)
+
+- Per baseline classical-only:
+  - `round_count: 0`
+  - Nessun file `round_XX_result.json`
+  - `fixing_manifest.origin: "no_reduction"`
+
+Il loader `load_experiment_run` espone la property `fixing_manifest` per accedere
+al manifest dal file JSON.
+
+### Validazione configurazione
+
+La validazione in `config.py` ora permette:
+- `max_reduction_rounds >= 0` (era `>= 1`)
+- Se `max_reduction_rounds == 0`, le policy di recovery devono essere `fail`
+
+### Test
+
+11 test in `tests/pipeline/test_classical_only_baseline.py`:
+- Baseline completa senza MIS
+- MIS solver non invocato
+- Grafo non costruito
+- Manifest con `origin="no_reduction"`
+- Tutti gli item retained
+- Variable counts corrispondono
+- `round_results=()` vuoto
+- Solver riceve problema completo
+- Test E2E con SCIP reale
+- Gestione fallimento solver
+- Gestione problema infeasible
+
+1 test in `tests/experiments/test_runner.py`:
+- `test_classical_only_baseline_persists_correct_artifacts`: round-trip artifact
+
+### Migrazione
+
+Per migrare dal codice legacy:
+
+```python
+# Prima (DEPRECATO):
+from qreduce.pipeline import run_single_pass, run_multi_round, SinglePassRunResult
+
+if mode == "single_pass":
+    result = run_single_pass(problem, adapter, config)
+else:
+    result = run_multi_round(problem, adapter, config)
+
+# Dopo:
+from qreduce.pipeline import run_pipeline, PipelineRunResult
+
+# Il comportamento è determinato da config.reduction.max_reduction_rounds:
+# - 0: baseline classical-only
+# - 1: equivalente a single_pass
+# - >1: equivalente a multi_round
+result = run_pipeline(problem, adapter, config)
+```

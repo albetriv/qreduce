@@ -96,14 +96,59 @@ def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None
         config.mis_execution.provider_parameters["temperature"] = 1.0
 
 
+def test_zero_reduction_rounds_baseline_is_valid() -> None:
+    """max_reduction_rounds=0 is valid when recovery is disabled."""
+    config = make_config(
+        reduction=replace(
+            make_config().reduction,
+            max_reduction_rounds=0,
+            max_recovery_attempts=0,
+            recovery_policy_on_domain_too_small="fail",
+            recovery_policy_on_infeasible="fail",
+        )
+    )
+    result = validate_resolved_run_config(config)
+    assert result.is_valid is True
+
+
 @pytest.mark.parametrize(
     ("config", "expected_code"),
     [
         (
             make_config(
-                reduction=replace(make_config().reduction, max_reduction_rounds=0)
+                reduction=replace(make_config().reduction, max_reduction_rounds=-1)
             ),
             "integer_below_minimum",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction,
+                    max_reduction_rounds=0,
+                    max_recovery_attempts=1,
+                )
+            ),
+            "recovery_requires_reduction",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction,
+                    max_reduction_rounds=0,
+                    recovery_policy_on_domain_too_small="retry_with_larger_domain",
+                )
+            ),
+            "recovery_requires_reduction",
+        ),
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction,
+                    max_reduction_rounds=0,
+                    recovery_policy_on_infeasible="retry_with_larger_domain",
+                )
+            ),
+            "recovery_requires_reduction",
         ),
         (
             make_config(

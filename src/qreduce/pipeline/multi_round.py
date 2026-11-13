@@ -1,15 +1,15 @@
 """Multi-round iterative reduction orchestration."""
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
 from time import perf_counter
-from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from qreduce.artifacts.metadata import redact_metadata, sha256_hex, to_primitive
 from qreduce.config import ValidationResult, validate_resolved_run_config
 from qreduce.domains import (
     FixingManifest,
-    LogicalVariableCounts,
     ReducibleProblemAdapter,
 )
 from qreduce.models import ResolvedRunConfig, RoundResult, RunResult
@@ -31,6 +31,9 @@ from qreduce.status import (
     TerminalReason,
 )
 
+if TYPE_CHECKING:
+    from qreduce.pipeline.unified import PipelineRunResult
+
 
 @dataclass(frozen=True, slots=True)
 class RecoveryAttempt:
@@ -43,38 +46,6 @@ class RecoveryAttempt:
     outcome: str  # "success", "exhausted", "failed"
 
 
-@dataclass(frozen=True, slots=True)
-class MultiRoundRunResult:
-    """Complete in-memory, serializable output of a multi-round reduction run."""
-
-    run_result: RunResult
-    resolved_config: ResolvedRunConfig
-    round_results: tuple[SinglePassRunResult, ...] = ()
-    recovery_attempts: tuple[RecoveryAttempt, ...] = ()
-    cumulative_fixing_manifest: FixingManifest | None = None
-    original_variable_counts: LogicalVariableCounts | None = None
-    residual_variable_counts: LogicalVariableCounts | None = None
-    final_retained_item_ids: tuple[str, ...] = ()
-    classical_result: ClassicalSolveResult | None = None
-    objective_sense: str = "minimize"
-    original_primal_bound: float | None = None
-    original_dual_bound: float | None = None
-    original_bound_provenance: str = "none"
-    original_problem_optimality_claim: str = "none"
-    residual_problem_optimality_claim: str = "unavailable"
-    metrics: Mapping[str, object] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "round_results", tuple(self.round_results))
-        object.__setattr__(self, "recovery_attempts", tuple(self.recovery_attempts))
-        object.__setattr__(self, "final_retained_item_ids", tuple(self.final_retained_item_ids))
-        object.__setattr__(self, "metrics", MappingProxyType(dict(self.metrics)))
-
-    def to_dict(self) -> dict[str, object]:
-        """Return the complete in-memory result for repository runner persistence."""
-        return redact_metadata(to_primitive(self))  # type: ignore[return-value]
-
-
 def run_multi_round(
     problem: object,
     adapter: ReducibleProblemAdapter,
@@ -82,14 +53,56 @@ def run_multi_round(
     *,
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
-) -> MultiRoundRunResult:
-    """Execute iterative reduction with stopping criteria and optional recovery."""
+) -> PipelineRunResult:
+    """Execute iterative reduction with stopping criteria and optional recovery.
+
+    .. deprecated:: 0.6.0
+        Use :func:`qreduce.pipeline.run_pipeline` instead. The unified pipeline
+        handles all modes based on ``max_reduction_rounds`` in the configuration:
+        - 0: Classical-only baseline (no reduction)
+        - 1: Single reduction round
+        - >1: Iterative reduction with optional recovery
+
+    Note:
+        As of 0.7.0, this function returns PipelineRunResult instead of the
+        legacy MultiRoundRunResult. Code using this deprecated function should
+        migrate to run_pipeline().
+    """
+    import warnings
+
+    warnings.warn(
+        "run_multi_round is deprecated. Use run_pipeline instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _run_multi_round_impl(
+        problem, adapter, config,
+        mis_solver_registry=mis_solver_registry,
+        classical_solver_registry=classical_solver_registry,
+    )
+
+
+def _run_multi_round_impl(
+    problem: object,
+    adapter: ReducibleProblemAdapter,
+    config: ResolvedRunConfig,
+    *,
+    mis_solver_registry: MISSolverRegistry | None = None,
+    classical_solver_registry: ClassicalSolverRegistry | None = None,
+) -> PipelineRunResult:
+    """Internal implementation of multi-round reduction.
+
+    This function contains the actual orchestration logic and returns PipelineRunResult
+    directly. It is called by run_pipeline() and by the deprecated run_multi_round() wrapper.
+
+    The return type uses a forward reference to avoid circular imports.
+    """
     started_at = perf_counter()
 
     # Validate configuration
     validation = validate_resolved_run_config(config)
     if not validation.is_valid:
-        return _failed_multi_round(
+        return _failed_pipeline_result(
             config, PipelineStage.VALIDATION, validation.terminal_reason,
             _issues_message(validation), started_at,
         )
@@ -101,7 +114,7 @@ def run_multi_round(
     try:
         original_item_ids = tuple(adapter.identify_reducible_items(problem))
     except Exception as error:  # noqa: BLE001
-        return _failed_multi_round(
+        return _failed_pipeline_result(
             config, PipelineStage.GRAPH, TerminalReason.ADAPTER_FAILURE,
             f"identify_reducible_items: {error}", started_at,
         )
@@ -121,7 +134,7 @@ def run_multi_round(
         elapsed = perf_counter() - started_at
         remaining_budget = reduction.max_end_to_end_runtime_seconds - elapsed
         if remaining_budget <= 0:
-            return _build_multi_round_result(
+            return _build_pipeline_result(
                 config, round_results, round_manifests, all_recovery_attempts,
                 original_item_ids, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
                 started_at, input_hash, original_problem, adapter,
@@ -145,7 +158,7 @@ def run_multi_round(
                 # This failure type could continue to next round in some designs,
                 # but without a manifest we cannot proceed
                 pass
-            return _build_multi_round_result(
+            return _build_pipeline_result(
                 config, round_results, round_manifests, all_recovery_attempts,
                 original_item_ids, terminal, started_at, input_hash,
                 original_problem, adapter,
@@ -155,7 +168,7 @@ def run_multi_round(
 
         # Check if we achieved success
         if round_result.run_result.run_status in (RunStatus.SUCCESS, RunStatus.PARTIAL_SUCCESS):
-            return _build_multi_round_result(
+            return _build_pipeline_result(
                 config, round_results, round_manifests, all_recovery_attempts,
                 original_item_ids, None, started_at, input_hash,
                 original_problem, adapter,
@@ -167,7 +180,7 @@ def run_multi_round(
         )
         if stop_reason is not None:
             terminal = stop_reason if isinstance(stop_reason, TerminalReason) else None
-            return _build_multi_round_result(
+            return _build_pipeline_result(
                 config, round_results, round_manifests, all_recovery_attempts,
                 original_item_ids, terminal, started_at, input_hash,
                 original_problem, adapter,
@@ -176,7 +189,7 @@ def run_multi_round(
         # Prepare next round with restricted problem
         current_item_ids = manifest.retained_item_ids
         if not current_item_ids:
-            return _build_multi_round_result(
+            return _build_pipeline_result(
                 config, round_results, round_manifests, all_recovery_attempts,
                 original_item_ids, TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
                 started_at, input_hash, original_problem, adapter,
@@ -187,7 +200,7 @@ def run_multi_round(
                 current_problem, current_item_ids, manifest
             )
         except Exception as error:  # noqa: BLE001
-            return _failed_multi_round(
+            return _failed_pipeline_result(
                 config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
                 f"restrict_problem: {error}", started_at,
                 round_results=tuple(round_results),
@@ -195,7 +208,7 @@ def run_multi_round(
             )
 
     # Reached max rounds
-    return _build_multi_round_result(
+    return _build_pipeline_result(
         config, round_results, round_manifests, all_recovery_attempts,
         original_item_ids, TerminalReason.REDUCTION_ROUND_LIMIT_REACHED,
         started_at, input_hash, original_problem, adapter,
@@ -414,19 +427,6 @@ def _run_classical_and_postcheck(
 
     reduction = config.reduction
 
-    # Build residual model
-    try:
-        residual_model = adapter.build_residual_model(reduced_problem, fixing_manifest)
-    except Exception as error:  # noqa: BLE001
-        return _failed_single_pass(
-            config, PipelineStage.CLASSICAL,
-            TerminalReason.ADAPTER_FAILURE,
-            f"build_residual_model: {error}",
-            round_index, started_at,
-            retained_item_ids=retained_item_ids,
-            fixing_manifest=fixing_manifest,
-        )
-
     # Get classical solver
     registry = classical_registry or builtin_classical_solver_registry()
     try:
@@ -454,10 +454,11 @@ def _run_classical_and_postcheck(
             fixing_manifest=fixing_manifest,
         )
 
-    # Execute classical solve
+    # Execute classical solve - pass reduced_problem directly (it implements ClassicalModelProvider)
+    # The backend calls reduced_problem.build_classical_model() internally
     try:
         classical_result = classical_solver.solve(
-            residual_model,
+            reduced_problem,
             ClassicalSolveRequest(
                 run_id=config.run_identity.run_id,
                 round_index=round_index,
@@ -729,7 +730,8 @@ def _make_single_pass_result(
     )
 
 
-def _build_multi_round_result(
+
+def _build_pipeline_result(
     config: ResolvedRunConfig,
     round_results: list[SinglePassRunResult],
     round_manifests: list[FixingManifest],
@@ -740,8 +742,14 @@ def _build_multi_round_result(
     input_hash: str | None,
     original_problem: object,
     adapter: ReducibleProblemAdapter,
-) -> MultiRoundRunResult:
-    """Build final MultiRoundRunResult from accumulated round data."""
+) -> PipelineRunResult:
+    """Build final PipelineRunResult from accumulated round data.
+
+    This is the unified result builder that constructs PipelineRunResult directly,
+    converting SinglePassRunResult to ReductionRoundResult inline.
+    """
+    from qreduce.pipeline.unified import PipelineRunResult, ReductionRoundResult
+
     elapsed = perf_counter() - started_at
 
     # Determine final status from last round
@@ -761,6 +769,8 @@ def _build_multi_round_result(
         bound_provenance = last.original_bound_provenance
         original_claim = last.original_problem_optimality_claim
         residual_claim = last.residual_problem_optimality_claim
+        postcheck = last.postcheck_result
+        domain_metrics = last.domain_evaluation_metrics
     else:
         run_status = RunStatus.FAILED
         stage = PipelineStage.VALIDATION
@@ -776,6 +786,8 @@ def _build_multi_round_result(
         bound_provenance = "none"
         original_claim = "none"
         residual_claim = "unavailable"
+        postcheck = None
+        domain_metrics = None
 
     # Build cumulative manifest - MUST NOT silently fail
     cumulative_manifest: FixingManifest | None = None
@@ -789,15 +801,13 @@ def _build_multi_round_result(
             )
             final_retained = cumulative_manifest.retained_item_ids
         except ValueError as error:
-            # Record the error but don't silently ignore it
             cumulative_error = str(error)
-            # If we thought we succeeded, this is actually a failure
             if run_status == RunStatus.SUCCESS:
                 run_status = RunStatus.FAILED
                 terminal_reason = TerminalReason.ADAPTER_FAILURE
                 adoption_status = AdoptionStatus.NOT_ADOPTED
 
-    # Build round result summaries
+    # Build round result summaries for RunResult
     round_result_models = tuple(
         RoundResult(
             round_index=i,
@@ -808,6 +818,36 @@ def _build_multi_round_result(
                 "retained_count": len(r.retained_item_ids),
                 "excluded_count": len(r.fixing_manifest.excluded_item_ids) if r.fixing_manifest else 0,
             },
+        )
+        for i, r in enumerate(round_results)
+    )
+
+    # Convert SinglePassRunResult to ReductionRoundResult
+    converted_rounds = tuple(
+        ReductionRoundResult(
+            round_index=i,
+            run_status=r.run_result.run_status,
+            stage=r.run_result.stage,
+            terminal_reason=r.run_result.terminal_reason,
+            selected_mis_samples=r.selected_mis_samples,
+            candidate_records=r.candidate_records,
+            candidate_domain_item_records=r.candidate_domain_item_records,
+            mis_compilation_result=r.mis_compilation_result,
+            mis_execution_result=r.mis_execution_result,
+            fixing_manifest=r.fixing_manifest,
+            retained_item_ids=r.retained_item_ids,
+            classical_result=r.classical_result,
+            postcheck_result=r.postcheck_result,
+            runtime_seconds=(
+                r.metrics.get("end_to_end_runtime_seconds")
+                if isinstance(r.metrics.get("end_to_end_runtime_seconds"), int | float)
+                else None
+            ),
+            round_reduction_ratio=(
+                r.metrics.get("round_reduction_ratio")
+                if isinstance(r.metrics.get("round_reduction_ratio"), int | float)
+                else None
+            ),
         )
         for i, r in enumerate(round_results)
     )
@@ -838,16 +878,28 @@ def _build_multi_round_result(
         if original_item_ids:
             metrics["cumulative_reduction_ratio"] = total_excluded / len(original_item_ids)
 
-    return MultiRoundRunResult(
+    # Calculate residual_problem_optimality_claim if not set
+    if residual_claim == "unavailable" and classical_result and classical_result.solver_claimed_feasible:
+        residual_claim = "certified_optimal" if classical_result.is_optimal else (
+            "gap_bounded" if classical_result.gap is not None else "feasible_incumbent"
+        )
+
+    # Calculate original_primal_bound from postcheck if adopted
+    if primal is None and adoption_status == AdoptionStatus.ADOPTED and postcheck:
+        primal = postcheck.objective_recomputed
+
+    return PipelineRunResult(
         run_result=run_result,
         resolved_config=config,
-        round_results=tuple(round_results),
+        round_results=converted_rounds,
         recovery_attempts=tuple(recovery_attempts),
         cumulative_fixing_manifest=cumulative_manifest,
+        final_retained_item_ids=final_retained,
         original_variable_counts=original_counts,
         residual_variable_counts=residual_counts,
-        final_retained_item_ids=final_retained,
         classical_result=classical_result,
+        postcheck_result=postcheck,
+        domain_evaluation_metrics=domain_metrics,
         objective_sense=objective_sense,
         original_primal_bound=primal,
         original_dual_bound=dual,
@@ -858,7 +910,7 @@ def _build_multi_round_result(
     )
 
 
-def _failed_multi_round(
+def _failed_pipeline_result(
     config: ResolvedRunConfig,
     stage: PipelineStage,
     terminal_reason: TerminalReason | None,
@@ -866,9 +918,42 @@ def _failed_multi_round(
     started_at: float,
     round_results: tuple[SinglePassRunResult, ...] = (),
     recovery_attempts: tuple[RecoveryAttempt, ...] = (),
-) -> MultiRoundRunResult:
-    """Create a failed multi-round result."""
+) -> PipelineRunResult:
+    """Create a failed PipelineRunResult."""
+    from qreduce.pipeline.unified import PipelineRunResult, ReductionRoundResult
+
     elapsed = perf_counter() - started_at
+
+    # Convert any existing round results
+    converted_rounds = tuple(
+        ReductionRoundResult(
+            round_index=i,
+            run_status=r.run_result.run_status,
+            stage=r.run_result.stage,
+            terminal_reason=r.run_result.terminal_reason,
+            selected_mis_samples=r.selected_mis_samples,
+            candidate_records=r.candidate_records,
+            candidate_domain_item_records=r.candidate_domain_item_records,
+            mis_compilation_result=r.mis_compilation_result,
+            mis_execution_result=r.mis_execution_result,
+            fixing_manifest=r.fixing_manifest,
+            retained_item_ids=r.retained_item_ids,
+            classical_result=r.classical_result,
+            postcheck_result=r.postcheck_result,
+            runtime_seconds=(
+                r.metrics.get("end_to_end_runtime_seconds")
+                if isinstance(r.metrics.get("end_to_end_runtime_seconds"), int | float)
+                else None
+            ),
+            round_reduction_ratio=(
+                r.metrics.get("round_reduction_ratio")
+                if isinstance(r.metrics.get("round_reduction_ratio"), int | float)
+                else None
+            ),
+        )
+        for i, r in enumerate(round_results)
+    )
+
     run_result = RunResult(
         run_id=config.run_identity.run_id,
         run_status=RunStatus.FAILED,
@@ -880,16 +965,12 @@ def _failed_multi_round(
         diagnostic_message=message,
         config_hash=config.config_hash(),
     )
-    return MultiRoundRunResult(
+    return PipelineRunResult(
         run_result=run_result,
         resolved_config=config,
-        round_results=round_results,
+        round_results=converted_rounds,
         recovery_attempts=recovery_attempts,
-        metrics={
-            "end_to_end_runtime_seconds": elapsed,
-            "round_count": len(round_results),
-            "recovery_attempt_count": len(recovery_attempts),
-        },
+        metrics={"end_to_end_runtime_seconds": elapsed},
     )
 
 

@@ -1,5 +1,10 @@
 # Audit metriche single-pass - specifiche 16.2
 
+> **Nota**: Questo documento è un audit storico per la milestone single-pass.
+> Con l'unificazione della pipeline (M09), le metriche sono ora accessibili
+> tramite `PipelineRunResult` e `ReductionRoundResult`. I tipi legacy rimangono
+> disponibili per compatibilità.
+
 ## Scopo
 
 Verifica dei requisiti della sezione 16.2 di `docs/specifications.md` per il

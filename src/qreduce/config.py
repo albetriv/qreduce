@@ -77,8 +77,31 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         issues,
         "reduction.max_reduction_rounds",
         reduction.max_reduction_rounds,
-        1,
+        0,
     )
+    # Recovery requires at least one reduction round
+    if reduction.max_reduction_rounds == 0:
+        if reduction.max_recovery_attempts != 0:
+            _add_issue(
+                issues,
+                "recovery_requires_reduction",
+                "reduction.max_recovery_attempts",
+                "Recovery requires max_reduction_rounds >= 1.",
+            )
+        if reduction.recovery_policy_on_domain_too_small != "fail":
+            _add_issue(
+                issues,
+                "recovery_requires_reduction",
+                "reduction.recovery_policy_on_domain_too_small",
+                "Recovery requires max_reduction_rounds >= 1.",
+            )
+        if reduction.recovery_policy_on_infeasible != "fail":
+            _add_issue(
+                issues,
+                "recovery_requires_reduction",
+                "reduction.recovery_policy_on_infeasible",
+                "Recovery requires max_reduction_rounds >= 1.",
+            )
     _require_int_at_least(
         issues,
         "reduction.candidate_domain_min_items",

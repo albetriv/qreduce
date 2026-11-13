@@ -9,7 +9,8 @@ from pathlib import Path
 
 from qreduce.artifacts.metadata import sha256_hex
 
-ARTIFACT_SCHEMA_VERSION = "1.0"
+ARTIFACT_SCHEMA_VERSION = "1.1"
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0", "1.1"})
 _REQUIRED_ARTIFACT_FILES = (
     "config_used.json",
     "experiment_metadata.json",
@@ -39,9 +40,53 @@ class ExperimentRunArtifacts:
     recovery_attempts: tuple[Mapping[str, object], ...] = ()
 
     @property
+    def schema_version(self) -> str:
+        """Return the artifact schema version."""
+        return str(self.manifest.get("artifact_schema_version", "1.0"))
+
+    @property
+    def reduction_round_count(self) -> int:
+        """Return the number of reduction rounds (0 for classical-only baseline)."""
+        # Schema 1.1 has round_count directly
+        if "round_count" in self.manifest:
+            return int(self.manifest["round_count"])  # type: ignore[arg-type]
+        # Schema 1.0 compatibility: count round result files
+        return len(self.round_results)
+
+    @property
+    def has_reduction(self) -> bool:
+        """True if at least one reduction round was executed."""
+        return self.reduction_round_count > 0
+
+    @property
+    def is_classical_only(self) -> bool:
+        """True if this was a classical-only baseline with no MWIS reduction."""
+        return self.reduction_round_count == 0
+
+    @property
     def is_multi_round(self) -> bool:
-        """True if this artifact was produced by a multi-round run."""
-        return self.manifest.get("run_mode") == "multi_round"
+        """True if this artifact was produced by a multi-round run.
+
+        For backward compatibility with schema 1.0. In schema 1.1+, use
+        has_reduction or reduction_round_count instead.
+        """
+        # Schema 1.0 compatibility
+        if "run_mode" in self.manifest:
+            return self.manifest.get("run_mode") == "multi_round"
+        # Schema 1.1: multi-round means more than one round
+        return self.reduction_round_count > 1
+
+    @property
+    def fixing_manifest(self) -> Mapping[str, object] | None:
+        """Return the cumulative fixing manifest, if available.
+
+        Present in schema 1.1+ for both classical-only and reduction runs.
+        For classical-only, origin is 'no_reduction' with all items retained.
+        """
+        manifest_data = self.manifest.get("fixing_manifest")
+        if manifest_data is not None and isinstance(manifest_data, dict):
+            return manifest_data
+        return None
 
 
 def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
@@ -65,10 +110,11 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
     _require_string(manifest, "experiment_id")
     _require_string(manifest, "run_id")
     _require_string(manifest, "created_at")
-    if manifest["artifact_schema_version"] != ARTIFACT_SCHEMA_VERSION:
+    schema_version = manifest["artifact_schema_version"]
+    if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
         raise ExperimentArtifactError(
-            f"Unsupported artifact schema version {manifest['artifact_schema_version']!r}; "
-            f"expected {ARTIFACT_SCHEMA_VERSION!r}."
+            f"Unsupported artifact schema version {schema_version!r}; "
+            f"supported versions: {', '.join(sorted(_SUPPORTED_SCHEMA_VERSIONS))}."
         )
 
     canonical_path = directory / "canonical_mwis_problem.json"

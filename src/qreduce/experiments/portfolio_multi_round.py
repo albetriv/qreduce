@@ -81,7 +81,7 @@ def run_portfolio_multi_round_experiment(
     )
     return run_experiment(
         "synthetic-portfolio-multi-round", problem, inputs.adapter, config,
-        mode="multi_round", output_root=output_root,
+        output_root=output_root,
     )
 
 

@@ -19,7 +19,8 @@ from qreduce.models import (
     RunIdentity,
 )
 from qreduce.mwis import ReductionGraph
-from qreduce.pipeline.multi_round import MultiRoundRunResult, run_multi_round
+from qreduce.pipeline.multi_round import run_multi_round
+from qreduce.pipeline.unified import PipelineRunResult
 from qreduce.solving.residual import (
     ClassicalSolveResult,
     ClassicalSolverRegistry,
@@ -279,7 +280,7 @@ def test_single_round_behaves_like_single_pass():
         classical_solver_registry=classical_registry,
     )
 
-    assert isinstance(result, MultiRoundRunResult)
+    assert isinstance(result, PipelineRunResult)
     assert len(result.round_results) == 1
     assert result.run_result.run_status in (RunStatus.SUCCESS, RunStatus.PARTIAL_SUCCESS, RunStatus.FAILED)
     assert result.metrics.get("round_count") == 1
@@ -516,7 +517,7 @@ def test_multi_round_metrics_include_round_count():
 
 
 def test_multi_round_result_is_serializable():
-    """MultiRoundRunResult can be converted to dict for persistence."""
+    """PipelineRunResult can be converted to dict for persistence."""
     problem = SimpleProblem([SimpleItem("a", 1.0)])
     adapter = SimpleAdapter()
     config = make_multi_round_config(max_rounds=1)
