@@ -211,6 +211,17 @@ Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
 licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
 artifact analizzabile.
 
+Per l'esperimento multi-round più grande, con 30 asset predefiniti e SCIP:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio_multi_round --run-id multi-round-001
+```
+
+Il notebook `notebooks/experiments/03_synthetic_portfolio_multi_round.ipynb`
+analizza gli artifact pubblicati. L'opzione `--asset-count` cambia la dimensione
+(minimo 6). Il limite di tre round non garantisce tre iterazioni: la pipeline
+si arresta al primo successo o successo parziale.
+
 Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
 
 I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare `run_single_pass`.
