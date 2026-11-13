@@ -88,45 +88,53 @@ class SyntheticPortfolioAnalysis:
 def build_synthetic_portfolio_inputs(
     run_id: str,
     *,
+    asset_count: int = 5,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
 ) -> SyntheticPortfolioInputs:
-    """Build deterministic inputs with explicit optional solver selections."""
+    """Build deterministic inputs with explicit optional solver selections.
 
-    asset_ids = ("asset-a", "asset-b", "asset-c", "asset-d", "asset-e")
-    problem = PortfolioProblem(
-        asset_ids=asset_ids,
-        expected_returns={
-            "asset-a": 0.10,
-            "asset-b": 0.08,
-            "asset-c": 0.06,
-            "asset-d": 0.07,
-            "asset-e": 0.05,
-        },
-        covariance=(
-            (0.04, 0.016, 0.0, 0.0, 0.004),
-            (0.016, 0.04, -0.012, 0.0, 0.0),
-            (0.0, -0.012, 0.04, 0.014, 0.0),
-            (0.0, 0.0, 0.014, 0.04, 0.012),
-            (0.004, 0.0, 0.0, 0.012, 0.04),
-        ),
-        lower_bounds={asset_id: 0.0 for asset_id in asset_ids},
-        upper_bounds={asset_id: 0.7 for asset_id in asset_ids},
-        retention_scores={
-            "asset-a": 0.9,
-            "asset-b": 0.7,
-            "asset-c": 0.8,
-            "asset-d": 0.6,
-            "asset-e": 0.5,
-        },
-        risk_aversion=1.0,
-    )
+    Args:
+        run_id: Unique identifier for the run.
+        asset_count: Number of assets in the synthetic portfolio. Must be >= 5.
+            Default is 5, which uses the canonical 5-asset dataset for backward
+            compatibility with existing tests and notebooks.
+        mis_solver_id: MIS solver to use.
+        classical_solver_id: Classical solver to use.
+        mis_num_reads: Optional D-Wave num_reads parameter.
+        mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+
+    Returns:
+        SyntheticPortfolioInputs with problem, adapter, and configuration.
+
+    Raises:
+        ValueError: If asset_count < 5 or if D-Wave parameters are used with
+            a non-D-Wave solver.
+    """
+    from qreduce.experiments.portfolio_generator import generate_portfolio_data
+
+    portfolio_data = generate_portfolio_data(asset_count)
+    problem = portfolio_data.to_problem()
+
+    # Scale candidate_domain_max_items proportionally to asset_count
+    # For 5 assets: max_items = 3 (original)
+    # For larger: scale proportionally, minimum 3
+    candidate_domain_max_items = max(3, (asset_count * 3) // 5)
+
     graph_policy = PortfolioGraphPolicy("synthetic-portfolio-policy", "1", 0.25)
     config = ResolvedRunConfig(
         schema_version="1.0",
-        reduction=ReductionPolicy(1, 1, 3, 1, 0.1, 3, 60.0),
+        reduction=ReductionPolicy(
+            max_reduction_rounds=1,
+            candidate_domain_min_items=1,
+            candidate_domain_max_items=candidate_domain_max_items,
+            num_source_mis_candidates=1,
+            min_reduction_ratio=0.1,
+            target_binary_variables=3,
+            max_end_to_end_runtime_seconds=60.0,
+        ),
         lambda_edge=2.0,
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,
@@ -179,6 +187,7 @@ def run_synthetic_portfolio_experiment(
     run_id: str,
     *,
     output_root: str | Path = "outputs",
+    asset_count: int = 5,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
@@ -186,10 +195,26 @@ def run_synthetic_portfolio_experiment(
     model_export_enabled: bool = False,
     model_export_path: str | None = None,
 ) -> ExperimentRun:
-    """Run and persist the deterministic synthetic portfolio experiment."""
+    """Run and persist the deterministic synthetic portfolio experiment.
 
+    Args:
+        run_id: Unique identifier for the run.
+        output_root: Root directory for experiment artifacts.
+        asset_count: Number of assets in the synthetic portfolio. Must be >= 5.
+            Default is 5 for backward compatibility.
+        mis_solver_id: MIS solver to use.
+        classical_solver_id: Classical solver to use.
+        mis_num_reads: Optional D-Wave num_reads parameter.
+        mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+        model_export_enabled: Whether to export the residual model.
+        model_export_path: Optional path for model export.
+
+    Returns:
+        ExperimentRun with the run directory and result.
+    """
     inputs = build_synthetic_portfolio_inputs(
         run_id,
+        asset_count=asset_count,
         mis_solver_id=mis_solver_id,
         classical_solver_id=classical_solver_id,
         mis_num_reads=mis_num_reads,
@@ -404,12 +429,19 @@ def _main() -> None:
         type=int,
         help="Optional D-Wave simulated-annealing num_sweeps parameter.",
     )
+    parser.add_argument(
+        "--asset-count",
+        type=int,
+        default=5,
+        help="Number of assets in the synthetic portfolio. Must be >= 5. Default: 5.",
+    )
     arguments = parser.parse_args()
     if arguments.model_export_path and not arguments.model_export:
         parser.error("--model-export-path requires --model-export")
     run = run_synthetic_portfolio_experiment(
         arguments.run_id,
         output_root=arguments.output_root,
+        asset_count=arguments.asset_count,
         mis_solver_id=arguments.mis_solver_id,
         classical_solver_id=arguments.classical_solver_id,
         mis_num_reads=arguments.mis_num_reads,

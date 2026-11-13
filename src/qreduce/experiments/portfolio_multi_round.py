@@ -12,7 +12,6 @@ from qreduce.experiments.portfolio import (
     _string_tuple,
     build_synthetic_portfolio_inputs,
 )
-from qreduce.experiments.portfolio_domain import PortfolioProblem
 from qreduce.experiments.runner import ExperimentRun, run_experiment
 from qreduce.mwis import ReductionGraph
 
@@ -53,23 +52,15 @@ def run_portfolio_multi_round_experiment(
     """Publish a reproducible larger portfolio run with at most three rounds."""
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
         raise ValueError("asset_count must be an integer greater than or equal to 6.")
+
+    from qreduce.experiments.portfolio_generator import generate_portfolio_data
+
+    # Use the shared generator for the portfolio data
+    portfolio_data = generate_portfolio_data(asset_count)
+    problem = portfolio_data.to_problem()
+
+    # Get base config from single-pass inputs (with 5 assets, we only need the config)
     inputs = build_synthetic_portfolio_inputs(run_id)
-    asset_ids = tuple(f"asset-{index:03d}" for index in range(asset_count))
-    # Independent blocks have a positive definite equicorrelation covariance.
-    covariance = tuple(
-        tuple(0.04 if i == j else 0.016 if i // 3 == j // 3 else 0.0
-              for j in range(asset_count))
-        for i in range(asset_count)
-    )
-    problem = PortfolioProblem(
-        asset_ids=asset_ids,
-        expected_returns={asset: 0.05 + 0.002 * (i % 20) for i, asset in enumerate(asset_ids)},
-        covariance=covariance,
-        lower_bounds={asset: 0.0 for asset in asset_ids},
-        upper_bounds={asset: 0.7 for asset in asset_ids},
-        retention_scores={asset: 1.0 - 0.005 * (i % 100) for i, asset in enumerate(asset_ids)},
-        risk_aversion=1.0,
-    )
     config = replace(
         inputs.config,
         reduction=replace(

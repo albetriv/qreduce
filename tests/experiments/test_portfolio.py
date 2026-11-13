@@ -101,3 +101,25 @@ def test_synthetic_portfolio_analysis_rejects_a_different_experiment(monkeypatch
 
     with pytest.raises(ExperimentArtifactError, match="synthetic portfolio"):
         load_synthetic_portfolio_analysis(run.run_directory)
+
+
+def test_synthetic_portfolio_analysis_parametric_asset_count(monkeypatch, tmp_path: Path) -> None:
+    """End-to-end test with asset_count > 5: artifacts are published and analysis is consistent."""
+
+    def missing_scip(module_name: str):
+        raise ModuleNotFoundError(module_name)
+
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
+
+    run = run_synthetic_portfolio_experiment(
+        "run-12",
+        output_root=tmp_path,
+        asset_count=12,
+    )
+    analysis = load_synthetic_portfolio_analysis(run.run_directory)
+
+    assert len(analysis.asset_ids) == 12
+    assert len(analysis.correlation) == 12
+    assert all(len(row) == 12 for row in analysis.correlation)
+    assert analysis.asset_ids == analysis.graph.node_ids
+    assert analysis.correlation_threshold == pytest.approx(0.25)

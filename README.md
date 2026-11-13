@@ -182,6 +182,16 @@ Il notebook corrispondente e`
 `outputs/synthetic-portfolio-single-pass/scip-run-001/`. Il percorso predefinito
 usa `local_greedy` per MIS e `scip` per il solve classico residuo.
 
+L'opzione `--asset-count` cambia la dimensione del portfolio sintetico (minimo 5,
+default 5). Per portfolio più grandi:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id scip-run-12assets \
+  --asset-count 12 \
+  --classical-solver-id scip
+```
+
 L'export del modello residuo e` disabilitato per default. Per richiederlo,
 aggiungere `--model-export`: il runner pubblica `residual_model.lp` nella
 directory del run. Con `--model-export-path /percorso/modello.lp` si sceglie
@@ -210,6 +220,19 @@ carica `outputs/synthetic-portfolio-single-pass/dwave-cplex-001/`. Il simulatore
 Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
 licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
 artifact analizzabile.
+
+Anche per il percorso D-Wave/CPLEX, l'opzione `--asset-count` permette di
+generare portfolio piu` grandi:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id dwave-cplex-12assets \
+  --asset-count 12 \
+  --mis-solver-id dwave_simulated_annealing \
+  --classical-solver-id cplex \
+  --mis-num-reads 100 \
+  --mis-num-sweeps 1000
+```
 
 Per l'esperimento multi-round più grande, con 30 asset predefiniti e SCIP:
 
