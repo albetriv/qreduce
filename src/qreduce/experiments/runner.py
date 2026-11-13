@@ -57,7 +57,7 @@ def run_experiment(
     _require_identifier(experiment_id, "experiment_id")
     run_id = config.run_identity.run_id
     _require_identifier(run_id, "config.run_identity.run_id")
-    destination = Path(output_root) / experiment_id / run_id
+    destination = Path(output_root) / run_id
     if destination.exists():
         raise FileExistsError(
             f"Experiment artifact directory already exists: {destination}"
@@ -66,41 +66,65 @@ def run_experiment(
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_root = Path(mkdtemp(prefix=f".{run_id}.", dir=destination.parent))
     external_staging = None
+    external_staging_file = None
     try:
+        # Determine logical export path (final location) and backend write path (staging)
         export_path = None
+        backend_write_path = None
+        is_external_export = False
+        
         if config.classical_solve.model_export_enabled:
             requested = config.classical_solve.model_export_path
             if requested is not None and (not isinstance(requested, str) or not requested.strip()):
                 raise ValueError("Model export path must be non-blank.")
-            export_path = Path(requested).resolve() if requested is not None else (
-                destination.resolve() / "residual_model.lp"
-            )
-            if export_path.suffix.lower() not in {".lp", ".mps"}:
-                raise ValueError("Model export requires an .lp or .mps file path.")
-            if export_path.parent != destination.resolve():
+            
+            if requested is not None:
+                # External export: user specified a custom path
+                export_path = Path(requested).resolve()
+                if export_path.suffix.lower() not in {".lp", ".mps"}:
+                    raise ValueError("Model export requires an .lp or .mps file path.")
                 if export_path.is_relative_to(destination.resolve()):
                     raise ValueError("Model export must be directly inside the run directory.")
                 if export_path.exists():
                     raise FileExistsError(f"Model export already exists: {export_path}")
+                # Create staging directory for external export
                 external_staging = Path(mkdtemp(prefix=".qreduce-export.", dir=export_path.parent))
+                external_staging_file = external_staging / export_path.name
+                backend_write_path = str(external_staging_file)
+                is_external_export = True
+            else:
+                # Internal export: default to residual_model.lp in run directory
+                export_path = destination.resolve() / "residual_model.lp"
+                # Backend writes to staging, which gets atomically moved to destination
+                backend_write_path = str(temporary_root / "residual_model.lp")
+            
+            # Update config with logical path (for manifest), actual write uses backend_write_path
             config = replace(config, classical_solve=replace(
                 config.classical_solve, model_export_path=str(export_path)
             ))
 
-        # Execute unified pipeline
+        # Execute unified pipeline - pass staging path for backend to write to
         result = run_pipeline(
             problem,
             adapter,
             config,
             mis_solver_registry=mis_solver_registry,
             classical_solver_registry=classical_solver_registry,
+            _model_export_write_path=backend_write_path,
         )
 
-        # Model export handling is simplified for now - the backend writes directly
-        # to the export path. Full model export refactoring is a separate task.
-        exported = None
-        if export_path and export_path.is_file():
-            exported = export_path
+        # Check if export succeeded and handle external publish
+        exported_file = None
+        if backend_write_path:
+            staging_file = Path(backend_write_path)
+            if staging_file.is_file():
+                exported_file = staging_file
+                if is_external_export and external_staging_file:
+                    # Move external export to final location before run directory publish
+                    # This ensures the external file is published even if run directory
+                    # publish fails (but external file not removed on such failure)
+                    os.replace(external_staging_file, export_path)
+                    exported_file = export_path
 
         _write_artifacts(
             temporary_root,
@@ -108,13 +132,16 @@ def run_experiment(
             problem,
             result,
             experiment_metadata or {},
-            exported,
+            exported_file,
             export_path,
-            external_staging is not None,
+            is_external_export,
         )
         os.replace(temporary_root, destination)
     except Exception:
         shutil.rmtree(temporary_root, ignore_errors=True)
+        # Clean up external staging file if it wasn't published yet
+        if external_staging_file and external_staging_file.is_file():
+            external_staging_file.unlink(missing_ok=True)
         raise
     finally:
         if external_staging is not None:

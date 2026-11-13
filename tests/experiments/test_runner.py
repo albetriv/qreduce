@@ -171,7 +171,7 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
     )
 
     assert run.result.run_result.run_status is RunStatus.FAILED
-    assert run.run_directory == tmp_path / "portfolio-reference" / "run-001"
+    assert run.run_directory == tmp_path / "run-001"
     loaded = load_experiment_run(run.run_directory)
     assert loaded.manifest["experiment_id"] == "portfolio-reference"
     assert loaded.manifest["run_id"] == "run-001"
@@ -249,6 +249,8 @@ def test_runner_refuses_to_overwrite_a_published_experiment(
             *arguments,
             output_root=tmp_path,
         )
+    with pytest.raises(FileExistsError, match="already exists"):
+        run_experiment("another-experiment", *arguments[1:], output_root=tmp_path)
 
 
 def test_loader_rejects_incomplete_directories(tmp_path: Path) -> None:
@@ -333,7 +335,6 @@ def test_missing_backend_does_not_publish_model(monkeypatch, tmp_path: Path) -> 
 
 @pytest.mark.skipif(importlib.util.find_spec("pyscipopt") is None, reason="SCIP not installed")
 @pytest.mark.parametrize("external", [False, True])
-@pytest.mark.xfail(reason="Model export needs refactoring for unified pipeline")
 def test_model_export_is_published_and_auditable(tmp_path: Path, external: bool) -> None:
     config = _config("export-run")
     custom = tmp_path / "custom.lp" if external else None
@@ -373,11 +374,10 @@ def test_external_export_refuses_existing_file(tmp_path: Path) -> None:
             config, output_root=tmp_path,
         )
     assert target.read_text(encoding="utf-8") == "keep"
-    assert not (tmp_path / "portfolio-reference" / "collision").exists()
+    assert not (tmp_path / "collision").exists()
 
 
 @pytest.mark.skipif(importlib.util.find_spec("pyscipopt") is None, reason="SCIP not installed")
-@pytest.mark.xfail(reason="Model export needs refactoring for unified pipeline")
 def test_export_cleanup_when_artifact_publication_fails(monkeypatch, tmp_path: Path) -> None:
     config = _config("write-failure")
     config = replace(config, classical_solve=replace(
@@ -395,7 +395,7 @@ def test_export_cleanup_when_artifact_publication_fails(monkeypatch, tmp_path: P
             config, output_root=tmp_path,
         )
     assert not (tmp_path / "external.lp").exists()
-    assert not (tmp_path / "portfolio-reference" / "write-failure").exists()
+    assert not (tmp_path / "write-failure").exists()
     assert not list(tmp_path.glob(".qreduce-export.*"))
 
 

@@ -164,22 +164,29 @@ nella roadmap.
 Il runner interno salva sempre gli artifact sotto:
 
 ```text
-outputs/{experiment_id}/{run_id}/
+outputs/{run_id}/
 ```
+
+Il `run_id` deve essere unico nella directory di output, anche tra esperimenti
+diversi: una directory esistente non viene sovrascritta. I run degli esempi
+iniziano con il numero a tre cifre del notebook associato (`001_`, `002_`,
+`003_` o `004_`); per un nuovo run mantenere il prefisso e scegliere un nome
+distinto. Gli artifact con la vecchia struttura restano leggibili indicando
+esplicitamente la loro directory, ma non vengono spostati automaticamente.
 
 Un esperimento interno disponibile e` il portfolio sintetico single-pass. Per
 produrre un run da analizzare:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
-  --run-id scip-run-001 \
+  --run-id 002_scip \
   --mis-solver-id local_greedy \
   --classical-solver-id scip
 ```
 
 Il notebook corrispondente e`
-`notebooks/experiments/01_synthetic_portfolio_single_pass.ipynb` e carica
-`outputs/synthetic-portfolio-single-pass/scip-run-001/`. Il percorso predefinito
+`notebooks/experiments/002_synthetic_portfolio_single_pass.ipynb` e carica
+`outputs/002_scip/`. Il percorso predefinito
 usa `local_greedy` per MIS e `scip` per il solve classico residuo.
 
 L'opzione `--asset-count` cambia la dimensione del portfolio sintetico (minimo 5,
@@ -187,7 +194,7 @@ default 5). Per portfolio più grandi:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
-  --run-id scip-run-12assets \
+  --run-id 002_scip_12assets \
   --asset-count 12 \
   --classical-solver-id scip
 ```
@@ -208,15 +215,15 @@ classico CPLEX, produrre prima artifact distinti:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
-  --run-id dwave-cplex-001 \
+  --run-id 003_dwave_cplex \
   --mis-solver-id dwave_simulated_annealing \
   --classical-solver-id cplex \
   --mis-num-reads 100 \
   --mis-num-sweeps 1000
 ```
 
-Il notebook `notebooks/experiments/02_synthetic_portfolio_single_pass.ipynb`
-carica `outputs/synthetic-portfolio-single-pass/dwave-cplex-001/`. Il simulatore
+Il notebook `notebooks/experiments/003_synthetic_portfolio_single_pass.ipynb`
+carica `outputs/003_dwave_cplex/`. Il simulatore
 Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
 licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
 artifact analizzabile.
@@ -226,7 +233,7 @@ generare portfolio piu` grandi:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
-  --run-id dwave-cplex-12assets \
+  --run-id 003_dwave_cplex_12assets \
   --asset-count 12 \
   --mis-solver-id dwave_simulated_annealing \
   --classical-solver-id cplex \
@@ -237,13 +244,25 @@ poetry run python -m qreduce.experiments.portfolio \
 Per l'esperimento multi-round più grande, con 30 asset predefiniti e SCIP:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio_multi_round --run-id multi-round-001
+poetry run python -m qreduce.experiments.portfolio_multi_round --run-id 004_multi_round
 ```
 
-Il notebook `notebooks/experiments/03_synthetic_portfolio_multi_round.ipynb`
+Il notebook `notebooks/experiments/004_synthetic_portfolio_multi_round.ipynb`
 analizza gli artifact pubblicati. L'opzione `--asset-count` cambia la dimensione
 (minimo 6). Il limite di tre round non garantisce tre iterazioni: la pipeline
 si arresta al primo successo o successo parziale.
+
+Per confrontare lo stesso portfolio con SCIP senza alcuna riduzione:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio_classical --run-id 001_classical
+```
+
+Il notebook `notebooks/experiments/001_synthetic_portfolio_classical.ipynb` legge
+gli artifact della baseline. Anche qui `--asset-count` ha valore predefinito 30
+e minimo 6: usare lo stesso valore nei due esperimenti per ottenere lo stesso
+problema. La configurazione SCIP è identica, ma i tempi non sono necessariamente
+confrontabili direttamente: il percorso multi-round include la riduzione.
 
 Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
 

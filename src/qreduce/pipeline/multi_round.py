@@ -89,6 +89,7 @@ def _run_multi_round_impl(
     *,
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
+    _model_export_write_path: str | None = None,
 ) -> PipelineRunResult:
     """Internal implementation of multi-round reduction.
 
@@ -96,6 +97,9 @@ def _run_multi_round_impl(
     directly. It is called by run_pipeline() and by the deprecated run_multi_round() wrapper.
 
     The return type uses a forward reference to avoid circular imports.
+
+    The _model_export_write_path parameter allows the experiment runner to specify a
+    staging path for model export that differs from config.classical_solve.model_export_path.
     """
     started_at = perf_counter()
 
@@ -145,6 +149,7 @@ def _run_multi_round_impl(
             current_problem, original_problem, adapter, config, round_index,
             current_item_ids, original_item_ids, round_manifests,
             mis_solver_registry, classical_solver_registry, started_at,
+            _model_export_write_path=_model_export_write_path,
         )
 
         round_results.append(round_result)
@@ -227,6 +232,8 @@ def _run_round_with_recovery(
     mis_registry: MISSolverRegistry | None,
     classical_registry: ClassicalSolverRegistry | None,
     started_at: float,
+    *,
+    _model_export_write_path: str | None = None,
 ) -> tuple[SinglePassRunResult, FixingManifest | None, list[RecoveryAttempt]]:
     """Execute one round with recovery attempts that actually modify the domain.
 
@@ -257,6 +264,7 @@ def _run_round_with_recovery(
                 current_problem, original_problem, adapter, config, round_index,
                 current_item_ids, expanded_retained, previous_manifests,
                 mis_registry, classical_registry, started_at,
+                _model_export_write_path=_model_export_write_path,
             )
         else:
             # Normal execution
@@ -266,6 +274,7 @@ def _run_round_with_recovery(
                 classical_solver_registry=classical_registry,
                 _started_at=started_at,
                 _round_index=round_index,
+                _model_export_write_path=_model_export_write_path,
             )
 
         last_result = result
@@ -340,6 +349,8 @@ def _run_with_expanded_domain(
     mis_registry: MISSolverRegistry | None,
     classical_registry: ClassicalSolverRegistry | None,
     started_at: float,
+    *,
+    _model_export_write_path: str | None = None,
 ) -> SinglePassRunResult:
     """Re-run from fixing phase with an expanded retained domain.
 
@@ -401,6 +412,7 @@ def _run_with_expanded_domain(
         current_problem, original_problem, reduced_problem, adapter, config,
         round_index, expanded_retained, fixing_manifest, previous_manifests,
         classical_registry, started_at,
+        _model_export_write_path=_model_export_write_path,
     )
 
 
@@ -416,6 +428,8 @@ def _run_classical_and_postcheck(
     previous_manifests: list[FixingManifest],
     classical_registry: ClassicalSolverRegistry | None,
     started_at: float,
+    *,
+    _model_export_write_path: str | None = None,
 ) -> SinglePassRunResult:
     """Execute classical solve and post-check with cumulative fixing validation."""
     from qreduce.config import effective_timeout
@@ -468,7 +482,9 @@ def _run_classical_and_postcheck(
                 threads=config.classical_solve.threads,
                 random_seed=config.classical_solve.random_seed,
                 model_export_enabled=config.classical_solve.model_export_enabled,
-                model_export_path=config.classical_solve.model_export_path,
+                model_export_path=(
+                    _model_export_write_path or config.classical_solve.model_export_path
+                ),
                 requested_solver_id=config.classical_solve.classical_solver_id,
             ),
         )

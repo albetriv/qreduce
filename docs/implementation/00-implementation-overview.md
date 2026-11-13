@@ -46,7 +46,7 @@ application problem
   -> complete in-memory run result
 
 repository experiment runner
-  -> persists complete artifacts under outputs/{experiment_id}/{run_id}/
+  -> persists complete artifacts under outputs/{run_id}/
   -> notebooks load artifacts without rerunning the pipeline
 ```
 
@@ -162,6 +162,6 @@ Puo` essere dichiarata completata soltanto quando:
 | Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook. |
 | Test permanenti | `tests/` | Ogni modifica osservabile richiede test proporzionati. |
 | Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem. |
-| Esperimenti interni | `src/qreduce/experiments/` | Runner interno escluso dal wheel, con artifact in `outputs/{experiment_id}/{run_id}/`. |
+| Esperimenti interni | `src/qreduce/experiments/` | Runner interno escluso dal wheel, con artifact in `outputs/{run_id}/`. |
 | Notebook experiments | `notebooks/experiments/` | Leggono artifact dal filesystem e non invocano la pipeline. |
 | File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo. |

@@ -1201,7 +1201,7 @@ L'export del modello residuo e` una scrittura esplicitamente richiesta tramite
 diretto della pipeline il chiamante fornisce `model_export_path`, percorso
 completo del file; un percorso mancante o gia` esistente produce failure di
 configurazione. Il runner interno, quando l'export e` abilitato senza override,
-risolve il percorso a `outputs/{experiment_id}/{run_id}/residual_model.lp`,
+risolve il percorso a `outputs/{run_id}/residual_model.lp`,
 rispettando `output_root`. L'override indica un file `.lp` o `.mps`. Il runner
 non sovrascrive file esistenti, registra percorso, formato e hash dell'export
 effettivamente prodotto e pubblica il file predefinito insieme agli artifact.
@@ -1214,13 +1214,18 @@ Il chiamante della libreria puo` persistere, trasmettere o scartare il risultato
 Per ogni run pubblicato dal runner interno, la struttura minima e`:
 
 ```text
-outputs/{experiment_id}/{run_id}/
+outputs/{run_id}/
   config_used.json
   problem.json
   canonical_mwis_problem.json       # presente se la compilation MIS e` disponibile
   run_result.json
   run_manifest.json
 ```
+
+Il `run_id` identifica univocamente la directory entro `output_root`, anche
+tra esperimenti diversi; una directory gia` presente non deve essere sovrascritta.
+I run associati ai notebook di esperimento usano il relativo prefisso numerico
+a tre cifre seguito da `_` e da un nome distinto.
 
 Il fixing manifest deve includere almeno:
 

@@ -215,6 +215,7 @@ def run_pipeline(
     *,
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
+    _model_export_write_path: str | None = None,
 ) -> PipelineRunResult:
     """Execute the unified QReduce pipeline.
 
@@ -225,6 +226,12 @@ def run_pipeline(
 
     Returns a PipelineRunResult that unifies what was previously split between
     SinglePassRunResult and MultiRoundRunResult.
+
+    The _model_export_write_path parameter is for internal use by the experiment
+    runner. It allows the runner to specify a staging path for the model export
+    that differs from config.classical_solve.model_export_path (the logical/final
+    path). The backend writes to _model_export_write_path; the runner is responsible
+    for moving the file to the final path after successful completion.
     """
     started_at = perf_counter()
 
@@ -243,6 +250,7 @@ def run_pipeline(
             problem, adapter, config,
             classical_solver_registry=classical_solver_registry,
             started_at=started_at,
+            _model_export_write_path=_model_export_write_path,
         )
     else:
         return _run_reduction_pipeline(
@@ -250,6 +258,7 @@ def run_pipeline(
             mis_solver_registry=mis_solver_registry,
             classical_solver_registry=classical_solver_registry,
             started_at=started_at,
+            _model_export_write_path=_model_export_write_path,
         )
 
 
@@ -260,6 +269,7 @@ def _run_classical_only(
     *,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     started_at: float,
+    _model_export_write_path: str | None = None,
 ) -> PipelineRunResult:
     """Execute classical-only baseline without any MWIS reduction.
 
@@ -381,7 +391,9 @@ def _run_classical_only(
                 threads=config.classical_solve.threads,
                 random_seed=config.classical_solve.random_seed,
                 model_export_enabled=config.classical_solve.model_export_enabled,
-                model_export_path=config.classical_solve.model_export_path,
+                model_export_path=(
+                    _model_export_write_path or config.classical_solve.model_export_path
+                ),
                 requested_solver_id=config.classical_solve.classical_solver_id,
             ),
         )
@@ -505,6 +517,7 @@ def _run_reduction_pipeline(
     mis_solver_registry: MISSolverRegistry | None = None,
     classical_solver_registry: ClassicalSolverRegistry | None = None,
     started_at: float,
+    _model_export_write_path: str | None = None,
 ) -> PipelineRunResult:
     """Execute reduction pipeline with one or more rounds.
 
@@ -518,6 +531,7 @@ def _run_reduction_pipeline(
         problem, adapter, config,
         mis_solver_registry=mis_solver_registry,
         classical_solver_registry=classical_solver_registry,
+        _model_export_write_path=_model_export_write_path,
     )
 
 

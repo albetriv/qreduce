@@ -143,14 +143,14 @@ pubblicato con:
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio \
-  --run-id dwave-cplex-001 \
+  --run-id 003_dwave_cplex \
   --mis-solver-id dwave_simulated_annealing \
   --classical-solver-id cplex \
   --mis-num-reads 100 \
   --mis-num-sweeps 1000
 ```
 
-Il notebook `02_synthetic_portfolio_single_pass.ipynb`
+Il notebook `003_synthetic_portfolio_single_pass.ipynb`
 analizza esclusivamente gli artifact del run pubblicato e non invoca la pipeline.
 
 ## Post-check indipendente
