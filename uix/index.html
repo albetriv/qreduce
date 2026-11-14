@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Prototipo UI per configurare esperimenti QReduce.">
+  <title>QReduce | Run studio</title>
+  <style>
+    :root { --bg:#07111f; --surface:#0d1b2f; --surface-2:#11233b; --line:#28415d; --text:#eef5ff; --muted:#9db0c9; --accent:#42d3b1; --accent-dark:#0d735f; --warning:#f5bd5c; --danger:#ff7687; --blue:#72b6ff; --shadow:0 20px 70px rgba(0,0,0,.28); }
+    * { box-sizing:border-box; }
+    html { color-scheme:dark; }
+    body { margin:0; background:radial-gradient(circle at 5% -10%,#17395a 0,transparent 31rem),var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.45; }
+    button,input,select,textarea { font:inherit; }
+    button { cursor:pointer; }
+    .shell { max-width:1560px; margin:0 auto; padding:28px clamp(18px,3vw,46px) 46px; }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:28px; }
+    .brand { display:flex; gap:15px; align-items:center; }
+    .logo { display:grid; place-items:center; width:47px; height:47px; border-radius:14px; background:linear-gradient(135deg,var(--accent),#4a8fff); color:#05231e; font-weight:900; box-shadow:0 8px 30px rgba(66,211,177,.27); }
+    h1,h2,h3,p { margin-top:0; } h1 { font-size:clamp(1.55rem,3vw,2.3rem); letter-spacing:-.045em; margin-bottom:3px; } h2 { font-size:1.08rem; margin-bottom:5px; } h3 { font-size:.92rem; margin-bottom:4px; } .muted { color:var(--muted); } .eyebrow { color:var(--accent); font-size:.73rem; text-transform:uppercase; font-weight:800; letter-spacing:.14em; margin:0 0 4px; }
+    .badge { display:inline-flex; align-items:center; gap:7px; padding:6px 10px; border:1px solid #29516a; background:#0a2b38; color:#a3f4e1; border-radius:999px; font-size:.77rem; font-weight:700; white-space:nowrap; }
+    .badge::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 13px currentColor; }
+    .layout { display:grid; grid-template-columns:minmax(0,1fr) 348px; gap:24px; align-items:start; }
+    .panel { border:1px solid var(--line); background:linear-gradient(150deg,rgba(17,35,59,.98),rgba(9,22,39,.96)); border-radius:18px; box-shadow:var(--shadow); }
+    .main-panel { overflow:hidden; }
+    .tabs { display:flex; overflow-x:auto; border-bottom:1px solid var(--line); padding:0 16px; background:rgba(4,13,25,.28); }
+    .tab { color:var(--muted); border:0; border-bottom:3px solid transparent; background:transparent; padding:17px 14px 14px; white-space:nowrap; font-weight:750; font-size:.86rem; }
+    .tab:hover { color:var(--text); } .tab.active { color:var(--accent); border-color:var(--accent); }
+    .tab-content { display:none; padding:25px; } .tab-content.active { display:block; }
+    .section-head { display:flex; justify-content:space-between; gap:15px; align-items:flex-start; margin-bottom:18px; } .section-head p { font-size:.87rem; margin:0; color:var(--muted); }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 16px; }
+    .form-grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); } .full { grid-column:1 / -1; }
+    .field { min-width:0; } label { display:block; font-size:.8rem; font-weight:750; margin:0 0 6px; color:#dce9fa; } label .param { display:inline; margin-left:5px; color:#728ca9; font:600 .7rem ui-monospace,SFMono-Regular,Consolas,monospace; }
+    input,select,textarea { width:100%; color:var(--text); border:1px solid #36516e; background:#091827; border-radius:9px; padding:10px 11px; outline:none; transition:border .15s,box-shadow .15s,opacity .15s; }
+    textarea { resize:vertical; min-height:98px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.79rem; } input:focus,select:focus,textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(66,211,177,.14); }
+    input:disabled,select:disabled { opacity:.45; cursor:not-allowed; } .help { margin:5px 0 0; font-size:.75rem; color:#8298b3; } .error { min-height:17px; margin:4px 0 0; color:#ff99a5; font-size:.73rem; }
+    .card { border:1px solid #29435e; background:rgba(5,18,33,.42); border-radius:13px; padding:16px; } .card + .card { margin-top:15px; }
+    .switch-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:10px 0; border-bottom:1px solid rgba(59,85,113,.44); } .switch-row:last-child { border-bottom:0; padding-bottom:0; } .switch-row:first-child { padding-top:0; } .switch-row p { color:var(--muted); font-size:.76rem; margin:3px 0 0; }
+    .switch { position:relative; width:44px; height:25px; flex:0 0 auto; } .switch input { position:absolute; opacity:0; } .slider { position:absolute; inset:0; border-radius:999px; background:#395067; transition:.2s; } .slider::after { content:""; position:absolute; left:3px; top:3px; height:19px; width:19px; border-radius:50%; background:#dce8f7; transition:.2s; } .switch input:checked + .slider { background:var(--accent-dark); } .switch input:checked + .slider::after { transform:translateX(19px); background:#fff; }
+    .notice { border-left:3px solid var(--blue); background:rgba(39,101,169,.12); border-radius:0 8px 8px 0; color:#bcd9fa; padding:11px 13px; font-size:.79rem; margin:18px 0; } .notice.warning { border-color:var(--warning); background:rgba(245,189,92,.09); color:#f9dd9c; }
+    .summary { position:sticky; top:20px; padding:20px; } .summary h2 { margin-bottom:2px; } .summary-header { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:17px; }
+    .meter { height:8px; overflow:hidden; border-radius:99px; background:#20364d; margin:12px 0 7px; } .meter > span { display:block; height:100%; width:58%; border-radius:inherit; background:linear-gradient(90deg,var(--accent),#5fa6ff); transition:width .2s; }
+    .validation-status { display:flex; gap:10px; align-items:flex-start; margin:15px 0 7px; padding:11px 12px; border:1px solid #286051; border-radius:10px; background:#0b2c2b; } .validation-status.invalid { border-color:#87414c; background:#351b25; } .validation-icon { display:grid; flex:0 0 auto; place-items:center; width:22px; height:22px; border-radius:50%; color:#04251e; background:var(--accent); font-size:.78rem; font-weight:900; } .validation-status.invalid .validation-icon { color:#3b1118; background:var(--danger); } .validation-status strong { display:block; margin-bottom:2px; font-size:.82rem; } .validation-status p { margin:0; color:#aad3ca; font-size:.74rem; } .validation-status.invalid p { color:#ffc2c9; }
+    .summary-list { list-style:none; padding:0; margin:18px 0; } .summary-list li { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(57,83,109,.52); font-size:.8rem; } .summary-list span { color:var(--muted); } .summary-list strong { font-weight:700; text-align:right; overflow-wrap:anywhere; }
+    .actions { display:grid; gap:9px; } .button { width:100%; display:inline-flex; justify-content:center; align-items:center; gap:8px; border:1px solid transparent; border-radius:9px; padding:11px 13px; font-weight:800; font-size:.84rem; } .button.primary { background:var(--accent); color:#06241f; } .button.primary:hover { filter:brightness(1.08); } .button.secondary { background:#183550; border-color:#315675; color:#e4f0ff; } .button.ghost { background:transparent; border-color:#37536e; color:#c8d8eb; } .button:disabled { cursor:not-allowed; opacity:.45; }
+    .output { margin-top:16px; } .output pre { white-space:pre-wrap; word-break:break-word; max-height:240px; overflow:auto; margin:8px 0 0; padding:12px; border-radius:9px; border:1px solid #29445f; color:#bce9de; background:#061320; font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .toast { position:fixed; right:22px; bottom:22px; padding:12px 16px; border-radius:10px; background:#123c35; border:1px solid #3ca88f; color:#d6fff5; box-shadow:var(--shadow); transform:translateY(100px); opacity:0; transition:.25s; font-weight:700; font-size:.84rem; } .toast.show { transform:translateY(0); opacity:1; }
+    .advanced-summary { cursor:pointer; color:#dbe9fa; font-size:.86rem; font-weight:780; } details[open] .advanced-summary { margin-bottom:15px; } .pill { display:inline-block; padding:2px 7px; border-radius:5px; color:#9fcbff; background:#15324f; font:700 .68rem ui-monospace,SFMono-Regular,Consolas,monospace; }
+    @media (max-width:1100px) { .layout { grid-template-columns:1fr; } .summary { position:static; } } @media (max-width:680px) { .shell { padding:18px 12px 30px; } .topbar,.section-head { flex-direction:column; } .form-grid,.form-grid.three { grid-template-columns:1fr; } .tab-content { padding:18px; } .topbar .badge { align-self:flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="logo">QR</div><div><p class="eyebrow">Configuration workspace</p><h1>QReduce Run Studio</h1><p class="muted" style="margin:0">Configura un esperimento portfolio sintetico e genera una richiesta riproducibile.</p></div></div>
+      <span class="badge" id="validationBadge">Configurazione valida</span>
+    </header>
+
+    <div class="layout">
+      <section class="panel main-panel" aria-label="Configurazione esperimento">
+        <nav class="tabs" aria-label="Sezioni di configurazione">
+          <button class="tab active" data-tab="experiment">01 · Esperimento</button>
+          <button class="tab" data-tab="reduction">02 · Riduzione</button>
+          <button class="tab" data-tab="mis">03 · MWIS</button>
+          <button class="tab" data-tab="classical">04 · Solve classico</button>
+          <button class="tab" data-tab="advanced">05 · Avanzate e output</button>
+        </nav>
+
+        <form id="configForm" novalidate>
+          <section class="tab-content active" id="experiment">
+            <div class="section-head"><div><h2>Identita e portfolio sintetico</h2><p>Parametri di run, generazione deterministica dei dati e costruzione del grafo di conflitto.</p></div><span class="pill">portfolio.py</span></div>
+            <div class="form-grid">
+              <div class="field"><label for="runId">ID del run <span class="param">run_identity.run_id</span></label><input id="runId" value="ui_portfolio_001" required pattern="\S+"><p class="help">Deve essere unico nella directory di output.</p><p class="error"></p></div>
+              <div class="field"><label for="experimentMode">Modalita di pipeline</label><select id="experimentMode"><option value="single">Single pass</option><option value="multi">Multi-round (fino a 3 round)</option><option value="classical">Solo solve classico</option></select><p class="help">Il comando CLI e disponibile per single e multi-round.</p></div>
+              <div class="field"><label for="outputRoot">Directory artifact <span class="param">output_root</span></label><input id="outputRoot" value="outputs" required><p class="error"></p></div>
+              <div class="field"><label for="assetCount">Numero di asset <span class="param">asset_count</span></label><input id="assetCount" type="number" value="30" min="6" step="1" required><p class="help">Minimo supportato: 6.</p><p class="error"></p></div>
+              <div class="field"><label for="generationSeed">Seed generazione <span class="param">random_seed</span></label><input id="generationSeed" type="number" value="42" step="1"><p class="help">Riproducibilita della matrice dei rendimenti.</p></div>
+              <div class="field"><label for="observationCount">Osservazioni storiche <span class="param">observation_count</span></label><input id="observationCount" type="number" placeholder="Automatico: max(100, 10 x asset)"><p class="help">Deve essere almeno 10 per asset.</p><p class="error"></p></div>
+            </div>
+            <div class="card" style="margin-top:20px"><h3>Policy del grafo</h3><div class="form-grid three">
+              <div class="field"><label for="edgeMode">Semantica degli archi <span class="param">edge_mode</span></label><select id="edgeMode"><option value="near_duplicate">Near duplicate</option><option value="correlation_only">Solo correlazione</option></select></div>
+              <div class="field"><label for="correlationThreshold">Soglia correlazione assoluta</label><input id="correlationThreshold" type="number" value="0.90" min="0" max="1" step="0.01"><p class="error"></p></div>
+              <div class="field"><label for="graphPolicyVersion">Versione policy</label><input id="graphPolicyVersion" value="1"></div>
+              <div class="field near-duplicate"><label for="returnDifference">Max differenza relativa rendimento</label><input id="returnDifference" type="number" value="0.10" min="0" step="0.01"></div>
+              <div class="field near-duplicate"><label for="varianceDifference">Max differenza relativa varianza</label><input id="varianceDifference" type="number" value="0.10" min="0" step="0.01"></div>
+            </div></div>
+            <details class="card" style="margin-top:15px"><summary class="advanced-summary">Parametri avanzati del generatore</summary><div class="form-grid three">
+              <div class="field"><label for="clusterCount">Numero cluster</label><input id="clusterCount" type="number" min="1" placeholder="Automatico: asset / 5"></div>
+              <div class="field"><label for="marketVol">Volatilita fattore mercato</label><input id="marketVol" type="number" value="0.15" min="0.000001" step="0.01"></div>
+              <div class="field"><label for="clusterVol">Volatilita fattore cluster</label><input id="clusterVol" type="number" value="0.10" min="0.000001" step="0.01"></div>
+              <div class="field"><label for="idiosyncraticVol">Volatilita idiosincratica</label><input id="idiosyncraticVol" type="number" value="0.05" min="0.000001" step="0.01"></div>
+              <div class="field"><label for="riskAversion">Avversione al rischio</label><input id="riskAversion" type="number" value="1" min="0" step="0.1"></div>
+              <div class="field"><label for="upperBound">Upper bound per asset</label><input id="upperBound" type="number" value="0.7" min="0" max="1" step="0.05"></div>
+            </div></details>
+          </section>
+
+          <section class="tab-content" id="reduction">
+            <div class="section-head"><div><h2>Policy di riduzione</h2><p>Determina quanto dominio binario e quante candidate possono attraversare il percorso MWIS.</p></div><span class="pill">ReductionPolicy</span></div>
+            <div class="form-grid three">
+              <div class="field"><label for="maxRounds">Round massimi <span class="param">max_reduction_rounds</span></label><input id="maxRounds" type="number" min="0" step="1" value="1"><p class="help">0 equivale al baseline classico.</p><p class="error"></p></div>
+              <div class="field"><label for="minItems">Min item dominio <span class="param">candidate_domain_min_items</span></label><input id="minItems" type="number" min="0" step="1" value="1"><p class="error"></p></div>
+              <div class="field"><label for="maxItems">Max item dominio <span class="param">candidate_domain_max_items</span></label><input id="maxItems" type="number" min="0" step="1" value="18"><p class="help">Default portfolio: 60% degli asset.</p><p class="error"></p></div>
+              <div class="field"><label for="sourceCandidates">Candidate MIS sorgente <span class="param">num_source_mis_candidates</span></label><input id="sourceCandidates" type="number" min="1" step="1" value="1"><p class="error"></p></div>
+              <div class="field"><label for="minReductionRatio">Riduzione minima richiesta</label><input id="minReductionRatio" type="number" min="0" max="1" step="0.01" value="0.10"><p class="help">Rapporto sul numero di item del grafo.</p></div>
+              <div class="field"><label for="targetBinary">Variabili binarie target</label><input id="targetBinary" type="number" min="0" step="1" value="3"></div>
+              <div class="field"><label for="endToEndBudget">Budget end-to-end (s)</label><input id="endToEndBudget" type="number" min="0.001" step="1" value="60"><p class="help">Il budget residuo limita i timeout dei backend.</p><p class="error"></p></div>
+            </div>
+            <div class="card" style="margin-top:20px"><h3>Recupero dopo una riduzione non applicabile</h3><div class="form-grid three">
+              <div class="field"><label for="domainRecovery">Dominio troppo piccolo</label><select id="domainRecovery"><option value="fail">Fallisci</option><option value="retry_with_larger_domain">Riprova con dominio piu ampio</option></select></div>
+              <div class="field"><label for="infeasibleRecovery">Residuo infeasible</label><select id="infeasibleRecovery"><option value="fail">Fallisci</option><option value="retry_with_larger_domain">Riprova con dominio piu ampio</option></select></div>
+              <div class="field"><label for="recoveryAttempts">Tentativi recovery <span class="param">max_recovery_attempts</span></label><input id="recoveryAttempts" type="number" min="0" step="1" value="0"><p class="error"></p></div>
+            </div></div>
+            <div class="card" style="margin-top:15px"><h3>Penalita QUBO / MWIS</h3><div class="form-grid three">
+              <div class="field"><label for="lambdaEdge">Lambda edge</label><input id="lambdaEdge" type="number" min="0.000001" step="0.1" value="2.0"></div>
+              <div class="field"><label for="lambdaPolicyId">ID policy lambda</label><input id="lambdaPolicyId" value="standard"></div>
+              <div class="field"><label for="lambdaPolicyVersion">Versione policy lambda</label><input id="lambdaPolicyVersion" value="1"></div>
+            </div><div class="switch-row" style="margin-top:14px"><div><strong>Consenti penalita non certificante</strong><p>Richiede una descrizione del comportamento non certificante nella policy.</p></div><label class="switch"><input id="allowNoncertifying" type="checkbox"><span class="slider"></span></label></div></div>
+          </section>
+
+          <section class="tab-content" id="mis">
+            <div class="section-head"><div><h2>Solver MWIS</h2><p>Configurazione provider-neutral per compilazione, sampling, deduplicazione e riparazione delle candidate.</p></div><span class="pill">MISExecutionOptions</span></div>
+            <div class="form-grid three">
+              <div class="field"><label for="misSolver">Backend MIS <span class="param">mis_solver_id</span></label><select id="misSolver"><option value="local_greedy">local_greedy</option><option value="dwave_simulated_annealing">dwave_simulated_annealing</option></select></div>
+              <div class="field"><label for="misSeed">Seed MWIS <span class="param">random_seed</span></label><input id="misSeed" type="number" step="1" value="17"></div>
+              <div class="field"><label for="requestedSolutions">Soluzioni richieste</label><input id="requestedSolutions" type="number" min="1" step="1" value="1"><p class="error"></p></div>
+              <div class="field"><label for="maxDistinct">Sample distinte massime</label><input id="maxDistinct" type="number" min="1" step="1" value="1"><p class="error"></p></div>
+              <div class="field"><label for="jaccardDistance">Distanza Jaccard minima</label><input id="jaccardDistance" type="number" min="0" max="1" step="0.05" value="0"><p class="error"></p></div>
+              <div class="field"><label for="exactMaxVariables">Soglia solver exact diagnostico</label><input id="exactMaxVariables" type="number" min="0" step="1" value="20"></div>
+              <div class="field"><label for="misCompilationLimit">Limite compilation (s)</label><input id="misCompilationLimit" type="number" min="0.001" step="1" placeholder="Nessun limite"></div>
+              <div class="field"><label for="misExecutionLimit">Limite esecuzione (s)</label><input id="misExecutionLimit" type="number" min="0.001" step="1" placeholder="Nessun limite"></div>
+            </div>
+            <div class="card" style="margin-top:20px"><div class="switch-row"><div><strong>Ripara candidate</strong><p>Abilita la fase di repair sulle sample MWIS.</p></div><label class="switch"><input id="repairEnabled" type="checkbox"><span class="slider"></span></label></div><div class="form-grid" style="margin-top:15px"><div class="field"><label for="repairIterations">Iterazioni massime di repair</label><input id="repairIterations" type="number" min="0" step="1" value="0"></div><div class="field dwave-only"><label for="numReads">D-Wave num_reads</label><input id="numReads" type="number" min="1" step="1" placeholder="Opzionale"></div><div class="field dwave-only"><label for="numSweeps">D-Wave num_sweeps</label><input id="numSweeps" type="number" min="1" step="1" placeholder="Opzionale"></div></div></div>
+            <details class="card" style="margin-top:15px"><summary class="advanced-summary">Parametri del provider (JSON)</summary><textarea id="providerParameters" spellcheck="false" placeholder='{"temperature": 0.5}'>{}</textarea><p class="help">Passati immutabilmente come <code>provider_parameters</code>. Token e credenziali non devono essere inseriti qui.</p><p class="error" id="providerJsonError"></p></details>
+          </section>
+
+          <section class="tab-content" id="classical">
+            <div class="section-head"><div><h2>Solver classico e post-check</h2><p>Opzioni per il solve del modello residuo, esportazione e validazione finale della soluzione.</p></div><span class="pill">ClassicalSolveOptions</span></div>
+            <div class="form-grid three">
+              <div class="field"><label for="classicalSolver">Backend classico <span class="param">classical_solver_id</span></label><select id="classicalSolver"><option value="scip">scip</option><option value="cplex">cplex</option></select></div>
+              <div class="field"><label for="classicalTimeLimit">Time limit solve (s)</label><input id="classicalTimeLimit" type="number" min="0.001" step="1" value="10"><p class="error"></p></div>
+              <div class="field"><label for="threads">Thread</label><input id="threads" type="number" min="1" step="1" value="1"></div>
+              <div class="field"><label for="mipGap">MIP gap tolerance</label><input id="mipGap" type="number" min="0" step="0.001" placeholder="Non impostato"></div>
+              <div class="field"><label for="classicalSeed">Seed solver classico</label><input id="classicalSeed" type="number" step="1" placeholder="Opzionale"></div>
+              <div class="field"><label for="postcheckMode">Modalita post-check</label><select id="postcheckMode"><option value="strict">strict</option><option value="best_effort">best_effort</option></select></div>
+            </div>
+            <div class="card" style="margin-top:20px"><h3>Tolleranze di validazione</h3><div class="form-grid three"><div class="field"><label for="primalTolerance">Feasibility primale</label><input id="primalTolerance" type="number" min="0" step="0.000001" value="0.000001"></div><div class="field"><label for="integralityTolerance">Integrality</label><input id="integralityTolerance" type="number" min="0" step="0.000001" value="0.000001"></div><div class="field"><label for="objectiveAbsoluteTolerance">Ricalcolo obiettivo assoluto</label><input id="objectiveAbsoluteTolerance" type="number" min="0" step="0.0000001" value="0.0000001"></div><div class="field"><label for="objectiveRelativeTolerance">Ricalcolo obiettivo relativo</label><input id="objectiveRelativeTolerance" type="number" min="0" step="0.0000001" value="0.0000001"></div></div></div>
+            <div class="card" style="margin-top:15px"><div class="switch-row"><div><strong>Esporta modello residuo</strong><p>Se non specifichi un percorso, l'artifact viene pubblicato nella directory del run.</p></div><label class="switch"><input id="modelExport" type="checkbox"><span class="slider"></span></label></div><div class="field" style="margin-top:15px"><label for="modelExportPath">Percorso export <span class="param">model_export_path</span></label><input id="modelExportPath" disabled placeholder="Esempio: C:\\modelli\\residuo.lp"><p class="error"></p></div></div>
+          </section>
+
+          <section class="tab-content" id="advanced">
+            <div class="section-head"><div><h2>Provenance, anteprima ed esportazione</h2><p>Campi serializzabili della richiesta risolta e rappresentazioni adatte a un'integrazione futura con un backend UI.</p></div><span class="pill">ResolvedRunConfig</span></div>
+            <div class="form-grid three"><div class="field"><label for="schemaVersion">Schema versione</label><input id="schemaVersion" value="1.0"></div><div class="field"><label for="policyId">Policy provenance ID</label><input id="policyId" value="portfolio-policy"></div><div class="field"><label for="policyVersion">Policy provenance versione</label><input id="policyVersion" value="2026-11"></div><div class="field"><label for="policyHash">Policy hash</label><input id="policyHash" placeholder="Opzionale"></div><div class="field"><label for="policySource">Sorgente policy</label><input id="policySource" value="ui"></div><div class="field"><label for="selectionStatus">Stato selezione policy</label><select id="selectionStatus"><option value="user_supplied">user_supplied</option><option value="default">default</option><option value="externally_selected">externally_selected</option></select></div></div>
+            <div class="notice warning"><strong>Stato del prototipo:</strong> questa pagina genera e valida una configurazione nel browser. Non invoca il package Python, non verifica l'installazione dei backend opzionali e non crea artifact su disco.</div>
+            <div class="card"><h3>Configurazione risolta (preview)</h3><pre id="jsonPreview">{}</pre></div>
+          </section>
+        </form>
+      </section>
+
+      <aside class="panel summary" aria-label="Riepilogo configurazione">
+        <div class="summary-header"><div><p class="eyebrow">Run pronto</p><h2 id="summaryRunId">ui_portfolio_001</h2><p class="muted" style="font-size:.78rem;margin:0">Portfolio sintetico</p></div><span class="pill" id="summaryMode">single pass</span></div>
+        <div class="validation-status" id="validationStatus" role="status" aria-live="polite"><span class="validation-icon" id="validationIcon">&#10003;</span><div><strong id="validationTitle">Configurazione verificata</strong><p id="validationText">Puoi copiare il comando CLI o il JSON risolto.</p></div></div>
+        <ul class="summary-list"><li><span>Asset / osservazioni</span><strong id="summaryData">30 / 300</strong></li><li><span>Riduzione</span><strong id="summaryReduction">1 round · 1-18 item</strong></li><li><span>Backend MWIS</span><strong id="summaryMis">local_greedy</strong></li><li><span>Backend classico</span><strong id="summaryClassical">scip · 10 s</strong></li><li><span>Budget end-to-end</span><strong id="summaryBudget">60 s</strong></li></ul>
+        <div class="actions"><button class="button primary" type="button" id="copyCommand">Copia comando CLI</button><button class="button secondary" type="button" id="copyJson">Copia JSON risolto</button><button class="button ghost" type="button" id="resetDefaults">Ripristina default portfolio</button></div>
+        <div class="output"><label for="cliPreview">Comando generato</label><pre id="cliPreview"></pre></div>
+      </aside>
+    </div>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const form = $("configForm");
+      const tabButtons = [...document.querySelectorAll(".tab")];
+      const fieldIds = [...form.querySelectorAll("input, select, textarea")].map((element) => element.id);
+      const defaultValues = Object.fromEntries(fieldIds.map((id) => [id, $(id).type === "checkbox" ? $(id).checked : $(id).value]));
+      let toastTimer;
+
+      const value = (id) => $(id).value.trim();
+      const number = (id) => value(id) === "" ? null : Number(value(id));
+      const optionalNumber = (id) => value(id) === "" ? null : number(id);
+      const bool = (id) => $(id).checked;
+      const quote = (text) => /[\s"']/.test(text) ? `"${text.replaceAll('"', '\\"')}"` : text;
+
+      function setError(id, message = "") { const el = $(id); const host = el.closest(".field"); if (host) host.querySelector(".error").textContent = message; }
+      function validate() {
+        let valid = true;
+        document.querySelectorAll(".field .error").forEach((item) => item.textContent = "");
+        const require = (id, condition, message) => { if (!condition) { setError(id, message); valid = false; } };
+        require("runId", value("runId") !== "", "L'ID del run e obbligatorio.");
+        require("outputRoot", value("outputRoot") !== "", "La directory degli artifact e obbligatoria.");
+        require("assetCount", Number.isInteger(number("assetCount")) && number("assetCount") >= 6, "Inserisci un intero maggiore o uguale a 6.");
+        const observations = optionalNumber("observationCount");
+        require("observationCount", observations === null || (Number.isInteger(observations) && observations >= number("assetCount") * 10), "Servono almeno 10 osservazioni per asset.");
+        require("correlationThreshold", number("correlationThreshold") >= 0 && number("correlationThreshold") <= 1, "Il valore deve essere fra 0 e 1.");
+        require("maxRounds", Number.isInteger(number("maxRounds")) && number("maxRounds") >= 0, "Inserisci un intero maggiore o uguale a 0.");
+        require("minItems", Number.isInteger(number("minItems")) && number("minItems") >= 0, "Inserisci un intero maggiore o uguale a 0.");
+        require("maxItems", Number.isInteger(number("maxItems")) && number("maxItems") >= number("minItems"), "Il massimo deve essere maggiore o uguale al minimo.");
+        require("sourceCandidates", Number.isInteger(number("sourceCandidates")) && number("sourceCandidates") >= 1, "Inserisci almeno una candidata.");
+        require("endToEndBudget", number("endToEndBudget") > 0, "Il budget deve essere maggiore di zero.");
+        require("requestedSolutions", Number.isInteger(number("requestedSolutions")) && number("requestedSolutions") >= 1, "Inserisci almeno una soluzione.");
+        require("maxDistinct", Number.isInteger(number("maxDistinct")) && number("maxDistinct") >= number("requestedSolutions"), "Deve essere almeno pari alle soluzioni richieste.");
+        require("jaccardDistance", number("jaccardDistance") >= 0 && number("jaccardDistance") <= 1, "Il valore deve essere fra 0 e 1.");
+        require("classicalTimeLimit", number("classicalTimeLimit") > 0, "Il time limit deve essere maggiore di zero.");
+        const recoveryActive = $("domainRecovery").value !== "fail" || $("infeasibleRecovery").value !== "fail";
+        require("recoveryAttempts", !recoveryActive || (number("maxRounds") >= 1 && Number.isInteger(number("recoveryAttempts")) && number("recoveryAttempts") >= 1), "Il recovery richiede almeno 1 round e 1 tentativo.");
+        require("modelExportPath", !bool("modelExport") || !value("modelExportPath") || /\.(lp|mps)$/i.test(value("modelExportPath")), "Il percorso esterno deve terminare in .lp o .mps.");
+        try { JSON.parse(value("providerParameters") || "{}"); $("providerJsonError").textContent = ""; } catch { $("providerJsonError").textContent = "JSON non valido."; valid = false; }
+        return valid;
+      }
+      function configuration() {
+        let providerParameters = {};
+        try { providerParameters = JSON.parse(value("providerParameters") || "{}"); } catch { /* validation reports this */ }
+        const observations = optionalNumber("observationCount");
+        return {
+          schema_version: value("schemaVersion"),
+          run_identity: { run_id: value("runId") },
+          experiment: {
+            mode: value("experimentMode"), output_root: value("outputRoot"),
+            portfolio_generation: { policy_id: "synthetic_factor_model", policy_version: "1", asset_count: number("assetCount"), random_seed: number("generationSeed"), observation_count: observations ?? Math.max(100, number("assetCount") * 10), cluster_count: optionalNumber("clusterCount") ?? Math.max(1, Math.floor(number("assetCount") / 5)), market_factor_volatility: number("marketVol"), cluster_factor_volatility: number("clusterVol"), idiosyncratic_volatility: number("idiosyncraticVol"), risk_aversion: number("riskAversion"), upper_bound: number("upperBound") },
+            graph_policy: { policy_id: `synthetic-portfolio-${value("edgeMode")}`, policy_version: value("graphPolicyVersion"), edge_mode: value("edgeMode"), correlation_absolute_threshold: number("correlationThreshold"), near_duplicate_max_relative_return_difference: number("returnDifference"), near_duplicate_max_relative_variance_difference: number("varianceDifference") }
+          },
+          reduction: { max_reduction_rounds: number("maxRounds"), candidate_domain_min_items: number("minItems"), candidate_domain_max_items: number("maxItems"), num_source_mis_candidates: number("sourceCandidates"), min_reduction_ratio: number("minReductionRatio"), target_binary_variables: number("targetBinary"), max_end_to_end_runtime_seconds: number("endToEndBudget"), recovery_policy_on_domain_too_small: value("domainRecovery"), recovery_policy_on_infeasible: value("infeasibleRecovery"), max_recovery_attempts: number("recoveryAttempts") },
+          lambda_edge: number("lambdaEdge"), lambda_edge_policy: { policy_id: value("lambdaPolicyId"), policy_version: value("lambdaPolicyVersion"), effective_lambda_edge: number("lambdaEdge") }, allow_noncertifying_penalty: bool("allowNoncertifying"),
+          mis_solver_id: value("misSolver"), mis_execution: { requested_solution_count: number("requestedSolutions"), random_seed: optionalNumber("misSeed"), max_distinct_samples: number("maxDistinct"), repair_enabled: bool("repairEnabled"), repair_max_iterations: number("repairIterations"), minimum_candidate_jaccard_distance: number("jaccardDistance"), exact_solver_max_variables: number("exactMaxVariables"), execution_time_limit_seconds: optionalNumber("misExecutionLimit"), compilation_time_limit_seconds: optionalNumber("misCompilationLimit"), provider_parameters: providerParameters },
+          classical_solve: { classical_solver_id: value("classicalSolver"), time_limit_seconds: number("classicalTimeLimit"), mip_gap_tolerance: optionalNumber("mipGap"), threads: optionalNumber("threads"), random_seed: optionalNumber("classicalSeed"), model_export_enabled: bool("modelExport"), model_export_path: value("modelExportPath") || null, primal_feasibility_tolerance: number("primalTolerance"), integrality_tolerance: number("integralityTolerance"), objective_recomputation_absolute_tolerance: number("objectiveAbsoluteTolerance"), objective_recomputation_relative_tolerance: number("objectiveRelativeTolerance"), postcheck_mode: value("postcheckMode") },
+          policy_provenance: { policy_id: value("policyId") || null, policy_version: value("policyVersion") || null, policy_hash: value("policyHash") || null, policy_source: value("policySource") || null, policy_selection_status: value("selectionStatus") }
+        };
+      }
+      function cli() {
+        const base = value("experimentMode") === "multi" ? "poetry run python -m qreduce.experiments.portfolio_multi_round" : "poetry run python -m qreduce.experiments.portfolio";
+        if (value("experimentMode") === "classical") return "# La modalita solo classica richiede un'integrazione diretta con run_pipeline.\n# Esporta il JSON risolto per usarlo nell'applicazione Python.";
+        const args = [`--run-id ${quote(value("runId"))}`, `--output-root ${quote(value("outputRoot"))}`, `--asset-count ${number("assetCount")}`, `--graph-edge-mode ${value("edgeMode")}`, `--correlation-threshold ${number("correlationThreshold")}`, `--near-duplicate-max-relative-return-difference ${number("returnDifference")}`, `--near-duplicate-max-relative-variance-difference ${number("varianceDifference")}`, `--generation-seed ${number("generationSeed")}`];
+        if (optionalNumber("observationCount") !== null) args.push(`--observation-count ${number("observationCount")}`);
+        if (value("experimentMode") === "single") { args.push(`--mis-solver-id ${value("misSolver")}`, `--classical-solver-id ${value("classicalSolver")}`); if (value("misSolver") === "dwave_simulated_annealing" && optionalNumber("numReads") !== null) args.push(`--mis-num-reads ${number("numReads")}`); if (value("misSolver") === "dwave_simulated_annealing" && optionalNumber("numSweeps") !== null) args.push(`--mis-num-sweeps ${number("numSweeps")}`); if (bool("modelExport")) { args.push("--model-export"); if (value("modelExportPath")) args.push(`--model-export-path ${quote(value("modelExportPath"))}`); } }
+        return `${base} \\\n+  ${args.join(" \\\n+  ")}`;
+      }
+      function updateEnabled() {
+        const isDwave = value("misSolver") === "dwave_simulated_annealing";
+        document.querySelectorAll(".dwave-only input").forEach((input) => input.disabled = !isDwave);
+        $("repairIterations").disabled = !bool("repairEnabled");
+        $("modelExportPath").disabled = !bool("modelExport");
+        const nearDuplicate = value("edgeMode") === "near_duplicate";
+        document.querySelectorAll(".near-duplicate input").forEach((input) => input.disabled = !nearDuplicate);
+        const mode = value("experimentMode");
+        if (mode === "multi") $("maxRounds").value = "3";
+        if (mode === "classical") $("maxRounds").value = "0";
+      }
+      function update() {
+        updateEnabled(); const isValid = validate(); const config = configuration(); const generatedObservations = config.experiment.portfolio_generation.observation_count;
+        $("jsonPreview").textContent = JSON.stringify(config, null, 2); $("cliPreview").textContent = cli(); $("summaryRunId").textContent = value("runId") || "run ID mancante";
+        $("summaryMode").textContent = value("experimentMode") === "multi" ? "multi-round" : value("experimentMode") === "classical" ? "classical only" : "single pass";
+        $("summaryData").textContent = `${number("assetCount")} / ${generatedObservations}`; $("summaryReduction").textContent = `${number("maxRounds")} round · ${number("minItems")}-${number("maxItems")} item`; $("summaryMis").textContent = value("misSolver"); $("summaryClassical").textContent = `${value("classicalSolver")} · ${number("classicalTimeLimit")} s`; $("summaryBudget").textContent = `${number("endToEndBudget")} s`;
+        const badge = $("validationBadge"); badge.textContent = isValid ? "Configurazione valida" : "Correggi i campi evidenziati"; badge.style.color = isValid ? "#a3f4e1" : "#ffb0ba"; badge.style.background = isValid ? "#0a2b38" : "#3b1721"; badge.style.borderColor = isValid ? "#29516a" : "#853444";
+        const validationStatus = $("validationStatus"); validationStatus.classList.toggle("invalid", !isValid); $("validationIcon").textContent = isValid ? "✓" : "!"; $("validationTitle").textContent = isValid ? "Configurazione verificata" : "Configurazione da correggere"; $("validationText").textContent = isValid ? "Puoi copiare il comando CLI o il JSON risolto." : "Correggi i messaggi in rosso prima di esportare o copiare.";
+        $("copyCommand").disabled = !isValid; $("copyJson").disabled = !isValid;
+      }
+      function toast(message) { const item = $("toast"); item.textContent = message; item.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => item.classList.remove("show"), 2300); }
+      async function copy(text, message) { try { await navigator.clipboard.writeText(text); toast(message); } catch { toast("Copia non disponibile: seleziona il testo manualmente."); } }
+      form.addEventListener("input", update); form.addEventListener("change", update);
+      tabButtons.forEach((button) => button.addEventListener("click", () => { tabButtons.forEach((tab) => tab.classList.toggle("active", tab === button)); document.querySelectorAll(".tab-content").forEach((content) => content.classList.toggle("active", content.id === button.dataset.tab)); }));
+      $("copyCommand").addEventListener("click", () => copy(cli(), "Comando CLI copiato negli appunti."));
+      $("copyJson").addEventListener("click", () => copy(JSON.stringify(configuration(), null, 2), "JSON risolto copiato negli appunti."));
+      $("resetDefaults").addEventListener("click", () => { fieldIds.forEach((id) => { const input = $(id); if (input.type === "checkbox") input.checked = defaultValues[id]; else input.value = defaultValues[id]; }); update(); toast("Ripristinati i default del portfolio."); });
+      update();
+    })();
+  </script>
+</body>
+</html>
