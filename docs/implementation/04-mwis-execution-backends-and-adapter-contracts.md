@@ -1,22 +1,33 @@
-# 04 - MWIS execution backends and adapter contracts
+# M04 - Backend di esecuzione MWIS e contratti adapter
 
-## Scopo
+## Stato
+
+**Completata.** L'audit del 2026-11-11 ha verificato contratti
+provider-agnostic, catalogo esplicito, gate di capability, gestione timeout,
+backend `local_greedy` e `dwave_simulated_annealing`, normalizzazione e
+redazione dei metadata.
+
+## Scopo e confini
 
 Definire il contratto provider-agnostic per compilation ed esecuzione del problema MWIS e implementare i backend locali concreti. Il termine MWIS identifica il problema di riduzione, non la tecnologia del backend: un backend MWIS puo` essere classico, come `local_greedy`, oppure un simulatore o un adapter quantistico. I backend devono restituire sample binarie auditabili senza rendere il kernel dipendente da SDK, QPU o formato di job specifico.
 
-## Riferimenti alle specifiche
+## Riferimenti normativi
 
 - Sezioni 3.1, 7, 11, 12, 17, 18, 19 e 20.2.
-- `docs/implementation/02-core-domain-models-and-configuration.md`.
-- `docs/implementation/03-canonical-mwis-graph-and-qubo.md`.
+- `02-core-contracts-configuration-status-and-provenance.md`.
+- `03-canonical-mwis-graph-qubo-and-diagnostics.md`.
 
-## Stato dell'audit
+## Dipendenze
 
-**Stato: Completata.** L'audit del 2026-11-11 ha verificato i contratti
-provider-agnostic, il catalogo esplicito, il gate di capability prima della
-compilation, il clamping dei timeout, i backend `local_greedy` e
-`dwave_simulated_annealing`, oltre a normalizzazione, deduplicazione e
-redazione dei metadata. I timeout di fase sono applicati solo dagli adapter
+**Prerequisiti:** M02 fornisce capability, configurazione e failure
+normalizzate; M03 fornisce grafo, QUBO e Ising canonici da compilare.
+
+**Integrazione a valle:** M05 consuma sample normalizzate per repair e
+costruzione del candidate domain.
+
+## Implementazione ed evidenze
+
+I timeout di fase sono applicati solo dagli adapter
 che li dichiarano supportati: `local_greedy` segnala la compilation o
 l'execution time-limited, mentre il simulatore Ocean rifiuta una richiesta di
 limite temporale prima della compilation. L'audit M03 del 2026-11-11 ha inoltre
@@ -46,7 +57,7 @@ non sono implementati in M04. I loro requisiti restano condizionali: se un
 adapter viene aggiunto, deve rispettare gli stessi contratti e produrre reason
 esplicite per capability, mapping o runtime indisponibili.
 
-## Contratto MIS minimo
+### Contratto MIS minimo
 
 L'API concreta puo` evolvere, ma deve mantenere la separazione funzionale:
 
@@ -58,7 +69,7 @@ solve(compiled_job, execution_request)
 
 La separazione tra compilation ed esecuzione e` obbligatoria anche quando il backend locale le realizza internamente nella stessa operazione. Devono rimanere auditabili tempi, parametri effettivi, forma compilata, stato di completion e failure reason.
 
-## Capability richieste
+### Capability richieste
 
 Ogni adapter deve dichiarare almeno:
 
@@ -73,7 +84,7 @@ Ogni adapter deve dichiarare almeno:
 
 Il framework usa `fallback_policy = fail`. Il framework non puo` sostituire silenziosamente backend, provider, device, modalita` o algoritmo.
 
-## Solver MWIS built-in e registry di estensione
+### Solver MWIS built-in e registry di estensione
 
 QReduce include `local_greedy` e `dwave_simulated_annealing` nel catalogo MIS
 standard. Il chiamante seleziona uno dei due ID nella configurazione e la pipeline
@@ -96,7 +107,7 @@ Ogni backend deve:
 
 L'exact solver della task 03 resta separato: e` uno strumento diagnostico sotto soglia, non il backend locale operativo.
 
-## Normalizzazione delle sample
+### Normalizzazione delle sample
 
 Ogni esito deve diventare un `RawMISSample` equivalente con:
 
@@ -111,11 +122,11 @@ source execution metadata
 
 Il framework deve poi deduplicare per vettore `delta`, validare l'independent set e ricalcolare, quando possibile, energia QUBO e peso di selezione. Uno score nativo non e` automaticamente un'energia QUBO.
 
-## Parametri condizionali
+### Parametri condizionali
 
 Campi come `num_reads`, `shots`, `embedding_policy`, `transpiler_options` o parametri di emulatori non appartengono al contratto comune di ogni backend. Possono essere presenti nella configurazione, ma sono validi soltanto quando dichiarati supportati dall'adapter selezionato.
 
-## Moduli Python indicativi
+### Moduli Python indicativi
 
 ```text
 src/qreduce/solving/mwis/contracts.py
@@ -129,7 +140,7 @@ src/qreduce/solving/mwis/compilation.py
 
 Questi nomi non fissano l'API pubblica finale.
 
-## Test minimi
+## Test e verifica
 
 - Capability incompatibile rifiutata prima della compilation.
 - Backend locale restituisce `delta` binarie nel node order dichiarato.
@@ -149,3 +160,16 @@ Questi nomi non fissano l'API pubblica finale.
 - Ogni cambio di backend o modalita` richiede una configurazione esplicita.
 - L'exact solver diagnostico di M03 resta confinato a test e diagnostica bounded;
   la sua verifica e il rifiuto oltre soglia sono coperti da `tests/mwis/`.
+
+## Esclusioni e lavoro successivo
+
+Backend remoti, gate-based e neutral-atom sono capacita` condizionali: non sono
+attivati implicitamente e richiedono un adapter, capability e ambiente di
+verifica dedicati.
+
+## Riferimenti correlati
+
+- [Overview di implementazione](00-implementation-overview.md)
+- [M02 - Contratti core](02-core-contracts-configuration-status-and-provenance.md)
+- [M03 - Grafo MWIS, QUBO e diagnostica](03-canonical-mwis-graph-qubo-and-diagnostics.md)
+- [M05 - Riduzione single-pass](05-single-pass-reduction-candidate-domain-and-fixing.md)

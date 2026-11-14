@@ -1,17 +1,31 @@
-# 01 - Project setup and Python compatibility
+# M01 - Fondazioni di progetto e compatibilita` Python
 
-## Scopo
+## Stato
+
+**Completata.** La verifica locale del 2026-11-12 ha confermato Python 3.12.12
+tramite Poetry, coerenza del lock con `poetry check --lock`, pytest (143 test
+superati) e Ruff. I test di indipendenza runtime, capability e registry coprono
+l'assenza di SDK opzionali e failure esplicite senza fallback.
+
+## Scopo e confini
 
 Allineare l'infrastruttura di sviluppo a Python 3.12 e preparare il
 progetto a dipendenze opzionali o runtime-specifiche senza compromettere
 l'indipendenza del kernel QReduce.
 
-## Riferimenti alle specifiche
+## Riferimenti normativi
 
 - Sezioni 3.1, 11, 17, 18, 19 e 21 di `docs/specifications.md`.
-- `docs/implementation/00-implementation-overview.md`.
+- `00-implementation-overview.md`.
 
-## Decisioni applicate
+## Dipendenze
+
+- Poetry, `pyproject.toml` e `poetry.lock` sono la fonte per packaging e
+  dipendenze risolte.
+- I backend concreti possono richiedere binding opzionali, ma il package core
+  non deve importarli per rendere disponibile `qreduce`.
+
+## Implementazione ed evidenze
 
 - QReduce supporta Python `>=3.12,<3.13`.
 - Il kernel include cataloghi di ID solver standard, ma non impone quale ID debba
@@ -22,16 +36,11 @@ l'indipendenza del kernel QReduce.
 - Un backend richiesto ma indisponibile deve produrre failure esplicita.
 - La CI automatica non e` richiesta: test e lint sono verificati localmente.
 
-## Stato della verifica
+`poetry.lock` e` versionato; `.cline-tmp/` e` ignorata da Git e da Cline e non
+fa parte del codice applicativo. Il README dichiara Python 3.12 e rimane
+coerente con il vincolo in `pyproject.toml`.
 
-**Stato: Completata.** La verifica locale del 2026-11-12 ha confermato Python
-3.12.12 tramite Poetry, coerenza del lock con `poetry check --lock`, esecuzione
-di pytest (143 test superati) e Ruff. I test di indipendenza runtime e delle
-registry/capability verificano import senza SDK opzionali e failure esplicite
-senza fallback. `poetry.lock` e` versionato; `.cline-tmp/` e` ignorata da Git e
-da Cline e non fa parte del codice applicativo.
-
-## Allineamento documentale richiesto
+### Allineamento documentale
 
 Il valore in `pyproject.toml` e` la fonte tecnica della compatibilita` Python.
 Il README dichiara Python 3.12, coerentemente con il vincolo di packaging.
@@ -40,7 +49,7 @@ Il README descrive inoltre `poetry.lock` come file risolto e versionato;
 la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
 `poetry install` installa le dipendenze risolte.
 
-## Tassonomia delle dipendenze
+### Tassonomia delle dipendenze
 
 | Categoria | Esempi | Regola |
 |---|---|---|
@@ -50,7 +59,7 @@ la sua creazione o rigenerazione e` responsabilita` di `poetry lock`, mentre
 | MIS solver | `local_greedy`, `dwave_simulated_annealing` o SDK provider | i due ID locali sono built-in; D-Wave Ocean e` nel gruppo `experiments` e importato lazy; provider ulteriori tramite registry e capability |
 | Domain adapter | Librerie di dominio | Fornito dal chiamante o confinato negli esperimenti |
 
-## CPLEX come capability sperimentale
+### CPLEX come capability sperimentale
 
 La scelta di CPLEX non autorizza fallback automatici. Il runtime dovra` rilevare
 in modo esplicito almeno:
@@ -70,7 +79,7 @@ L'installazione del gruppo rende disponibili i binding opzionali, ma non implica
 che la licenza CPLEX, le capacita` MIQP o un backend esterno siano utilizzabili in
 ogni ambiente.
 
-## Convenzioni di progetto
+### Convenzioni di progetto
 
 ```text
 src/qreduce/        package applicativo
@@ -88,7 +97,7 @@ Eventuali notebook possono caricare artefatti, visualizzare risultati e
 orchestrare chiamate leggere, ma non sono la fonte primaria della business
 logic.
 
-## Deliverable implementativi iniziali
+### Deliverable implementativi iniziali
 
 - Allineamento README e `pyproject.toml` sulla compatibilita` Python 3.12.
 - Configurazione test e lint riproducibile tramite Poetry.
@@ -97,13 +106,28 @@ logic.
 - Cataloghi solver built-in, registry di estensione espliciti e regole di
   packaging per dipendenze core, development ed esperimenti opzionali.
 
+## Test e verifica
+
+- `poetry check --lock`, `poetry run pytest` e `poetry run ruff check .` sono
+  i controlli locali previsti.
+- I test di runtime independence e registry verificano import lazy e failure
+  esplicite quando un binding o una capability non sono disponibili.
+
 ## Criteri di completamento
 
 - `poetry run pytest` e `poetry run ruff check .` sono eseguibili in Python 3.12.
-- README e `pyproject.toml` dichiarano la stessa versione supportata; i controlli
-  sono eseguiti localmente e non richiedono una CI automatica.
-- Nessuna dipendenza provider-specifica e` richiesta dal package core soltanto
-  per importare `qreduce`.
-- Un solver richiesto e non disponibile puo` essere rappresentato come
-  capability/failure esplicita e non come selezione automatica di un'alternativa.
-- `.cline-tmp/` continua a essere ignorata e non contiene codice applicativo.
+- README e `pyproject.toml` dichiarano la stessa compatibilita` supportata.
+- Nessuna dipendenza provider-specifica e` necessaria per importare il core.
+- Un solver non disponibile e` rappresentato da capability o failure esplicita.
+
+## Esclusioni e lavoro successivo
+
+La CI automatica non e` richiesta. L'aggiunta di provider o SDK ulteriori resta
+condizionale a una milestone che ne dichiari contratto, capability e ambiente di
+verifica.
+
+## Riferimenti correlati
+
+- [README](../../README.md)
+- [Configurazione del progetto](../../pyproject.toml)
+- [Overview di implementazione](00-implementation-overview.md)

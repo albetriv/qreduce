@@ -1,31 +1,34 @@
-# 03 - Canonical MWIS graph and QUBO
+# M03 - Grafo MWIS canonico, QUBO e diagnostica
 
-## Scopo
+## Stato
+
+**Completata.** L'audit del 2026-11-11 ha verificato grafo canonico, QUBO MWIS,
+energia locale, conversione QUBO-Ising ed exact diagnostic bounded con le
+evidenze in `tests/mwis/`.
+
+## Scopo e confini
 
 Implementare il nucleo provider-independent del problema Maximum Weight Independent Set: grafo di riduzione, validazione, QUBO canonica, energia locale, conversione dichiarata a Ising ed exact solver diagnostico per piccole istanze.
 
-## Riferimenti alle specifiche
+## Riferimenti normativi
 
 - Sezioni 6, 7, 11.1, 11.2, 17 e 20.1.
-- `docs/implementation/00-implementation-overview.md`.
+- `00-implementation-overview.md`.
 
-## Confine del task
+## Dipendenze
+
+**Prerequisiti:** M02 fornisce configurazione e contratti serializzabili.
+
+**Integrazione a valle:** M04 compila ed esegue la rappresentazione canonica con
+backend diversi.
+
+## Implementazione ed evidenze
+
+### Confine del task
 
 Questo task non costruisce il grafo da un dominio applicativo, non esegue un backend MIS remoto e non sceglie il candidate domain. Riceve un grafo gia` definito dall'adapter e produce una rappresentazione MWIS canonica, serializzabile e controllabile localmente.
 
-## Stato dell'audit
-
-**Stato: Completata.** L'audit del 2026-11-11 ha verificato requisito per
-requisito il grafo canonico, la QUBO MWIS standard, l'energia locale, la
-conversione QUBO-Ising e l'exact diagnostic bounded. Le evidenze riproducibili
-sono in `tests/mwis/`: invarianti e serializzazione del grafo, termini QUBO e
-policy della penalita`, equivalenza di energia QUBO-Ising, e enumerazione exact
-con rifiuto esplicito oltre `exact_solver_max_variables`. Il test exact verifica
-inoltre che tutti i minimizzatori globali della QUBO standard siano indipendenti
-e di peso MWIS, non soltanto il minimizzatore restituito nel risultato
-diagnostico.
-
-## ReductionGraph canonico
+### ReductionGraph canonico
 
 Il modello deve contenere almeno `node_ids`, `node_weights`, `edges`, `edge_reasons`, `graph_policy_id` e `graph_policy_version`.
 
@@ -38,7 +41,7 @@ Invarianti:
 - non sono ammessi self-loop o archi duplicati;
 - ogni arco ha almeno una reason serializzabile.
 
-## QUBO MWIS obbligatoria
+### QUBO MWIS obbligatoria
 
 Per `delta_i in {0, 1}`, la formulazione standard e`:
 
@@ -66,7 +69,7 @@ lambda_edge > max_i(w_i)
 
 Una policy non certificante richiede l'opt-in esplicito previsto dalle specifiche e non puo` dichiarare la garanzia strutturale della QUBO standard.
 
-## QUBO, BQM e Ising
+### QUBO, BQM e Ising
 
 QUBO e` la formulazione matematica binaria quadratica. BQM e` un contenitore generico di termini lineari/quadratici, con variabili binarie o spin, usato da alcuni SDK. Ising usa spin `z_i in {-1, +1}` invece di `delta_i in {0, 1}`.
 
@@ -79,7 +82,7 @@ z_i = 2 * delta_i - 1
 
 Il kernel deve poter rappresentare QUBO e Ising con oggetti propri e serializzabili. La produzione di un BQM di una libreria esterna e` opzionale e appartiene a un adapter che ne dichiari la capability.
 
-## Exact solver diagnostico
+### Exact solver diagnostico
 
 Un solver exact per MWIS/QUBO e` obbligatorio soltanto per test e diagnostica sotto `exact_solver_max_variables`. Deve:
 
@@ -90,7 +93,7 @@ Un solver exact per MWIS/QUBO e` obbligatorio soltanto per test e diagnostica so
 
 Non e` il backend destinato alle grandi istanze o al normale percorso operativo.
 
-## Moduli Python indicativi
+### Moduli Python indicativi
 
 ```text
 src/qreduce/mwis/graph.py
@@ -103,7 +106,7 @@ src/qreduce/mwis/validation.py
 
 La struttura e` indicativa e puo` evolvere senza cambiare i contratti descritti.
 
-## Test minimi
+## Test e verifica
 
 - Ogni nodo genera un solo termine lineare corretto.
 - Ogni arco genera un solo termine quadratico corretto.
@@ -124,3 +127,15 @@ La struttura e` indicativa e puo` evolvere senza cambiare i contratti descritti.
 L'audit ha confermato i criteri sopra senza introdurre dipendenze runtime da SDK
 di provider: gli oggetti canonici rimangono serializzabili e l'exact solver non
 e` incluso nel percorso operativo dei backend MWIS.
+
+## Esclusioni e lavoro successivo
+
+La costruzione del grafo dal dominio applicativo, il candidate domain e la scelta
+del backend non sono responsabilita` di M03; appartengono rispettivamente
+all'adapter di dominio, a M05 e a M04.
+
+## Riferimenti correlati
+
+- [Overview di implementazione](00-implementation-overview.md)
+- [M02 - Contratti core](02-core-contracts-configuration-status-and-provenance.md)
+- [M04 - Backend MWIS](04-mwis-execution-backends-and-adapter-contracts.md)

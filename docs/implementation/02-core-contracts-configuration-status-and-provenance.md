@@ -1,23 +1,41 @@
-# 02 - Core domain models and configuration
+# M02 - Contratti core, configurazione, stati e provenance
 
 > **Nota**: Questo documento descrive i modelli originali della pipeline.
 > Con l'unificazione della pipeline (M09), il tipo di risultato principale è
 > ora `PipelineRunResult` e i tipi `SinglePassRunResult` e `MultiRoundRunResult`
-> sono deprecati. Vedere `09-multi-round-design.md` per i dettagli.
+> sono deprecati. Vedere `09-unified-pipeline-and-classical-baseline.md` per i dettagli.
 
-## Scopo
+## Stato
+
+**Completata.** La verifica del 2026-11-12 ha confermato configurazione
+risolta e serializzabile, contratti provider-agnostic, gate di capability e
+stati/failure uniformi. La configurazione multi-round e la baseline
+classical-only sono ora gestite dalla pipeline unificata.
+
+## Scopo e confini
 
 Definire i contratti dati minimi per configurazione risolta, policy, capability,
 risultati, stati e metadata della pipeline. Questo documento definisce confini
 verificabili; non impone ancora una libreria, nomi definitivi di classi o schema
 JSON definitivo.
 
-## Riferimenti alle specifiche
+## Riferimenti normativi
 
 - Sezioni 5.1, 7, 10, 11, 13, 14, 15, 17, 18 e 19.
-- `docs/implementation/00-implementation-overview.md`.
+- `00-implementation-overview.md`.
 
-## Principio di tassonomia
+## Dipendenze
+
+**Prerequisiti:** M01 definisce compatibilita` Python e gestione delle
+dipendenze.
+
+**Integrazioni a valle:** M05 usa questi contratti per candidate domain, fixing e
+metriche; M08 applica le policy di recovery; M09 instrada i modi operativi con
+`max_reduction_rounds`.
+
+## Implementazione ed evidenze
+
+### Principio di tassonomia
 
 La configurazione deve distinguere tre concetti:
 
@@ -29,7 +47,7 @@ La configurazione deve distinguere tre concetti:
 
 Una capability non cambia la configurazione richiesta. Se una richiesta e` incompatibile con capability o ambiente, il run deve fallire esplicitamente.
 
-## Contratti minimi da introdurre
+### Contratti minimi da introdurre
 
 L'implementazione dovra` fornire tipi serializzabili equivalenti ai seguenti gruppi, anche se la loro organizzazione Python puo` evolvere:
 
@@ -47,7 +65,7 @@ RoundResult
 
 I contratti devono rendere possibili validazione prima dell'esecuzione, serializzazione della configurazione effettiva e test indipendenti dal dominio.
 
-## Configurazione corrente
+### Configurazione corrente
 
 La configurazione risolta deve poter rappresentare almeno i campi normativi:
 
@@ -59,6 +77,9 @@ num_source_mis_candidates
 min_reduction_ratio
 target_binary_variables
 max_end_to_end_runtime_seconds
+recovery_policy_on_domain_too_small
+recovery_policy_on_infeasible
+max_recovery_attempts
 
 lambda_edge or lambda_edge_policy
 allow_noncertifying_penalty
@@ -89,26 +110,25 @@ postcheck_mode
 
 I valori iniziali, i default concreti e il canale di caricamento della configurazione sono dettagli implementativi futuri. Non devono essere introdotti in modo implicito in orchestratori, adapter o test.
 
-## Matrice requisiti -> configurazione M02
+### Matrice requisiti -> configurazione M02
 
-La tabella separa i campi gia` rappresentati nella configurazione risolta dai
-campi normativi che richiedono una decisione di policy o una semantica
-multi-round. "Non rappresentato" non significa che il requisito sia ignorato:
-significa che non e` consentito introdurre un default implicito prima della
-milestone che lo rende eseguibile.
+La tabella descrive lo stato corrente del contratto. Le policy di recovery sono
+rappresentate e validate in M02; M08 ne fornisce l'esecuzione nel loop
+multi-round. I nomi normativi e Python differiscono dove necessario, ma la
+mappatura e` esplicita.
 
 | Requisito | Stato | Implementazione verificata | Test/evidenza | Decisione o milestone successiva |
 |---|---|---|---|---|
 | 13, 16.2: conteggi logici originali e residui | Coperto nel single-pass | `LogicalVariableCounts`, metodo obbligatorio adapter e campi del risultato | `tests/domains/test_logical_variable_counts.py`, test portfolio e runner | Distinti dai conteggi fisici solver; adapter esterni da aggiornare |
 | 18: cap, minimo dominio, numero candidate, ratio minima, target binarie, budget E2E | Coperto come contratto | `ReductionPolicy` in `src/qreduce/models.py`; validazione in `src/qreduce/config.py` | `tests/test_config.py` valida bounds, tipi, range e budget | `min_reduction_ratio` e `target_binary_variables` diventano stop criteria solo con M08 multi-round |
 | 18: protezioni `mandatory`, `user_locked`, `safe_retained`, `incumbent_supported` | Coperto nel contratto adapter, non nella run config | `ProtectionDeclaration` in `src/qreduce/domains/contracts.py` | `tests/domains/test_protection_declaration.py` | La sorgente delle protezioni e` l'adapter per round; non e` definito un override config che possa disabilitare una protezione mandatory |
-| 8.3, 18: `incumbent_protection_mode` | Coperto nella dichiarazione adapter | `ProtectionDeclaration.incumbent_protection_mode` (`required` o `best_effort`) | `tests/domains/test_protection_declaration.py`; `tests/pipeline/test_single_pass_selection.py` | Se M08 richiedera` un override di run, deve definire precedenza fra adapter, policy e incumbent |
-| 9.5, 18: `on_candidate_domain_too_small` | Non rappresentato | Single-pass applica il comportamento effettivo `fail` | `tests/experiments/test_portfolio_single_pass.py` verifica `candidate_domain_too_small` prima del fixing | M08: definire/implementare `retain_more_ranked_items_before_fixing` da `P_t`, con artifact per tentativo |
-| 9.5, 18: `on_reduced_problem_infeasible` | Non rappresentato | Single-pass termina sulla failure classica/infeasibility senza recovery implicito | Test backend/classical e risultati single-pass | M08: definire/implementare `retry_with_larger_domain_from_same_round` da `P_t` |
-| 9.5, 18: `max_recovery_attempts` | Non rappresentato | Nessun recovery e nessun rollback nel single-pass | Invariante documentata; nessun codice di riattivazione | M08: introdurre insieme alle due policy di recovery, non prima |
+| 8.3, 18: `incumbent_protection_mode` | Coperto nella dichiarazione adapter | `ProtectionDeclaration.incumbent_protection_mode` (`required` o `best_effort`) | `tests/domains/test_protection_declaration.py`; `tests/pipeline/test_single_pass_selection.py` | Nessun override di run: l'adapter resta sorgente autorevole delle protezioni |
+| 9.5, 18: `on_candidate_domain_too_small` | Coperto nel contratto/configurazione | Il valore normativo `retain_more_ranked_items_before_fixing` e` normalizzato nel nome Python `ReductionPolicy.recovery_policy_on_domain_too_small = "retry_with_larger_domain"`; alternativa `fail` | `tests/test_config.py`; `tests/pipeline/test_multi_round.py` | M08 espande il dominio dal problema di inizio round; il single-pass conserva `fail` senza recovery implicito |
+| 9.5, 18: `on_reduced_problem_infeasible` | Coperto nel contratto/configurazione | Il valore normativo `retry_with_larger_domain_from_same_round` e` normalizzato nel nome Python `ReductionPolicy.recovery_policy_on_infeasible = "retry_with_larger_domain"`; alternativa `fail` | `tests/test_config.py`; `tests/pipeline/test_multi_round.py` | M08 ritenta dal medesimo round; non e` previsto rollback cross-round |
+| 9.5, 18: `max_recovery_attempts` | Coperto nel contratto/configurazione | `ReductionPolicy.max_recovery_attempts`, intero non negativo; con zero round le policy devono essere `fail` e il contatore zero | `tests/test_config.py`; `tests/pipeline/test_multi_round.py` | M08 registra ogni tentativo in `RecoveryAttempt` |
 | 17, 18: `run_id`, config immutabile e `resolved_config_hash` | Coperto | `RunIdentity`, `ResolvedRunConfig.config_hash()` e `RunResult.config_hash` | `tests/test_config.py`; artifact test in `tests/experiments/test_runner.py` | Nessuna |
 | 16.3, 18, 20.8: provenance policy esterna | Coperto | `PolicyProvenance` e serializzazione canonica di `ResolvedRunConfig` | `tests/test_config.py`; artifact runner | Nessuna; il kernel conserva i metadata senza interpretarli |
-| 17: `input_hash` del problema opaco | Non rappresentato | Il campo esiste in `RunResult`, ma il kernel non calcola hash di oggetti adapter-owned | Verificato nei risultati serializzati come `null` quando assente | Definire un contratto adapter per una rappresentazione input canonica/redatta prima di valorizzarlo |
+| 17: `input_hash` del problema opaco | Coperto opzionalmente | `adapter.describe_input(problem)` e` convertito in primitivo, redatto e hashato dal kernel; in assenza del metodo, con output non serializzabile o con errore il valore resta `None` | `tests/experiments/test_portfolio_single_pass.py` verifica un hash disponibile per l'adapter portfolio; test artifact coprono serializzazione/redazione | L'adapter mantiene la responsabilita` della descrizione semantica dell'input |
 
 ### Vincoli di progettazione emersi
 
@@ -116,17 +136,17 @@ milestone che lo rende eseguibile.
   flag generico di configurazione: contraddirebbe la loro semantica e
   introdurrebbe una precedenza non definita dalle specifiche.
 - Le policy di recovery non sono semplici enum di configurazione: richiedono la
-  ricostruzione da `P_t`, contatori di tentativo e artifact distinti. Rimangono
-  quindi bloccate a M08.
+  ricostruzione da `P_t`, contatori di tentativo e artifact distinti. La loro esecuzione è responsabilità di M08; M02 ne definisce il contratto e la validazione.
 - `min_reduction_ratio` e `target_binary_variables` sono gia` parte del
   contratto validato, ma la loro applicazione come stop criterion richiede il
   loop iterativo; il single-pass non deve reinterpretarli come failure policy.
 
-## Invarianti di validazione iniziali
+### Invarianti di validazione
 
 - La configurazione richiesta non puo` essere modificata durante un run.
 - `fallback_policy = fail` e` l'unico comportamento supportato.
-- `max_reduction_rounds = 1` e` la configurazione supportata dalla pipeline single-pass; il contratto puo` contenere il campo multi-round.
+- `max_reduction_rounds = 0` seleziona la baseline classical-only, `= 1` il
+  single-pass e `> 1` il loop multi-round; recovery richiede almeno un round.
 - Un timeout effettivo non puo` superare il budget end-to-end residuo.
 - Una policy MWIS standard richiede `lambda_edge > max_i(w_i)` per il grafo del round, salvo esplicita policy non certificante consentita dalle specifiche.
 - Gli ID pubblici `mis_solver_id` e `classical_solver_id` sono risolti dai
@@ -135,7 +155,7 @@ milestone che lo rende eseguibile.
   fallback.
 - I parametri specifici di un backend sono validi soltanto se la capability dell'implementazione selezionata li dichiara supportati.
 
-## Stati, failure e adozione
+### Stati, failure e adozione
 
 L'implementazione deve usare valori normalizzati compatibili con la sezione 19 delle specifiche, distinguendo almeno:
 
@@ -166,7 +186,7 @@ record conservano, entro lo stage raggiunto, l'esito di deduplicazione, repair,
 ranking/diversita` e la decisione per item del candidate domain. Questa evidenza
 non introduce rollback o recovery e non completa ancora il contratto multi-round.
 
-## Identita`, hash e artifact
+### Identita`, hash e artifact
 
 Ogni run deve avere un `run_id` immutabile e una configurazione risolta serializzata. `RunIdentity` appartiene al kernel in memoria; schema, versione del producer, timestamp, hash dei file e redazione appartengono al runner interno `qreduce.experiments`. Il meccanismo deve:
 
@@ -175,7 +195,7 @@ Ogni run deve avere un `run_id` immutabile e una configurazione risolta serializ
 - non serializzare credenziali, token, segreti o dati personali;
 - associare `schema_version`, `producer_version`, `run_id` e `created_at` agli artifact strutturati richiesti dalle specifiche.
 
-## Moduli Python indicativi
+### Moduli Python indicativi
 
 ```text
 src/qreduce/config.py
@@ -190,7 +210,7 @@ src/qreduce/experiments/
 
 Questa struttura e` una proposta iniziale, non un'API pubblica congelata.
 
-## Test minimi
+## Test e verifica
 
 - Configurazioni invalide producono reason compatibili con `invalid_configuration`.
 - Parametri non supportati da una capability sono rifiutati prima della compilation.
@@ -210,11 +230,6 @@ Questa struttura e` una proposta iniziale, non un'API pubblica congelata.
 - La validazione delle capability avviene prima di compilation ed esecuzione.
 - Stati e failure richiesti possono essere emessi in modo uniforme dalla pipeline.
 
-## Stato della verifica
-
-**Stato: Completata.** La verifica del 2026-11-12 ha confermato che tutti i
-criteri di completamento sono soddisfatti per il perimetro single-pass.
-
 ### Criteri soddisfatti
 
 | Criterio | Evidenza |
@@ -224,14 +239,16 @@ criteri di completamento sono soddisfatti per il perimetro single-pass.
 | Validazione capability prima di compilation/esecuzione | `validate_backend_compatibility` in `src/qreduce/capabilities.py`; gate nella pipeline single-pass; test in `tests/test_capabilities.py` e `tests/solving/mwis/test_pipeline_capability_gate.py` |
 | Stati e failure emessi uniformemente | `RunStatus`, `TerminalReason`, `ClassicalSolverStatus`, `PostcheckStatus`, `AdoptionStatus` in `src/qreduce/status.py`; invarianti in `RunResult.__post_init__`; test in `tests/test_config.py` |
 
-### Requisiti esplicitamente esclusi dal perimetro M02
+## Esclusioni e lavoro successivo
 
-I seguenti requisiti delle specifiche sono documentati come **bloccati a M08**
-perche' richiedono semantica multi-round che il single-pass non puo` fornire:
+M02 definisce contratti e validazione, ma non l'algoritmo di recovery, la
+monotonicita` inter-round o il routing fra modi: tali responsabilita` restano in
+M08 e M09. Un adapter puo` omettere `describe_input`; in tal caso `input_hash`
+resta intenzionalmente indisponibile e non viene inferito dal core.
 
-- `on_candidate_domain_too_small` (policy di recovery)
-- `on_reduced_problem_infeasible` (policy di recovery)
-- `max_recovery_attempts` (contatore di recovery)
+## Riferimenti correlati
 
-Questa esclusione e` una decisione di progetto esplicita, non un gap da colmare
-in M02. Il single-pass applica il comportamento `fail` senza recovery implicito.
+- [Overview di implementazione](00-implementation-overview.md)
+- [M05 - Riduzione single-pass](05-single-pass-reduction-candidate-domain-and-fixing.md)
+- [M08 - Riduzione multi-round e recovery](08-multi-round-reduction-and-recovery.md)
+- [M09 - Pipeline unificata e baseline](09-unified-pipeline-and-classical-baseline.md)

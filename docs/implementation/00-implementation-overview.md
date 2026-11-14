@@ -58,19 +58,20 @@ originale dopo fixing euristico.
 
 | ID | Milestone | Stato | Requisiti principali | Evidenze correnti | Uscita richiesta per il completamento |
 |---|---|---|---|---|---|
-| M01 | Fondazioni di progetto e compatibilita` | Completata | Python 3.12, packaging provider-agnostic, dipendenze lazy, convenzioni di sviluppo | `pyproject.toml`, `poetry.lock`, test di indipendenza runtime e verifica locale del 2026-11-12 | Mantenere coerenti README e packaging ed eseguire localmente test e lint; la CI automatica non e` richiesta. |
-| M02 | Contratti core, configurazione, stati e provenance | Completata | Configurazione immutabile, capability, stati/failure, metadata e serializzazione | `config.py`, `models.py`, `status.py`, `capabilities.py`, `artifacts/metadata.py`, `domains/` e relativi test; protezioni, audit candidate, conteggi logici e metriche di dominio; verifica del 2026-11-12 | Mantenere coerenti i contratti e le invarianti; le policy di recovery restano bloccate a M08. |
-| M03 | Grafo MWIS, QUBO, Ising ed exact diagnostics | Completata | Grafo canonico, QUBO MWIS, energia, conversione Ising, solver exact sotto soglia | `mwis/` e `tests/mwis/`; audit M03 del 2026-11-11 | Mantenere test di equivalenza, validazione, tutti i minimizzatori QUBO e soglia exact in caso di evoluzione del modello. |
-| M04 | Esecuzione MWIS, cataloghi e backend locali | Completata | Capability, compile/solve, normalizzazione, `local_greedy`, `dwave_simulated_annealing`, registry esplicite | `solving/mwis/`, `capabilities.py` e `tests/solving/mwis/`; audit M04 del 2026-11-11 | Mantenere validazione pre-compilation, clamping dei timeout, decoding rigoroso e failure esplicite per dipendenze o capability indisponibili. |
-| M05 | Pipeline single-pass, candidate domain e fixing | Completata | Orchestrazione end-to-end, ranking/diversita`, repair, fixing manifest, budget e failure parziali | `pipeline/single_pass.py`, `domains/`, test pipeline e integrazione; audit 06 del 2026-11-12 | Mantenere coerenti metriche e contratti; M08 per multi-round. |
-| M06 | Solve residuo, post-check ed esperimento portfolio | Completata | Modello classico generico, backend `cplex` e `scip`, post-check, adapter portfolio dimostrativo | `solving/residual/`, test associati; integrazioni SCIP, CPLEX ed export eseguite localmente; audit 06 con matrice esiti completata; verifica del 2025-01-15 | Mantenere le invarianti del post-check, senza introdurre side effect impliciti nel kernel. |
-| M07 | Runner, artifact e notebook di analisi | Completata | Persistenza atomica degli esperimenti, manifest, loader e notebook che leggono artifact | `experiments/runner.py`, `experiments/artifacts.py`, notebook e test runner; test round-trip per 4 esiti terminali; verifica del 2025-01-15 | Mantenere copertura completa di provenance, hash e dati candidate richiesta dalle sezioni 16-17. |
-| M08 | Riduzione multi-round e recovery | Completata | Domini monotoni, criteri di stop, recovery dal medesimo round, artifact per round | `pipeline/multi_round.py`, `pipeline/recovery.py`, `pipeline/rounds.py`, test multi-round; audit del 2026-11-12 | Mantenere invarianti di monotonicità e provenance dei manifest. |
+| [M01](01-project-foundations-and-python-compatibility.md) | Fondazioni di progetto e compatibilita` | Completata | Python 3.12, packaging provider-agnostic, dipendenze lazy, convenzioni di sviluppo | `pyproject.toml`, `poetry.lock`, test di indipendenza runtime e verifica locale del 2026-11-12 | Mantenere coerenti README e packaging ed eseguire localmente test e lint; la CI automatica non e` richiesta. |
+| [M02](02-core-contracts-configuration-status-and-provenance.md) | Contratti core, configurazione, stati e provenance | Completata | Configurazione immutabile, capability, stati/failure, metadata e serializzazione | `config.py`, `models.py`, `status.py`, `capabilities.py`, `artifacts/metadata.py`, `domains/` e relativi test; verifica del 2026-11-12 | Mantenere coerenti i contratti e le invarianti; le policy di recovery sono trattate da M08. |
+| [M03](03-canonical-mwis-graph-qubo-and-diagnostics.md) | Grafo MWIS, QUBO, Ising ed exact diagnostics | Completata | Grafo canonico, QUBO MWIS, energia, conversione Ising, solver exact sotto soglia | `mwis/` e `tests/mwis/`; audit M03 del 2026-11-11 | Mantenere test di equivalenza, validazione, tutti i minimizzatori QUBO e soglia exact in caso di evoluzione del modello. |
+| [M04](04-mwis-execution-backends-and-adapter-contracts.md) | Esecuzione MWIS, cataloghi e backend locali | Completata | Capability, compile/solve, normalizzazione, `local_greedy`, `dwave_simulated_annealing`, registry esplicite | `solving/mwis/`, `capabilities.py` e `tests/solving/mwis/`; audit M04 del 2026-11-11 | Mantenere validazione pre-compilation, clamping dei timeout, decoding rigoroso e failure esplicite per dipendenze o capability indisponibili. |
+| [M05](05-single-pass-reduction-candidate-domain-and-fixing.md) | Riduzione single-pass, candidate domain e fixing | Completata | Orchestrazione single-pass, repair, ranking/diversita`, protezioni, fixing manifest e metriche di riduzione | `pipeline/single_pass.py`, `domains/` e test pipeline; audit metriche del 2026-11-12 | Mantenere coerenti metriche e contratti; M08 estende il comportamento ai round multipli. |
+| [M06](06-residual-solving-post-check-and-portfolio-experiment.md) | Solve residuo, post-check ed esperimento portfolio | Completata | Modello classico generico, backend `cplex` e `scip`, post-check e adapter portfolio dimostrativo | `solving/residual/`, `experiments/portfolio_domain/` e test associati; verifica del 2026-11-12 | Mantenere le invarianti del post-check senza introdurre side effect impliciti nel kernel. |
+| [M07](07-experiment-runner-artifacts-and-analysis-notebooks.md) | Runner, artifact e notebook di analisi | Completata | Persistenza atomica, manifest, loader e notebook che leggono artifact | `experiments/runner.py`, `experiments/artifacts.py`, notebook e test runner; verifica del 2026-11-12 | Mantenere copertura di provenance, hash e dati candidate richiesta dalle sezioni 16-17. |
+| [M08](08-multi-round-reduction-and-recovery.md) | Riduzione multi-round e recovery | Completata | Domini monotoni, criteri di stop, recovery dal medesimo round e artifact per round | `pipeline/multi_round.py`, `pipeline/recovery.py`, `pipeline/rounds.py` e test multi-round; verifica del 2026-11-12 | Mantenere invarianti di monotonicita` e provenance dei manifest. |
+| [M09](09-unified-pipeline-and-classical-baseline.md) | Pipeline unificata e baseline classical-only | Completata | `run_pipeline`, risultato unificato, compatibilita` legacy e baseline senza riduzione | `pipeline/unified.py`, `PipelineRunResult`, test baseline e runner; verifica del 2026-11-14 | Mantenere l'equivalenza dichiarata fra i modi `0`, `1` e `>1` round. |
 
-Le milestone M01-M07 descrivono il nucleo obbligatorio previsto dalle
-specifiche. M08 e` anch'essa obbligatoria per dichiarare completo il progetto,
-ma non blocca la disponibilita` del percorso single-pass gia` implementato in
-modo parziale.
+Le milestone M01-M09 descrivono il perimetro obbligatorio previsto dalle
+specifiche. Il percorso single-pass, il percorso multi-round e la baseline
+classical-only sono modalita` complementari della stessa pipeline; il loro stato
+e le rispettive evidenze sono mantenuti nei documenti dedicati collegati sopra.
 
 ## Capacita` opzionali previste
 
@@ -111,20 +112,6 @@ dedicato con dataset e licenza, filtro/versione delle istanze, adapter,
 protocollo full-versus-reduced, metriche, limiti di tempo, solver di riferimento
 e gestione riproducibile di infeasibility, failure e post-check failed.
 
-## Documenti di milestone ed evidenze
-
-| Area | Documento o posizione | Ruolo |
-|---|---|---|
-| M01 | `01-project-setup-and-python-compatibility.md` | Packaging, runtime e dipendenze opzionali. |
-| M02 | `02-core-domain-models-and-configuration.md` | Contratti dati, stati, configurazione e metadata. |
-| M03 | `03-canonical-mwis-graph-and-qubo.md` | Rappresentazione MWIS canonica ed exact diagnostics. |
-| M04 | `04-mwis-execution-backends-and-adapter-contracts.md` | Contratti e backend per l'esecuzione MWIS. |
-| M05-M06 | `05-synthetic-portfolio-experiment.md` | Esperimento portfolio, backend classici e post-check; la pipeline single-pass e` inoltre in `src/qreduce/pipeline/single_pass.py`. |
-| M02, M05, M07 | `06-single-pass-metrics-audit.md` | Matrice di evidenze e gap delle metriche della sezione 16.2. |
-| M01-M07 | `07-single-pass-conformance-backlog.md` | Mappa di conformita` single-pass e backlog di chiusura, esclusa M08. |
-| M07 | `08-experiment-artifacts.md` | Runner, artifact, loader, notebook ed evidenze ancora necessarie. |
-| M08 | `09-multi-round-design.md` | Design iniziale e stato dei lavori multi-round/recovery. |
-
 ## Decisioni tecniche correnti e aperte
 
 | Tema | Decisione o stato corrente |
@@ -134,7 +121,7 @@ e gestione riproducibile di infeasibility, failure e post-check failed.
 | Solver standard | Cataloghi built-in; registry del chiamante solo per estensioni esplicite. |
 | Adapter di dominio | Fornito dall'applicazione oppure confinato in un esperimento interno. |
 | Forme residuali correnti | Il `ClassicalOptimizationModel` rappresenta MILP e MIQP con vincoli lineari; MIQCP richiede un'estensione esplicita o una riformulazione. |
-| Percorso attualmente eseguibile | Single-pass. Multi-round e recovery appartengono a M08. |
+| Percorso attualmente eseguibile | `run_pipeline` e` l'entry point raccomandato: `max_reduction_rounds = 0` esegue la baseline classical-only, `= 1` il single-pass e `> 1` il multi-round con recovery configurabile. |
 | Esperimenti repository | `qreduce.experiments` e` escluso dal wheel e pubblica artifact. |
 | API pubblica finale e CLI | Decisione aperta; non deve alterare i confini contrattuali delle specifiche. |
 | Formati aggiuntivi e provider remoti | Condizionali: richiedono una scelta esplicita di adapter e ambiente. |
