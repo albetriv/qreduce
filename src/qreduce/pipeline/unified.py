@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 from types import MappingProxyType
 
-from qreduce.artifacts.metadata import redact_metadata, sha256_hex, to_primitive
+from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.config import (
     ValidationResult,
     effective_timeout,
@@ -16,10 +16,16 @@ from qreduce.domains import (
     FinalSolutionValidationResult,
     FixingManifest,
     LogicalVariableCounts,
+    ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
 from qreduce.models import ResolvedRunConfig, RunResult
-from qreduce.pipeline.multi_round import RecoveryAttempt
+from qreduce.pipeline.classical_execution import (
+    evaluate_domain_metrics,
+    execute_classical_solver,
+)
+from qreduce.pipeline.context import compute_input_hash, validate_logical_counts
+from qreduce.pipeline.recovery import RecoveryAttempt
 from qreduce.pipeline.single_pass import (
     CandidateDomainItemRecord,
     CandidateRecord,
@@ -45,8 +51,8 @@ from qreduce.status import (
 class ReductionRoundResult:
     """Detailed result for one reduction round within a unified pipeline run.
 
-    This captures all the audit data from what was previously SinglePassRunResult,
-    structured as a round within the unified workflow.
+    This captures the audit data produced by one reduction round within the
+    unified workflow.
     """
 
     round_index: int
@@ -58,6 +64,7 @@ class ReductionRoundResult:
     selected_mis_samples: tuple[RawMISSample, ...] = ()
     candidate_records: tuple[CandidateRecord, ...] = ()
     candidate_domain_item_records: tuple[CandidateDomainItemRecord, ...] = ()
+    protection_declaration: ProtectionDeclaration | None = None
     mis_compilation_result: MISCompilationResult | None = None
     mis_execution_result: MISBackendResult | None = None
 
@@ -90,8 +97,7 @@ class ReductionRoundResult:
 class PipelineRunResult:
     """Complete in-memory, serializable output of a unified QReduce pipeline run.
 
-    This is the single top-level result type that replaces both SinglePassRunResult
-    and MultiRoundRunResult as the public API output.
+    This is the single top-level result type for the public pipeline API.
 
     Semantics by max_reduction_rounds:
     - 0: Classical baseline, round_results is empty, no reduction applied
@@ -148,60 +154,9 @@ class PipelineRunResult:
 
     @property
     def is_classical_only(self) -> bool:
-        """True if this was a classical-only baseline with no MWIS reduction."""
-        return len(self.round_results) == 0
-
-    # Convenience properties for single-round access (for backward compatibility)
-    # These delegate to the first round when available
-
-    @property
-    def retained_item_ids(self) -> tuple[str, ...]:
-        """Retained item IDs from the first reduction round, or final_retained_item_ids."""
-        if self.round_results:
-            return self.round_results[0].retained_item_ids
-        return self.final_retained_item_ids
-
-    @property
-    def fixing_manifest(self) -> FixingManifest | None:
-        """Fixing manifest from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].fixing_manifest
-        return self.cumulative_fixing_manifest
-
-    @property
-    def selected_mis_samples(self) -> tuple[RawMISSample, ...]:
-        """Selected MIS samples from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].selected_mis_samples
-        return ()
-
-    @property
-    def candidate_records(self) -> tuple[CandidateRecord, ...]:
-        """Candidate records from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].candidate_records
-        return ()
-
-    @property
-    def candidate_domain_item_records(self) -> tuple[CandidateDomainItemRecord, ...]:
-        """Candidate domain item records from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].candidate_domain_item_records
-        return ()
-
-    @property
-    def mis_compilation_result(self) -> MISCompilationResult | None:
-        """MIS compilation result from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].mis_compilation_result
-        return None
-
-    @property
-    def mis_execution_result(self) -> MISBackendResult | None:
-        """MIS execution result from the first reduction round."""
-        if self.round_results:
-            return self.round_results[0].mis_execution_result
-        return None
+        """Whether integer zero requested the baseline, even for invalid configs."""
+        value = self.resolved_config.reduction.max_reduction_rounds
+        return isinstance(value, int) and not isinstance(value, bool) and value == 0
 
     def to_dict(self) -> dict[str, object]:
         """Return the complete in-memory result for repository runner persistence."""
@@ -224,8 +179,7 @@ def run_pipeline(
     - 1: Single reduction round
     - >1: Iterative reduction with optional recovery
 
-    Returns a PipelineRunResult that unifies what was previously split between
-    SinglePassRunResult and MultiRoundRunResult.
+    Returns the complete result for the selected pipeline mode.
 
     The _model_export_write_path parameter is for internal use by the experiment
     runner. It allows the runner to specify a staging path for the model export
@@ -288,14 +242,14 @@ def _run_classical_only(
     )
 
     # Compute input hash if adapter supports it
-    input_hash = _compute_input_hash(adapter, problem)
+    input_hash = compute_input_hash(adapter, problem)
 
     # Get original variable counts
     try:
         describe = getattr(adapter, "describe_logical_variables", None)
         if not callable(describe):
             raise TypeError("Adapter must implement describe_logical_variables.")
-        original_counts = _validate_logical_counts(describe(problem))
+        original_counts = validate_logical_counts(describe(problem))
     except Exception as error:  # noqa: BLE001
         return _failed_pipeline(
             config, PipelineStage.VALIDATION, TerminalReason.ADAPTER_FAILURE,
@@ -339,7 +293,7 @@ def _run_classical_only(
 
     # Get residual variable counts (should match original for no_reduction)
     try:
-        residual_counts = _validate_logical_counts(describe(restricted_problem))
+        residual_counts = validate_logical_counts(describe(restricted_problem))
     except Exception as error:  # noqa: BLE001
         return _failed_pipeline(
             config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
@@ -380,7 +334,8 @@ def _run_classical_only(
     # Execute classical solve - pass restricted_problem directly (it implements ClassicalModelProvider)
     # The backend calls restricted_problem.build_classical_model() internally
     try:
-        classical_result = classical_solver.solve(
+        classical_result = execute_classical_solver(
+            classical_solver,
             restricted_problem,
             ClassicalSolveRequest(
                 run_id=config.run_identity.run_id,
@@ -396,6 +351,8 @@ def _run_classical_only(
                 ),
                 requested_solver_id=config.classical_solve.classical_solver_id,
             ),
+            staging_path=_model_export_write_path,
+            logical_path=config.classical_solve.model_export_path,
         )
     except Exception as error:  # noqa: BLE001
         return _failed_pipeline(
@@ -426,6 +383,8 @@ def _run_classical_only(
             problem, classical_result.variable_values, empty_manifest,
             config.classical_solve, solver_objective_value=classical_result.objective_value,
         )
+        if not isinstance(postcheck_result, FinalSolutionValidationResult):
+            raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
     except Exception as error:  # noqa: BLE001
         return _make_pipeline_result(
             config, PipelineStage.POSTCHECK, RunStatus.FAILED,
@@ -451,19 +410,18 @@ def _run_classical_only(
         adoption = AdoptionStatus.NOT_ADOPTED
         postcheck_status = PostcheckStatus.FAILED
 
-    # Evaluate domain metrics if post-check passed
-    domain_metrics: tuple[DomainEvaluationMetric, ...] | None = None
-    if postcheck_result.postcheck_feasible:
-        try:
-            evaluate = getattr(adapter, "evaluate_domain_metrics", None)
-            if callable(evaluate):
-                metrics = evaluate(problem, classical_result, postcheck_result)
-                if isinstance(metrics, tuple | list) and all(
-                    isinstance(m, DomainEvaluationMetric) for m in metrics
-                ):
-                    domain_metrics = tuple(metrics)
-        except Exception:  # noqa: BLE001, S110 - Domain metrics are optional
-            pass
+    try:
+        domain_metrics = evaluate_domain_metrics(problem, adapter, classical_result, postcheck_result)
+    except Exception as error:  # noqa: BLE001 - Adapter errors are normalized.
+        return _make_pipeline_result(
+            config, PipelineStage.POSTCHECK, RunStatus.FAILED,
+            TerminalReason.ADAPTER_FAILURE, started_at,
+            diagnostic=f"evaluate_domain_metrics: {error}", input_hash=input_hash,
+            original_variable_counts=original_counts, residual_variable_counts=residual_counts,
+            cumulative_fixing_manifest=empty_manifest, final_retained_item_ids=original_item_ids,
+            classical_result=classical_result, postcheck_result=postcheck_result,
+            postcheck_status=postcheck_status,
+        )
 
     # Build final result
     elapsed = perf_counter() - started_at
@@ -524,33 +482,15 @@ def _run_reduction_pipeline(
     This delegates to the internal multi-round implementation which returns
     PipelineRunResult directly.
     """
-    from qreduce.pipeline.multi_round import _run_multi_round_impl
+    from qreduce.pipeline.multi_round import _run_reduction_rounds
 
-    # _run_multi_round_impl now returns PipelineRunResult directly
-    return _run_multi_round_impl(
+    return _run_reduction_rounds(
         problem, adapter, config,
         mis_solver_registry=mis_solver_registry,
         classical_solver_registry=classical_solver_registry,
+        started_at=started_at,
         _model_export_write_path=_model_export_write_path,
     )
-
-
-def _compute_input_hash(adapter: ReducibleProblemAdapter, problem: object) -> str | None:
-    """Compute input hash if adapter supports describe_input."""
-    describe_input = getattr(adapter, "describe_input", None)
-    if callable(describe_input):
-        try:
-            return sha256_hex(redact_metadata(to_primitive(describe_input(problem))))
-        except Exception:  # noqa: BLE001, S110 - Input hash is optional
-            pass
-    return None
-
-
-def _validate_logical_counts(value: object) -> LogicalVariableCounts:
-    """Validate that value is a LogicalVariableCounts."""
-    if not isinstance(value, LogicalVariableCounts):
-        raise TypeError("describe_logical_variables must return LogicalVariableCounts.")
-    return value
 
 
 def _issues_message(validation: ValidationResult) -> str:

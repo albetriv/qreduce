@@ -24,9 +24,25 @@ M08 non modifica la formulazione MWIS, il contratto dei backend o le regole sing
 
 ## Implementazione ed evidenze
 
-`src/qreduce/pipeline/multi_round.py` orchestra i round tramite `_run_single_pass_with_counts`. La configurazione ammette `max_reduction_rounds >= 0`; per i round positivi applica i criteri di stop: successo, numero massimo di round, ratio marginale insufficiente, `target_binary_variables`, budget end-to-end, assenza di candidate valide o candidate domain troppo piccolo.
+`src/qreduce/pipeline/multi_round.py` orchestra i round tramite il componente
+interno `_execute_reduction_round_with_counts`. La configurazione ammette
+`max_reduction_rounds >= 0`; per i round positivi applica i criteri di stop:
+successo, numero massimo di round, ratio marginale insufficiente,
+`target_binary_variables`, budget end-to-end, assenza di candidate valide o
+candidate domain troppo piccolo.
 
 `src/qreduce/pipeline/recovery.py` espande deterministamente il dominio con `expand_ranked_domain` e completa il ranking con `rank_recovery_items`. Quando le policy `retry_with_larger_domain` sono abilitate per dominio troppo piccolo o infeasibility, ogni tentativo registra trigger, dimensioni e outcome in `RecoveryAttempt`.
+
+Dopo una restriction di recovery, i conteggi logici residui sono ricalcolati sul
+nuovo problema. Il post-check cumulativo deve restituire un
+`FinalSolutionValidationResult`; eccezioni o tipi non validi sono normalizzati
+come `adapter_failure`. Dopo il post-check, anche in recovery, la valutazione
+delle metriche di dominio usa lo stesso controllo del percorso ordinario.
+I conteggi originali del run provengono dal primo round, non dall'ultimo.
+Il solve di recovery usa la stessa validazione del risultato del backend e la
+stessa normalizzazione del percorso di export del solve ordinario. Le metriche
+relative al dominio e al solve descrivono il tentativo finale; le evidenze MIS
+restano associate al round anche quando viene tentata una recovery.
 
 `src/qreduce/pipeline/rounds.py` valida manifest di round, monotonicita` della sequenza e costruisce `cumulative_fixing_manifest`. Il post-check finale usa il problema originale e il manifest cumulativo, non soltanto l'ultimo manifest di round.
 

@@ -11,6 +11,7 @@ These tests verify that when max_reduction_rounds=0, the pipeline:
 import pytest
 
 from qreduce.domains import (
+    DomainEvaluationMetric,
     DomainValidationResult,
     FinalSolutionValidationResult,
     FixingManifest,
@@ -40,11 +41,98 @@ from qreduce.solving.residual import (
     LinearConstraintSense,
 )
 from qreduce.status import (
+    AdoptionStatus,
     ClassicalSolverStatus,
     PostcheckMode,
+    PostcheckStatus,
     RunStatus,
     TerminalReason,
 )
+
+
+@pytest.mark.parametrize("value", [None, object()])
+def test_baseline_rejects_invalid_classical_result(value):
+    class InvalidSolver:
+        def solve(self, problem, request):
+            return value
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("recording", InvalidSolver)
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), SimpleAdapter(),
+                          make_classical_only_config(), classical_solver_registry=registry)
+    assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_SOLVER_FAILED
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert result.classical_result is None
+    assert result.cumulative_fixing_manifest is not None
+
+
+@pytest.mark.parametrize("value", [None, object()])
+def test_baseline_rejects_invalid_postcheck_result(value):
+    class InvalidAdapter(SimpleAdapter):
+        def validate_final_solution(self, *args, **kwargs):
+            return value
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("recording", RecordingClassicalSolver)
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), InvalidAdapter(),
+                          make_classical_only_config(), classical_solver_registry=registry)
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert result.classical_result is not None
+    assert result.postcheck_result is None
+
+
+@pytest.mark.parametrize("mode", ["missing", "invalid", "duplicate", "exception"])
+@pytest.mark.parametrize("feasible", [True, False])
+def test_baseline_metric_failures_preserve_postcheck(mode, feasible):
+    class MetricAdapter(SimpleAdapter):
+        def validate_final_solution(self, *args, **kwargs):
+            return FinalSolutionValidationResult(feasible, feasible, feasible, feasible,
+                                                 1.0, feasible, () if feasible else ("invalid",))
+
+        def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
+            assert postcheck_result.postcheck_feasible is feasible
+            if mode == "exception":
+                raise ValueError("metric error")
+            if mode == "invalid":
+                return [object()]
+            metric = DomainEvaluationMetric("quality", 1, "unitless", "higher", "test")
+            return [metric, metric]
+
+    adapter = MetricAdapter()
+    if mode == "missing":
+        adapter.evaluate_domain_metrics = None
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("recording", RecordingClassicalSolver)
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), adapter,
+                          make_classical_only_config(), classical_solver_registry=registry)
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert result.run_result.postcheck_status is (PostcheckStatus.PASSED if feasible else PostcheckStatus.FAILED)
+    assert result.classical_result is not None
+    assert result.postcheck_result is not None
+    assert result.domain_evaluation_metrics is None
+
+
+def test_baseline_evaluates_metrics_after_negative_postcheck():
+    class NegativeAdapter(SimpleAdapter):
+        called = False
+
+        def validate_final_solution(self, *args, **kwargs):
+            return FinalSolutionValidationResult(False, False, False, False, None, None, ("failure",))
+
+        def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
+            self.called = True
+            return ()
+
+    adapter = NegativeAdapter()
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("recording", RecordingClassicalSolver)
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), adapter,
+                          make_classical_only_config(), classical_solver_registry=registry)
+    assert adapter.called
+    assert result.run_result.terminal_reason is TerminalReason.POSTCHECK_FAILED
+    assert result.domain_evaluation_metrics == ()
 
 # --- Test fixtures and helpers ---
 

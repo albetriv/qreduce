@@ -1,9 +1,10 @@
 # M02 - Contratti core, configurazione, stati e provenance
 
 > **Nota**: Questo documento descrive i modelli originali della pipeline.
-> Con l'unificazione della pipeline (M09), il tipo di risultato principale è
-> ora `PipelineRunResult` e i tipi `SinglePassRunResult` e `MultiRoundRunResult`
-> sono deprecati. Vedere `09-unified-pipeline-and-classical-baseline.md` per i dettagli.
+> Con l'unificazione strutturale della pipeline (M09), `PipelineRunResult` e`
+> l'unico risultato di un run completo. Le evidenze per singolo round sono
+> contenute esplicitamente in `ReductionRoundResult`; vedere
+> `09-unified-pipeline-and-classical-baseline.md`.
 
 ## Stato
 
@@ -170,7 +171,7 @@ adoption_status
 
 Le eccezioni Python possono essere usate internamente, ma non devono sostituire il risultato terminale serializzabile. Failure, artefatti parziali e motivo normalizzato devono rimanere osservabili.
 
-### Evidenza single-pass corrente
+### Evidenza del round di riduzione
 
 Il contratto `ProtectionDeclaration` consente all'adapter di dichiarare, una
 sola volta per round, gli item `mandatory`, `user_locked`, `safe_retained` e
@@ -180,11 +181,12 @@ compatibilita` con gli adapter single-pass gia` esistenti, una tupla legacy
 restituita da `declare_protected_items` e` interpretata come protezione
 `mandatory`.
 
-`SinglePassRunResult` serializza inoltre `candidate_records`,
-`candidate_domain_item_records` e la `protection_declaration` effettiva. I
-record conservano, entro lo stage raggiunto, l'esito di deduplicazione, repair,
-ranking/diversita` e la decisione per item del candidate domain. Questa evidenza
-non introduce rollback o recovery e non completa ancora il contratto multi-round.
+`ReductionRoundResult` serializza inoltre `candidate_records`,
+`candidate_domain_item_records` e la `protection_declaration` effettiva quando
+disponibile. I record conservano, entro lo stage raggiunto,
+l'esito di deduplicazione, repair, ranking/diversita` e la decisione per item
+del candidate domain. Il risultato completo espone inoltre manifest cumulativo
+e dominio finale, senza inferire tali dati dal primo round.
 
 ### Identita`, hash e artifact
 

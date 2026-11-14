@@ -24,7 +24,7 @@ from qreduce.models import (
     ResolvedRunConfig,
     RunIdentity,
 )
-from qreduce.pipeline import run_single_pass
+from qreduce.pipeline import run_pipeline
 from qreduce.solving.mwis import MISSolverRegistry
 from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
 from qreduce.solving.residual import (
@@ -88,27 +88,28 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
         PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         adapter,
         config,
     )
 
-    assert result.retained_item_ids
+    assert result.final_retained_item_ids
     assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
     assert result.run_result.input_hash is not None
     assert result.residual_variable_counts == LogicalVariableCounts(
-        len(result.retained_item_ids), 0, len(result.retained_item_ids)
+        len(result.final_retained_item_ids), 0, len(result.final_retained_item_ids)
     )
-    assert result.fixing_manifest is not None
-    assert result.fixing_manifest.round_index == 0
-    assert result.fixing_manifest.source_candidate_ids
-    assert result.fixing_manifest.policy_version == "1"
+    assert result.cumulative_fixing_manifest is not None
+    assert result.cumulative_fixing_manifest.round_index == 0
+    assert result.round_results[0].fixing_manifest is not None
+    assert result.round_results[0].fixing_manifest.source_candidate_ids
+    assert result.round_results[0].fixing_manifest.policy_version == "1"
     assert all(entry.fixing_origin == "mis_heuristic" and entry.guarantee_level == "heuristic"
-               for entry in result.fixing_manifest.entries)
-    assert result.selected_mis_samples
-    assert result.mis_compilation_result is not None
-    assert result.mis_execution_result is not None
+               for entry in result.cumulative_fixing_manifest.entries)
+    assert result.round_results[0].selected_mis_samples
+    assert result.round_results[0].mis_compilation_result is not None
+    assert result.round_results[0].mis_execution_result is not None
     assert result.run_result.run_status is RunStatus.FAILED
     assert result.run_result.stage is PipelineStage.CLASSICAL
     assert (
@@ -122,14 +123,18 @@ def test_portfolio_single_pass_reaches_explicit_cplex_unavailable_failure(
     assert result.domain_evaluation_metrics is None
     assert result.classical_result.requested_solver_id == "cplex"
     assert result.classical_result.effective_solver_id is None
-    assert result.metrics["raw_sample_count"] == 1
-    assert result.metrics["candidate_domain_size"] == len(result.retained_item_ids)
-    assert result.metrics["round_reduction_ratio"] == (3 - len(result.retained_item_ids)) / 3
+    round_result = result.round_results[0]
+    assert len(round_result.selected_mis_samples) == 1
+    assert len(round_result.candidate_records) == 1
+    assert all(record.repair_status != "repaired" for record in round_result.candidate_records)
+    assert round_result.retained_item_ids == result.final_retained_item_ids
+    assert result.metrics["round_reduction_ratio"] == (3 - len(result.final_retained_item_ids)) / 3
     assert result.metrics["cumulative_reduction_ratio"] == result.metrics["round_reduction_ratio"]
-    assert result.metrics["repaired_candidate_count"] == 0
+    assert result.metrics["processed_unique_sample_count"] == 1
     assert result.metrics["unique_sample_count"] >= result.metrics["processed_unique_sample_count"]
+    assert round_result.round_reduction_ratio == result.metrics["round_reduction_ratio"]
     serialized_result = result.to_dict()
-    # In PipelineRunResult, fixing_manifest is in round_results[0] or cumulative_fixing_manifest
+    # The public result serializes the cumulative manifest and explicit round evidence.
     assert serialized_result["cumulative_fixing_manifest"] is not None
     assert serialized_result["round_results"][0]["mis_execution_result"] is not None
     json.dumps(serialized_result)
@@ -153,7 +158,7 @@ def test_postcheck_adapter_failure_preserves_classical_result(portfolio_problem,
     registry.register("test", Backend)
     config = make_config()
     config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem, BrokenAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, classical_solver_registry=registry,
     )
@@ -161,8 +166,8 @@ def test_postcheck_adapter_failure_preserves_classical_result(portfolio_problem,
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert result.run_result.adoption_status.value == "not_adopted"
     assert result.classical_result is not None
-    assert result.fixing_manifest is not None
-    assert result.candidate_records
+    assert result.cumulative_fixing_manifest is not None
+    assert result.round_results[0].candidate_records
     assert result.postcheck_result is None
 
 
@@ -178,13 +183,13 @@ def test_classical_backend_failure_preserves_candidate_data(portfolio_problem, m
     registry.register("test", Backend)
     config = make_config()
     config = replace(config, classical_solve=replace(config.classical_solve, classical_solver_id="test"))
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, classical_solver_registry=registry,
     )
     assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_SOLVER_FAILED
-    assert result.fixing_manifest is not None
-    assert result.candidate_records and result.candidate_domain_item_records
+    assert result.cumulative_fixing_manifest is not None
+    assert result.round_results[0].candidate_records and result.round_results[0].candidate_domain_item_records
 
 
 def test_classical_solver_infeasible_is_serialized_with_candidate_data(
@@ -216,7 +221,7 @@ def test_classical_solver_infeasible_is_serialized_with_candidate_data(
         classical_solve=replace(config.classical_solve, classical_solver_id="infeasible_test"),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config,
@@ -231,9 +236,9 @@ def test_classical_solver_infeasible_is_serialized_with_candidate_data(
     assert result.classical_result is not None
     assert result.classical_result.classical_solver_status is ClassicalSolverStatus.INFEASIBLE
     assert result.classical_result.solver_claimed_feasible is False
-    assert result.fixing_manifest is not None
-    assert result.candidate_records
-    assert result.candidate_domain_item_records
+    assert result.cumulative_fixing_manifest is not None
+    assert result.round_results[0].candidate_records
+    assert result.round_results[0].candidate_domain_item_records
     assert result.postcheck_result is None
     assert result.domain_evaluation_metrics is None
     serialized = result.to_dict()
@@ -325,7 +330,7 @@ def test_time_limit_with_feasible_incumbent_produces_partial_success(
         classical_solve=replace(config.classical_solve, classical_solver_id="timelimit_test"),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config,
@@ -360,7 +365,7 @@ def test_missing_counts_method_fails_before_graph(portfolio_problem: PortfolioPr
         def build_conflict_graph(self, problem):
             raise AssertionError("Graph must not be built")
 
-    result = run_single_pass(portfolio_problem, MissingCounts(), make_config())
+    result = run_pipeline(portfolio_problem, MissingCounts(), make_config())
     assert result.run_result.stage is PipelineStage.VALIDATION
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert "describe_logical_variables" in result.run_result.diagnostic_message
@@ -376,7 +381,7 @@ def test_invalid_original_counts_fail_before_graph(portfolio_problem: PortfolioP
         def build_conflict_graph(self, problem, state=None):
             raise AssertionError("Graph must not be built")
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem, InvalidCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
@@ -392,7 +397,7 @@ def test_invalid_residual_counts_preserve_original_and_fail_before_solve(
                 return LogicalVariableCounts(3, 0, 3)
             raise ValueError("residual counts unavailable")
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         InvalidResidualCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         make_config(),
@@ -402,7 +407,7 @@ def test_invalid_residual_counts_preserve_original_and_fail_before_solve(
     assert result.original_variable_counts == LogicalVariableCounts(3, 0, 3)
     assert result.residual_variable_counts is None
     assert result.classical_result is None
-    assert result.fixing_manifest is not None
+    assert result.cumulative_fixing_manifest is not None
 
 
 def test_graph_failure_retains_original_counts(portfolio_problem: PortfolioProblem) -> None:
@@ -410,7 +415,7 @@ def test_graph_failure_retains_original_counts(portfolio_problem: PortfolioProbl
         def build_conflict_graph(self, problem, state=None):
             raise ValueError("graph failed")
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem, BrokenGraph(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.terminal_reason is TerminalReason.GRAPH_CONSTRUCTION_FAILED
@@ -423,7 +428,7 @@ def test_counts_method_exception_is_normalized(portfolio_problem: PortfolioProbl
         def describe_logical_variables(self, problem):
             raise RuntimeError("cannot describe model")
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem, BrokenCounts(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), make_config()
     )
     assert result.run_result.stage is PipelineStage.VALIDATION
@@ -457,15 +462,15 @@ def test_pipeline_retains_declared_protected_items_before_applying_cap(
         reduction=replace(make_config().reduction, candidate_domain_max_items=2),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         ProtectedPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
 
-    assert result.retained_item_ids == ("asset-b", "asset-a")
-    assert result.fixing_manifest is not None
-    assert result.fixing_manifest.excluded_item_ids == ("asset-c",)
+    assert result.final_retained_item_ids == ("asset-b", "asset-a")
+    assert result.cumulative_fixing_manifest is not None
+    assert result.cumulative_fixing_manifest.excluded_item_ids == ("asset-c",)
     assert result.run_result.terminal_reason is TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE
     assert declaration_calls == 1
 
@@ -485,7 +490,7 @@ def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
         reduction=replace(make_config().reduction, candidate_domain_max_items=1),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         TooManyProtectedPortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -499,8 +504,8 @@ def test_pipeline_fails_before_fixing_when_protected_items_exceed_cap(
         result.run_result.terminal_reason
         is TerminalReason.PROTECTED_ITEMS_EXCEED_CANDIDATE_DOMAIN_CAP
     )
-    assert result.retained_item_ids == ()
-    assert result.fixing_manifest is None
+    assert result.final_retained_item_ids == ()
+    assert result.cumulative_fixing_manifest is None
     assert result.classical_result is None
 
 
@@ -531,7 +536,7 @@ def test_pipeline_records_best_effort_protection_excluded_by_cap(
         reduction=replace(make_config().reduction, candidate_domain_max_items=1),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         BestEffortPortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
@@ -539,11 +544,11 @@ def test_pipeline_records_best_effort_protection_excluded_by_cap(
 
     asset_b_record = next(
         record
-        for record in result.candidate_domain_item_records
+        for record in result.round_results[0].candidate_domain_item_records
         if record.item_id == "asset-b"
     )
-    # protection_declaration is an internal field not exposed in PipelineRunResult
-    # The behavior is verified through the candidate_domain_item_records
+    assert result.round_results[0].protection_declaration.incumbent_supported_item_ids == ("asset-b",)
+    assert result.to_dict()["round_results"][0]["protection_declaration"] is not None
     assert asset_b_record.decision == "excluded"
     assert asset_b_record.reason == "best_effort_protection_excluded_by_cap"
 
@@ -558,7 +563,7 @@ def test_pipeline_rejects_protected_item_outside_reduction_graph(
             del problem
             return ("unknown-asset",)
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         UnknownProtectedPortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -569,7 +574,7 @@ def test_pipeline_rejects_protected_item_outside_reduction_graph(
     assert result.run_result.run_status is RunStatus.FAILED
     assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
-    assert result.fixing_manifest is None
+    assert result.cumulative_fixing_manifest is None
 
 
 def test_pipeline_rejects_duplicate_protected_item_ids(
@@ -582,7 +587,7 @@ def test_pipeline_rejects_duplicate_protected_item_ids(
             del problem
             return ("asset-a", "asset-a")
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         DuplicateProtectedPortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -592,7 +597,7 @@ def test_pipeline_rejects_duplicate_protected_item_ids(
 
     assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
-    assert result.fixing_manifest is None
+    assert result.cumulative_fixing_manifest is None
 
 
 def test_pipeline_enforces_adapter_minimum_before_building_a_manifest(
@@ -618,7 +623,7 @@ def test_pipeline_enforces_adapter_minimum_before_building_a_manifest(
         reduction=replace(make_config().reduction, candidate_domain_max_items=2),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MinimumEnforcingPortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -628,7 +633,7 @@ def test_pipeline_enforces_adapter_minimum_before_building_a_manifest(
 
     assert result.run_result.stage is PipelineStage.CANDIDATE_DOMAIN
     assert result.run_result.terminal_reason is TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL
-    assert result.fixing_manifest is None
+    assert result.cumulative_fixing_manifest is None
     assert result.classical_result is None
 
 
@@ -658,7 +663,7 @@ def test_pipeline_rejects_inconsistent_manifest_before_restriction(
         reduction=replace(make_config().reduction, candidate_domain_max_items=2),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         InconsistentManifestPortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -668,7 +673,7 @@ def test_pipeline_rejects_inconsistent_manifest_before_restriction(
 
     assert result.run_result.stage is PipelineStage.RESTRICTION
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
-    assert result.fixing_manifest is not None
+    assert result.cumulative_fixing_manifest is not None
     assert result.classical_result is None
 
 
@@ -699,7 +704,7 @@ def test_pipeline_supports_explicit_extension_registries(
         classical_solve=replace(config.classical_solve, classical_solver_id="caller_classical"),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
@@ -707,7 +712,7 @@ def test_pipeline_supports_explicit_extension_registries(
         classical_solver_registry=classical_registry,
     )
 
-    assert result.mis_execution_result is not None
+    assert result.round_results[0].mis_execution_result is not None
     assert result.run_result.stage is PipelineStage.CLASSICAL
     assert result.classical_result is not None
     assert result.classical_result.requested_solver_id == "caller_classical"
@@ -717,7 +722,7 @@ def test_pipeline_supports_explicit_extension_registries(
 
 def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_problem):
     """A future orchestrator can preserve the round index through one execution."""
-    from qreduce.pipeline.single_pass import _run_single_pass_with_counts
+    from qreduce.pipeline.single_pass import _execute_reduction_round_with_counts
 
     observed = {}
 
@@ -748,7 +753,7 @@ def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_pro
         config, mis_solver_id="recording",
         classical_solve=replace(config.classical_solve, classical_solver_id="recording"),
     )
-    result = _run_single_pass_with_counts(
+    result = _execute_reduction_round_with_counts(
         portfolio_problem, MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
         config, mis_solver_registry=mis_registry, classical_solver_registry=classical_registry,
         _round_index=3,
@@ -785,19 +790,19 @@ def test_pipeline_selects_dwave_simulated_annealing_qubo_backend(
         ),
     )
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,
     )
 
-    assert result.mis_compilation_result is not None
-    assert result.mis_compilation_result.compiled_job is not None
-    assert result.mis_compilation_result.compiled_job.problem_form.value == "qubo"
-    assert result.mis_execution_result is not None
-    assert result.mis_execution_result.effective_provider_id == "dwave"
-    assert result.mis_execution_result.effective_backend_id == "simulated_annealing"
-    assert result.mis_execution_result.effective_execution_parameters["num_reads"] == 8
-    assert result.mis_execution_result.effective_execution_parameters["num_sweeps"] == 20
-    assert result.selected_mis_samples
+    assert result.round_results[0].mis_compilation_result is not None
+    assert result.round_results[0].mis_compilation_result.compiled_job is not None
+    assert result.round_results[0].mis_compilation_result.compiled_job.problem_form.value == "qubo"
+    assert result.round_results[0].mis_execution_result is not None
+    assert result.round_results[0].mis_execution_result.effective_provider_id == "dwave"
+    assert result.round_results[0].mis_execution_result.effective_backend_id == "simulated_annealing"
+    assert result.round_results[0].mis_execution_result.effective_execution_parameters["num_reads"] == 8
+    assert result.round_results[0].mis_execution_result.effective_execution_parameters["num_sweeps"] == 20
+    assert result.round_results[0].selected_mis_samples
     assert result.run_result.stage is PipelineStage.CLASSICAL

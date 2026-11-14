@@ -1132,6 +1132,13 @@ domain-specific evaluation metrics supplied by the adapter or caller, with metri
 run status and terminal reason
 ```
 
+La pipeline pubblica espone un solo entry point, `run_pipeline`. La modalita`
+classical-only e` richiesta solo quando `max_reduction_rounds` e` l'intero zero;
+il numero di round effettivamente eseguiti resta distinto dalla modalita`
+richiesta. Ogni risultato di round conserva la dichiarazione delle protezioni
+quando disponibile, la durata del round inclusi i tentativi di recovery e la
+ratio di riduzione del dominio di quel round. Il budget end-to-end rimane globale.
+
 Nel single-pass `unique_sample_count` conta i vettori distinti prima del limite
 `max_distinct_samples`; `processed_unique_sample_count` conta quelli effettivamente
 elaborati dopo il limite. `repaired_candidate_count` conta i record riparati con

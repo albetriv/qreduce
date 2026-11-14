@@ -60,8 +60,12 @@ class ExperimentRunArtifacts:
 
     @property
     def is_classical_only(self) -> bool:
-        """True if this was a classical-only baseline with no MWIS reduction."""
-        return self.reduction_round_count == 0
+        """Whether the resolved configuration requested the classical baseline."""
+        reduction = self.config.get("reduction")
+        if isinstance(reduction, Mapping):
+            value = reduction.get("max_reduction_rounds")
+            return isinstance(value, int) and not isinstance(value, bool) and value == 0
+        return self.manifest.get("is_classical_only") is True
 
     @property
     def is_multi_round(self) -> bool:

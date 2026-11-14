@@ -18,7 +18,7 @@ from qreduce.models import (
     ResolvedRunConfig,
     RunIdentity,
 )
-from qreduce.pipeline import run_single_pass
+from qreduce.pipeline import run_pipeline
 from qreduce.status import (
     ClassicalSolverStatus,
     PostcheckMode,
@@ -68,7 +68,7 @@ def test_cplex_solves_portfolio_after_local_greedy_reduction(
 ) -> None:
     """Run only where a CPLEX binding and usable local license are available."""
 
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(
             PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")
@@ -90,7 +90,7 @@ def test_cplex_solves_portfolio_after_local_greedy_reduction(
         RunStatus.PARTIAL_SUCCESS,
     }
     assert result.run_result.adoption_status.value == "adopted"
-    assert result.retained_item_ids
+    assert result.final_retained_item_ids
     assert result.classical_result is not None
     assert result.classical_result.requested_solver_id == "cplex"
     assert result.classical_result.effective_solver_id == "cplex"
@@ -102,7 +102,7 @@ def test_cplex_exports_residual_model(portfolio_problem, tmp_path) -> None:
     config = replace(config, classical_solve=replace(
         config.classical_solve, model_export_enabled=True, model_export_path=str(path)
     ))
-    result = run_single_pass(
+    result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("integration-policy", "1", 0.25, edge_mode="correlation_only")),
         config,

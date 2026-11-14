@@ -11,7 +11,7 @@ from qreduce.models import (
     RunIdentity,
 )
 from qreduce.mwis import ReductionGraph
-from qreduce.pipeline import run_single_pass
+from qreduce.pipeline import run_pipeline
 from qreduce.solving.mwis import MISSolverRegistry
 from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
 from qreduce.status import (
@@ -127,13 +127,13 @@ def test_capability_mismatch_stops_pipeline_before_backend_compilation() -> None
         run_identity=RunIdentity("capability-gate"),
     )
 
-    result = run_single_pass(object(), GraphOnlyAdapter(), config, mis_solver_registry=registry)
+    result = run_pipeline(object(), GraphOnlyAdapter(), config, mis_solver_registry=registry)
 
     assert CompileMustNotRunBackend.compile_called is False
     assert result.run_result.stage is PipelineStage.MIS
     assert result.run_result.terminal_reason is TerminalReason.MIS_BACKEND_CAPABILITY_MISMATCH
-    assert result.mis_compilation_result is None
-    assert result.mis_execution_result is None
+    assert result.round_results[0].mis_compilation_result is None
+    assert result.round_results[0].mis_execution_result is None
 
 
 def test_pipeline_clamps_each_mis_phase_to_its_configured_timeout() -> None:
@@ -176,7 +176,7 @@ def test_pipeline_clamps_each_mis_phase_to_its_configured_timeout() -> None:
         run_identity=RunIdentity("timeout-clamping"),
     )
 
-    run_single_pass(object(), GraphOnlyAdapter(), config, mis_solver_registry=registry)
+    run_pipeline(object(), GraphOnlyAdapter(), config, mis_solver_registry=registry)
 
     assert RecordingTimeoutBackend.compile_budget_seconds == 0.5
     assert RecordingTimeoutBackend.execution_budget_seconds == 0.25

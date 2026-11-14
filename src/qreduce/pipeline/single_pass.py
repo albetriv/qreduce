@@ -7,9 +7,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import TYPE_CHECKING
 
-from qreduce.artifacts.metadata import redact_metadata, sha256_hex, to_primitive
+from qreduce.artifacts.metadata import redact_metadata, to_primitive
 from qreduce.capabilities import validate_backend_compatibility
 from qreduce.config import effective_timeout, validate_resolved_run_config
 from qreduce.domains import (
@@ -24,6 +23,11 @@ from qreduce.models import ResolvedRunConfig, RunResult
 from qreduce.mwis import CanonicalMWISProblem, build_mwis_qubo, qubo_to_ising
 from qreduce.mwis.energy import qubo_energy
 from qreduce.mwis.validation import validate_binary_selection
+from qreduce.pipeline.classical_execution import (
+    evaluate_domain_metrics,
+    execute_classical_solver,
+)
+from qreduce.pipeline.context import validate_logical_counts
 from qreduce.solving.mwis import (
     MISBackendRequest,
     MISBackendResult,
@@ -53,9 +57,6 @@ from qreduce.status import (
     RunStatus,
     TerminalReason,
 )
-
-if TYPE_CHECKING:
-    from qreduce.pipeline.unified import PipelineRunResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,8 +110,8 @@ class CandidateDomainItemRecord:
 
 
 @dataclass(frozen=True, slots=True)
-class SinglePassRunResult:
-    """Complete in-memory, serializable output of one single-pass run."""
+class RoundExecutionResult:
+    """Internal serializable output produced while executing one reduction round."""
 
     run_result: RunResult
     resolved_config: ResolvedRunConfig
@@ -152,134 +153,7 @@ class SinglePassRunResult:
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
 
-def run_single_pass(
-    problem: object,
-    adapter: ReducibleProblemAdapter,
-    config: ResolvedRunConfig,
-    *,
-    mis_solver_registry: MISSolverRegistry | None = None,
-    classical_solver_registry: ClassicalSolverRegistry | None = None,
-    _model_export_write_path: str | None = None,
-) -> PipelineRunResult:
-    """Execute one run and record end-to-end time for every terminal outcome.
-
-    .. deprecated:: 0.6.0
-        Use :func:`qreduce.pipeline.run_pipeline` instead with
-        ``max_reduction_rounds=1`` in the configuration.
-
-    Note:
-        As of 0.7.0, this function returns PipelineRunResult instead of the
-        legacy SinglePassRunResult. Code using this deprecated function should
-        migrate to run_pipeline().
-    """
-    import warnings
-
-    warnings.warn(
-        "run_single_pass is deprecated. Use run_pipeline with max_reduction_rounds=1 instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    started_at = perf_counter()
-    input_hash = None
-    describe_input = getattr(adapter, "describe_input", None)
-    if callable(describe_input):
-        try:
-            input_hash = sha256_hex(redact_metadata(to_primitive(describe_input(problem))))
-        except Exception:  # noqa: BLE001 - Input identity is optional for opaque adapters.
-            input_hash = None
-    result = _run_single_pass_with_counts(
-        problem, adapter, config, mis_solver_registry=mis_solver_registry,
-        classical_solver_registry=classical_solver_registry,
-        _model_export_write_path=_model_export_write_path,
-        _started_at=started_at,
-    )
-    metrics = dict(result.metrics)
-    metrics["end_to_end_runtime_seconds"] = perf_counter() - started_at
-    if result.candidate_records or "unique_sample_count" in metrics:
-        metrics["unique_sample_count"] = len(result.candidate_records)
-        metrics["processed_unique_sample_count"] = sum(
-            record.repair_status != "not_processed_after_deduplication"
-            for record in result.candidate_records
-        )
-        metrics["repaired_candidate_count"] = sum(
-            record.repair_status == "repaired" for record in result.candidate_records
-        )
-    if result.candidate_domain_item_records:
-        total = len(result.candidate_domain_item_records)
-        retained = sum(record.decision == "retained" for record in result.candidate_domain_item_records)
-        metrics["round_reduction_ratio"] = (total - retained) / total
-        metrics["cumulative_reduction_ratio"] = metrics["round_reduction_ratio"]
-    classical = result.classical_result
-    residual_claim = "unavailable"
-    if classical is not None and classical.solver_claimed_feasible:
-        residual_claim = "certified_optimal" if classical.is_optimal else (
-            "gap_bounded" if classical.gap is not None else "feasible_incumbent"
-        )
-    primal = None
-    if result.run_result.adoption_status is AdoptionStatus.ADOPTED and result.postcheck_result:
-        primal = result.postcheck_result.objective_recomputed
-
-    # Update internal result with computed values
-    internal_result = replace(result, metrics=metrics, run_result=replace(
-        result.run_result, policy_hash=config.policy_provenance.policy_hash, input_hash=input_hash,
-    ), original_primal_bound=primal, residual_problem_optimality_claim=residual_claim)
-
-    # Convert to PipelineRunResult
-    return _convert_single_pass_to_pipeline(internal_result)
-
-
-def _convert_single_pass_to_pipeline(result: SinglePassRunResult) -> PipelineRunResult:
-    """Convert a SinglePassRunResult to PipelineRunResult.
-
-    This is used by the deprecated run_single_pass function to return the
-    unified PipelineRunResult type.
-    """
-    from qreduce.pipeline.unified import PipelineRunResult, ReductionRoundResult
-
-    # Create the single round result
-    runtime = result.metrics.get("end_to_end_runtime_seconds")
-    round_reduction = result.metrics.get("round_reduction_ratio")
-    round_result = ReductionRoundResult(
-        round_index=0,
-        run_status=result.run_result.run_status,
-        stage=result.run_result.stage,
-        terminal_reason=result.run_result.terminal_reason,
-        selected_mis_samples=result.selected_mis_samples,
-        candidate_records=result.candidate_records,
-        candidate_domain_item_records=result.candidate_domain_item_records,
-        mis_compilation_result=result.mis_compilation_result,
-        mis_execution_result=result.mis_execution_result,
-        fixing_manifest=result.fixing_manifest,
-        retained_item_ids=result.retained_item_ids,
-        classical_result=result.classical_result,
-        postcheck_result=result.postcheck_result,
-        runtime_seconds=runtime if isinstance(runtime, int | float) else None,
-        round_reduction_ratio=round_reduction if isinstance(round_reduction, int | float) else None,
-    )
-
-    return PipelineRunResult(
-        run_result=result.run_result,
-        resolved_config=result.resolved_config,
-        round_results=(round_result,),
-        recovery_attempts=(),
-        cumulative_fixing_manifest=result.fixing_manifest,
-        final_retained_item_ids=result.retained_item_ids,
-        original_variable_counts=result.original_variable_counts,
-        residual_variable_counts=result.residual_variable_counts,
-        classical_result=result.classical_result,
-        postcheck_result=result.postcheck_result,
-        domain_evaluation_metrics=result.domain_evaluation_metrics,
-        objective_sense=result.objective_sense,
-        original_primal_bound=result.original_primal_bound,
-        original_dual_bound=result.original_dual_bound,
-        original_bound_provenance=result.original_bound_provenance,
-        original_problem_optimality_claim=result.original_problem_optimality_claim,
-        residual_problem_optimality_claim=result.residual_problem_optimality_claim,
-        metrics=result.metrics,
-    )
-
-
-def _run_single_pass_with_counts(
+def _execute_reduction_round_with_counts(
     problem: object,
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,
@@ -289,7 +163,7 @@ def _run_single_pass_with_counts(
     _model_export_write_path: str | None = None,
     _started_at: float | None = None,
     _round_index: int = 0,
-) -> SinglePassRunResult:
+) -> RoundExecutionResult:
     """Validate mandatory logical counts and preserve them across partial outcomes."""
 
     validation = validate_resolved_run_config(config)
@@ -299,11 +173,11 @@ def _run_single_pass_with_counts(
         describe = getattr(adapter, "describe_logical_variables", None)
         if not callable(describe):
             raise TypeError("Adapter must implement describe_logical_variables.")
-        original_counts = _validate_logical_counts(describe(problem))
+        original_counts = validate_logical_counts(describe(problem))
     except Exception as error:  # noqa: BLE001 - Adapter contract failures are normalized.
         return _failed(config, PipelineStage.VALIDATION, TerminalReason.ADAPTER_FAILURE, str(error))
     tracking_adapter = _LogicalCountsAdapter(adapter)
-    result = _run_single_pass(
+    result = _execute_reduction_round(
         problem, tracking_adapter, config,
         mis_solver_registry=mis_solver_registry,
         classical_solver_registry=classical_solver_registry,
@@ -311,24 +185,35 @@ def _run_single_pass_with_counts(
         _started_at=_started_at,
         _round_index=_round_index,
     )
+    if result.candidate_records:
+        processed = tuple(
+            record for record in result.candidate_records
+            if record.repair_status != "not_processed_after_deduplication"
+        )
+        result = replace(result, metrics={
+            **result.metrics,
+            "unique_sample_count": len(result.candidate_records),
+            "processed_unique_sample_count": len(processed),
+            "repaired_candidate_count": sum(
+                record.repair_status == "repaired" for record in processed
+            ),
+        })
     result = replace(
         result, original_variable_counts=original_counts,
         residual_variable_counts=tracking_adapter.residual_counts,
     )
+    return _evaluate_round_domain_metrics(problem, adapter, result)
+
+
+def _evaluate_round_domain_metrics(
+    problem: object, adapter: ReducibleProblemAdapter, result: RoundExecutionResult,
+) -> RoundExecutionResult:
+    """Evaluate and validate domain metrics after any completed post-check."""
     if result.postcheck_result is None:
         return result
     try:
-        evaluate = getattr(adapter, "evaluate_domain_metrics", None)
-        if not callable(evaluate):
-            raise TypeError("Adapter must implement evaluate_domain_metrics.")
-        metrics = evaluate(problem, result.classical_result, result.postcheck_result)
-        if not isinstance(metrics, tuple | list) or any(
-            not isinstance(metric, DomainEvaluationMetric) for metric in metrics
-        ):
-            raise TypeError("evaluate_domain_metrics must return a sequence of DomainEvaluationMetric.")
-        if len({metric.metric_id for metric in metrics}) != len(metrics):
-            raise ValueError("Domain metric IDs must be unique within a run.")
-        return replace(result, domain_evaluation_metrics=tuple(metrics))
+        metrics = evaluate_domain_metrics(problem, adapter, result.classical_result, result.postcheck_result)
+        return replace(result, domain_evaluation_metrics=metrics)
     except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
         return replace(result, run_result=replace(
             result.run_result, run_status=RunStatus.FAILED,
@@ -336,12 +221,6 @@ def _run_single_pass_with_counts(
             adoption_status=AdoptionStatus.NOT_ADOPTED,
             diagnostic_message=f"evaluate_domain_metrics: {error}",
         ))
-
-
-def _validate_logical_counts(value: object) -> LogicalVariableCounts:
-    if not isinstance(value, LogicalVariableCounts):
-        raise TypeError("describe_logical_variables must return LogicalVariableCounts.")
-    return value
 
 
 class _LogicalCountsAdapter:
@@ -358,13 +237,13 @@ class _LogicalCountsAdapter:
         self, problem: object, retained_item_ids: tuple[str, ...], fixing_manifest: FixingManifest
     ) -> object:
         residual = self._adapter.restrict_problem(problem, retained_item_ids, fixing_manifest)
-        self.residual_counts = _validate_logical_counts(
+        self.residual_counts = validate_logical_counts(
             self._adapter.describe_logical_variables(residual)
         )
         return residual
 
 
-def _run_single_pass(
+def _execute_reduction_round(
     problem: object,
     adapter: ReducibleProblemAdapter,
     config: ResolvedRunConfig,
@@ -374,17 +253,9 @@ def _run_single_pass(
     _model_export_write_path: str | None = None,
     _started_at: float | None = None,
     _round_index: int = 0,
-) -> SinglePassRunResult:
+) -> RoundExecutionResult:
     """Run one reduction using built-in solver factories and optional extensions."""
 
-    validation = validate_resolved_run_config(config)
-    if not validation.is_valid:
-        return _failed(
-            config,
-            PipelineStage.VALIDATION,
-            validation.terminal_reason,
-            _issues_message(validation),
-        )
     if (
         config.classical_solve.model_export_enabled
         and _model_export_write_path is None
@@ -907,7 +778,8 @@ def _run_single_pass(
             ),
         )
     try:
-        classical_result = classical_solver.solve(
+        classical_result = execute_classical_solver(
+        classical_solver,
         reduced_problem,
         ClassicalSolveRequest(
             run_id=config.run_identity.run_id,
@@ -923,9 +795,9 @@ def _run_single_pass(
             ),
             requested_solver_id=config.classical_solve.classical_solver_id,
         ),
+        staging_path=_model_export_write_path,
+        logical_path=config.classical_solve.model_export_path,
         )
-        if not isinstance(classical_result, ClassicalSolveResult):
-            raise TypeError("Classical backend must return ClassicalSolveResult.")
     except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
         return _failed(
             config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
@@ -937,10 +809,6 @@ def _run_single_pass(
             metrics=_candidate_metrics(started_at, execution, compilation,
                                        deduplicated.samples, valid_samples,
                                        selected_samples, retained_item_ids),
-        )
-    if _model_export_write_path and classical_result.model_export_path:
-        classical_result = replace(
-            classical_result, model_export_path=config.classical_solve.model_export_path
         )
     if not classical_result.solver_claimed_feasible:
         return _failed(
@@ -994,7 +862,7 @@ def _run_single_pass(
             ),
         )
     if not postcheck.postcheck_feasible:
-        return SinglePassRunResult(
+        return RoundExecutionResult(
             run_result=RunResult(
                 run_id=config.run_identity.run_id,
                 run_status=RunStatus.FAILED,
@@ -1034,7 +902,7 @@ def _run_single_pass(
         if classical_result.is_time_limited
         else RunStatus.SUCCESS
     )
-    return SinglePassRunResult(
+    return RoundExecutionResult(
         run_result=RunResult(
             run_id=config.run_identity.run_id,
             run_status=run_status,
@@ -1086,8 +954,8 @@ def _failed(
     mis_compilation_result: MISCompilationResult | None = None,
     mis_execution_result: MISBackendResult | None = None,
     metrics: Mapping[str, object] | None = None,
-) -> SinglePassRunResult:
-    return SinglePassRunResult(
+) -> RoundExecutionResult:
+    return RoundExecutionResult(
         run_result=RunResult(
             run_id=config.run_identity.run_id,
             run_status=RunStatus.FAILED,
@@ -1168,7 +1036,7 @@ def _budget_exhausted(
     stage: PipelineStage,
     retained_item_ids: tuple[str, ...] = (),
     **result_context: object,
-) -> SinglePassRunResult:
+) -> RoundExecutionResult:
     """Produce the normalized result used when no positive backend budget remains."""
 
     return _failed(

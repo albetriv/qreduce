@@ -2,6 +2,20 @@
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+
+from qreduce.status import TerminalReason
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryAttempt:
+    """Record of one recovery attempt within a reduction round."""
+
+    attempt_index: int
+    trigger_reason: TerminalReason
+    expanded_domain_size: int
+    previous_domain_size: int
+    outcome: str
 
 
 def rank_recovery_items(

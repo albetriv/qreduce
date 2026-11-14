@@ -2,7 +2,10 @@
 
 ## Stato
 
-**Completata.** La verifica del 2026-11-14 conferma `run_pipeline` come entry point raccomandato, `PipelineRunResult` come risultato unificato e una baseline classical-only che evita completamente grafo e backend MIS.
+**Completata.** La pulizia conferma `run_pipeline`
+come unico entry point di esecuzione, `PipelineRunResult` come unico risultato
+di un run completo e una baseline classical-only che evita completamente grafo
+e backend MIS.
 
 ## Scopo e confini
 
@@ -14,7 +17,10 @@ M09 unifica le modalita` operative controllate da `config.reduction.max_reductio
 >1 = riduzione multi-round con recovery configurabile
 ```
 
-La milestone preserva compatibilita` transitoria delle funzioni legacy, ma non altera le responsabilita` di M05, M06 e M08. La baseline e` un confronto operativo senza riduzione, non una garanzia di ottimalita` o una sostituzione del protocollo di benchmark dell'applicazione.
+La milestone non espone wrapper, alias o percorsi alternativi per le modalita`
+single-pass e multi-round: entrambe sono configurazioni della stessa pipeline.
+La baseline e` un confronto operativo senza riduzione, non una garanzia di
+ottimalita` o una sostituzione del protocollo di benchmark dell'applicazione.
 
 ## Riferimenti normativi
 
@@ -35,7 +41,25 @@ La milestone preserva compatibilita` transitoria delle funzioni legacy, ma non a
 
 Con valore zero, il percorso classical-only non costruisce il grafo, non invoca il solver MIS, mantiene tutti gli item e risolve il problema completo. Il manifest ha origine `no_reduction`, `round_results` e` vuoto e il runner non pubblica file `round_XX_result.json`.
 
-`run_single_pass` e `run_multi_round` restano disponibili per compatibilita`, ma emettono `DeprecationWarning`; il codice nuovo deve usare `run_pipeline`. I tipi legacy rimangono disponibili dove necessari alla rappresentazione interna, mentre `PipelineRunResult` e` il tipo pubblico raccomandato.
+La baseline usa la stessa validazione del risultato del backend e la stessa
+normalizzazione del percorso di export dei round. Il post-check deve restituire
+un `FinalSolutionValidationResult`; le metriche di dominio sono validate anche
+dopo un post-check negativo. Un errore nelle metriche produce `adapter_failure`
+senza scartare il risultato classico o il post-check e impedisce l'adozione.
+
+`run_pipeline` e` l'unico entry point pubblico di esecuzione. Il componente
+interno del round produce `RoundExecutionResult`, convertito dall'orchestratore
+in `ReductionRoundResult`; `PipelineRunResult` espone i dati finali con
+`final_retained_item_ids` e `cumulative_fixing_manifest` e le evidenze per
+round nella sequenza `round_results`. Non esistono accessor che selezionino
+implicitamente il primo round.
+
+`is_classical_only` indica la modalita` richiesta: e` vero solo per il valore
+intero zero, anche quando un'altra parte della configurazione non e` valida.
+`has_reduction` indica invece se almeno un round e` stato eseguito. La durata
+di ogni round comprende i suoi tentativi di recovery; il budget end-to-end usa
+il cronometro globale. La dichiarazione delle protezioni e` conservata nel
+risultato del round quando disponibile.
 
 ## Test e verifica
 
@@ -43,18 +67,28 @@ Con valore zero, il percorso classical-only non costruisce il grafo, non invoca 
 - La suite include integrazione SCIP, failure del solver e problema infeasible nel modo classical-only.
 - `tests/experiments/test_runner.py` verifica il round-trip degli artifact della baseline.
 - `tests/pipeline/test_multi_round.py` e i test single-pass verificano i modi positivi instradati dalla pipeline unificata.
+- La verifica finale ha eseguito la suite completa: 354 test passati.
+- L'hash dell'input e la validazione dei conteggi logici sono condivisi; il tipo
+  `RecoveryAttempt` risiede nel modulo di recovery, senza ciclo di import tra
+  orchestratore e risultato unificato. Il componente di round mantiene una
+  validazione difensiva quando viene invocato direttamente nei test interni.
 
 ## Criteri di completamento
 
-- Un solo entry point seleziona in modo esplicito baseline, single-pass o multi-round dalla configurazione risolta.
+- Un solo entry point pubblico seleziona in modo esplicito baseline, un round o piu` round dalla configurazione risolta.
 - Il modo zero non esegue alcuna riduzione MWIS.
 - Risultati e artifact distinguono chiaramente baseline e run con riduzione.
-- Le API legacy avvisano della deprecazione senza cambiare silenziosamente il contratto osservabile.
+- Non esistono API legacy, alias o conversioni di compatibilita` per percorsi di pipeline concorrenti.
 - `PipelineRunResult` conserva le evidenze necessarie per audit di tutti i modi.
 
 ## Esclusioni e lavoro successivo
 
-La baseline non definisce metriche di benchmark, soglie di accettazione o una policy di confronto full-versus-reduced: tali decisioni rimangono di competenza dell'applicazione o di un adapter di dominio. Una futura API pubblica o CLI non deve modificare i confini contrattuali senza aggiornamento delle specifiche.
+La baseline non definisce metriche di benchmark, soglie di accettazione o una
+policy di confronto full-versus-reduced: tali decisioni rimangono di competenza
+dell'applicazione o di un adapter di dominio. I percorsi di restriction e
+post-check della recovery restano distinti per gestire il dominio espanso e il
+manifest cumulativo, mentre validazione del solve, export e metriche di dominio
+sono condivisi.
 
 ## Riferimenti correlati
 

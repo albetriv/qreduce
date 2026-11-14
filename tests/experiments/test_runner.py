@@ -28,8 +28,8 @@ from qreduce.models import (
     RunIdentity,
     RunResult,
 )
-from qreduce.pipeline import PipelineRunResult, run_single_pass
-from qreduce.pipeline.single_pass import SinglePassRunResult
+from qreduce.pipeline import PipelineRunResult, run_pipeline
+from qreduce.pipeline.single_pass import RoundExecutionResult
 from qreduce.solving.residual import ClassicalSolveResult
 from qreduce.status import (
     AdoptionStatus,
@@ -83,7 +83,7 @@ def _problem() -> PortfolioProblem:
 
 def _postchecked_result(problem, adapter, config, **kwargs):
     del problem, adapter, kwargs
-    return SinglePassRunResult(
+    return RoundExecutionResult(
         resolved_config=config,
         run_result=RunResult(config.run_identity.run_id, RunStatus.SUCCESS,
                              PipelineStage.POSTCHECK, None, ClassicalSolverStatus.OPTIMAL,
@@ -96,7 +96,7 @@ def _postchecked_result(problem, adapter, config, **kwargs):
 
 
 def test_domain_metrics_persist_and_redact(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+    monkeypatch.setattr("qreduce.pipeline.single_pass._execute_reduction_round", _postchecked_result)
 
     class EvaluatingAdapter(MeanVariancePortfolioAdapter):
         def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
@@ -114,7 +114,7 @@ def test_domain_metrics_persist_and_redact(monkeypatch, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("mode", ["missing", "exception", "invalid", "duplicate"])
 def test_domain_metric_failure_preserves_postcheck(monkeypatch, mode) -> None:
-    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+    monkeypatch.setattr("qreduce.pipeline.single_pass._execute_reduction_round", _postchecked_result)
 
     class EvaluatingAdapter(MeanVariancePortfolioAdapter):
         def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
@@ -128,7 +128,7 @@ def test_domain_metric_failure_preserves_postcheck(monkeypatch, mode) -> None:
     adapter = EvaluatingAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
     if mode == "missing":
         adapter.evaluate_domain_metrics = None
-    result = run_single_pass(_problem(), adapter, _config("run"))
+    result = run_pipeline(_problem(), adapter, _config("run"))
     assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
     assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
     assert result.classical_result is not None and result.postcheck_result is not None
@@ -146,9 +146,9 @@ def test_metrics_run_after_failed_postcheck(monkeypatch) -> None:
             postcheck_result=FinalSolutionValidationResult(
                 False, True, False, True, None, None, ("constraint",)))
 
-    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", failed_postcheck)
+    monkeypatch.setattr("qreduce.pipeline.single_pass._execute_reduction_round", failed_postcheck)
     adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
-    result = run_single_pass(_problem(), adapter, _config("run"))
+    result = run_pipeline(_problem(), adapter, _config("run"))
     assert result.run_result.terminal_reason is TerminalReason.POSTCHECK_FAILED
     assert result.domain_evaluation_metrics == ()
 
@@ -211,7 +211,7 @@ def test_runner_persists_normalized_failure_for_notebook_analysis(
 
 
 def test_manifest_preserves_redacted_policy_provenance(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", _postchecked_result)
+    monkeypatch.setattr("qreduce.pipeline.single_pass._execute_reduction_round", _postchecked_result)
     config = replace(_config("policy-run"), policy_provenance=PolicyProvenance(
         policy_id="policy-1", policy_version="v1", policy_hash="abc",
         policy_source="https://example.com/?token=secret",
@@ -293,7 +293,7 @@ def test_loader_rejects_artifacts_changed_after_publication(
 def test_direct_pipeline_rejects_missing_export_path() -> None:
     config = _config("missing-path")
     config = replace(config, classical_solve=replace(config.classical_solve, model_export_enabled=True))
-    result = run_single_pass(
+    result = run_pipeline(
         _problem(), MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")), config
     )
     assert result.run_result.terminal_reason.value == "invalid_configuration"
@@ -309,11 +309,11 @@ def test_direct_pipeline_exports_to_requested_path_and_refuses_overwrite(tmp_pat
         model_export_path=str(target),
     ))
     adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
-    result = run_single_pass(_problem(), adapter, config)
+    result = run_pipeline(_problem(), adapter, config)
     assert target.is_file()
     assert result.classical_result.model_export_path == str(target)
     contents = target.read_bytes()
-    second = run_single_pass(_problem(), adapter, config)
+    second = run_pipeline(_problem(), adapter, config)
     assert second.run_result.terminal_reason.value == "invalid_configuration"
     assert target.read_bytes() == contents
 
@@ -429,7 +429,7 @@ def test_terminal_outcomes_round_trip_through_artifact_serialization(
     def make_result(problem, adapter, config, **kwargs):
         del problem, adapter, kwargs
         run_status, terminal, solver_status, postcheck, adoption = expected[scenario]
-        return SinglePassRunResult(
+        return RoundExecutionResult(
             resolved_config=config,
             run_result=RunResult(
                 config.run_identity.run_id, run_status, PipelineStage.POSTCHECK,
@@ -454,7 +454,7 @@ def test_terminal_outcomes_round_trip_through_artifact_serialization(
             ) if scenario not in ("failed_classical",) else None,
         )
 
-    monkeypatch.setattr("qreduce.pipeline.single_pass._run_single_pass", make_result)
+    monkeypatch.setattr("qreduce.pipeline.single_pass._execute_reduction_round", make_result)
     run = run_experiment(
         f"roundtrip-{scenario}", _problem(),
         MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")),
@@ -662,6 +662,77 @@ def test_multi_round_with_recovery_round_trip(tmp_path):
     assert len(single_loaded.recovery_attempts) == 0
 
 
+def test_recovery_export_publishes_logical_path(tmp_path):
+    from qreduce.solving.residual import ClassicalSolverRegistry
+
+    config = _config("recovery-export")
+    config = replace(
+        config,
+        reduction=replace(config.reduction, max_recovery_attempts=1,
+                          recovery_policy_on_infeasible="retry_with_larger_domain",
+                          num_source_mis_candidates=1),
+        classical_solve=replace(config.classical_solve, model_export_enabled=True),
+    )
+    calls = []
+
+    class ExportingSolver:
+        def solve(self, problem, request):
+            calls.append(request.model_export_path)
+            Path(request.model_export_path).write_text(f"attempt {len(calls)}", encoding="utf-8")
+            feasible = len(calls) > 1
+            return ClassicalSolveResult(
+                ClassicalSolverStatus.OPTIMAL if feasible else ClassicalSolverStatus.INFEASIBLE,
+                None if feasible else TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                feasible, 1.0 if feasible else None, 1.0 if feasible else None,
+                0.0 if feasible else None, feasible, False, 0.1,
+                model_export_path=request.model_export_path,
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("cplex", ExportingSolver)
+    adapter = MeanVariancePortfolioAdapter(
+        PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only")
+    )
+    run = run_experiment("recovery-export", _problem(), adapter, config,
+                         classical_solver_registry=registry, output_root=tmp_path)
+    assert len(calls) == 2
+    target = run.run_directory.resolve() / "residual_model.lp"
+    assert target.read_text(encoding="utf-8") == "attempt 2"
+    assert run.result.classical_result.model_export_path == str(target)
+    loaded = load_experiment_run(run.run_directory)
+    assert loaded.result["classical_result"]["model_export_path"] == str(target)
+    assert loaded.round_results[0]["classical_result"]["model_export_path"] == str(target)
+
+
+def test_baseline_export_publishes_logical_path(tmp_path):
+    from qreduce.solving.residual import ClassicalSolverRegistry
+
+    config = _config("baseline-export")
+    config = replace(config, reduction=replace(config.reduction, max_reduction_rounds=0),
+                     classical_solve=replace(config.classical_solve, model_export_enabled=True))
+
+    class ExportingSolver:
+        def solve(self, problem, request):
+            Path(request.model_export_path).write_text("baseline model", encoding="utf-8")
+            return ClassicalSolveResult(
+                ClassicalSolverStatus.INFEASIBLE, TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                False, None, None, None, False, False, 0.1,
+                model_export_path=request.model_export_path,
+            )
+
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("cplex", ExportingSolver)
+    adapter = MeanVariancePortfolioAdapter(PortfolioGraphPolicy("test", "1", 0.25, edge_mode="correlation_only"))
+    run = run_experiment("baseline-export", _problem(), adapter, config,
+                         classical_solver_registry=registry, output_root=tmp_path)
+    target = run.run_directory.resolve() / "residual_model.lp"
+    assert target.read_text(encoding="utf-8") == "baseline model"
+    assert run.result.classical_result.model_export_path == str(target)
+    loaded = load_experiment_run(run.run_directory)
+    assert loaded.result["classical_result"]["model_export_path"] == str(target)
+    assert loaded.round_results == ()
+
+
 def test_classical_only_baseline_persists_correct_artifacts(tmp_path):
     """Classical-only baseline (max_reduction_rounds=0) produces correct artifacts."""
     from qreduce.solving.residual import ClassicalSolverRegistry
@@ -761,6 +832,7 @@ def test_classical_only_baseline_persists_correct_artifacts(tmp_path):
     loaded = load_experiment_run(experiment.run_directory)
     assert loaded.schema_version == "1.1"
     assert loaded.reduction_round_count == 0
+    assert loaded.is_classical_only is True
     assert loaded.has_reduction is False
     assert len(loaded.round_results) == 0
     assert len(loaded.recovery_attempts) == 0

@@ -1,5 +1,7 @@
 """Tests for multi-round iterative reduction orchestration."""
 
+from dataclasses import replace
+
 import pytest
 
 from qreduce.domains import (
@@ -17,20 +19,165 @@ from qreduce.models import (
     ReductionPolicy,
     ResolvedRunConfig,
     RunIdentity,
+    RunResult,
 )
 from qreduce.mwis import ReductionGraph
-from qreduce.pipeline.multi_round import run_multi_round
+from qreduce.pipeline import run_pipeline
 from qreduce.pipeline.unified import PipelineRunResult
 from qreduce.solving.residual import (
     ClassicalSolveResult,
     ClassicalSolverRegistry,
 )
 from qreduce.status import (
+    AdoptionStatus,
     ClassicalSolverStatus,
+    PipelineStage,
     PostcheckMode,
+    PostcheckStatus,
     RunStatus,
     TerminalReason,
 )
+
+
+def test_requested_mode_is_distinct_from_executed_rounds(monkeypatch):
+    import qreduce.pipeline.multi_round as rounds
+
+    config = make_multi_round_config(max_rounds=1)
+    monkeypatch.setattr(rounds, "perf_counter", lambda: 1e15)
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), SimpleAdapter(), config)
+    assert result.run_result.terminal_reason is TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED
+    assert result.round_results == ()
+    assert result.is_classical_only is False
+    assert result.has_reduction is False
+
+    from qreduce.experiments.artifacts import ExperimentRunArtifacts
+
+    artifact = ExperimentRunArtifacts(
+        run_directory=None, manifest={"round_count": 0, "is_classical_only": False},
+        config={"reduction": {"max_reduction_rounds": 1}}, experiment_metadata={},
+        problem=None, result={}, canonical_mwis_problem=None,
+    )
+    assert artifact.is_classical_only is False
+
+    for value, expected in ((0, True), (1, False), (-1, False), (False, False)):
+        invalid_or_baseline = replace(config, reduction=replace(config.reduction, max_reduction_rounds=value))
+        assert replace(result, resolved_config=invalid_or_baseline).is_classical_only is expected
+
+
+def test_input_hash_preserved_when_identification_fails():
+    from qreduce.artifacts.metadata import sha256_hex
+
+    class FailingAdapter(SimpleAdapter):
+        def describe_input(self, problem):
+            return {"id": "example"}
+
+        def identify_reducible_items(self, problem):
+            raise RuntimeError("cannot identify")
+
+    result = run_pipeline(SimpleProblem([SimpleItem("a")]), FailingAdapter(),
+                          make_multi_round_config(max_rounds=2))
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.input_hash == sha256_hex({"id": "example"})
+    assert result.round_results == ()
+
+def test_two_rounds_have_independent_runtime_and_ratio(monkeypatch):
+    import qreduce.pipeline.multi_round as rounds
+    from qreduce.pipeline.single_pass import RoundExecutionResult
+
+    ticks = iter((1.0, 2.0, 5.0, 6.0, 7.0, 12.0, 13.0))
+    monkeypatch.setattr(rounds, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(rounds, "_check_stopping_criteria", lambda *args: None)
+    config = make_multi_round_config(max_rounds=2)
+    problem = SimpleProblem([SimpleItem("a"), SimpleItem("b"), SimpleItem("c")])
+
+    def execute(current, original, adapter, cfg, index, current_ids, *args, **kwargs):
+        del current, original, adapter, current_ids, args, kwargs
+        retained, excluded = (("a", "b"), ("c",)) if index == 0 else (("a",), ("b",))
+        entries = tuple(FixingEntry(item, {f"x_{item}": 0.0}, "test", "mis_heuristic", "heuristic") for item in excluded)
+        manifest = FixingManifest(retained, excluded, entries, origin="test", round_index=index)
+        result = RoundExecutionResult(
+            run_result=RunResult(cfg.run_identity.run_id, RunStatus.FAILED, PipelineStage.CLASSICAL,
+                                 TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                                 ClassicalSolverStatus.INFEASIBLE, PostcheckStatus.NOT_RUN,
+                                 AdoptionStatus.NOT_ADOPTED),
+            resolved_config=cfg, retained_item_ids=retained, fixing_manifest=manifest,
+            original_variable_counts=LogicalVariableCounts(3 - index, 0, 0),
+        )
+        return result, manifest, []
+
+    monkeypatch.setattr(rounds, "_run_round_with_recovery", execute)
+    result = rounds._run_reduction_rounds(problem, SimpleAdapter(), config, started_at=0.0)
+    assert len(result.round_results) == 2
+    assert [r.runtime_seconds for r in result.round_results] == [3.0, 5.0]
+    assert [r.runtime_seconds for r in result.run_result.round_results] == [3.0, 5.0]
+    assert result.original_variable_counts == LogicalVariableCounts(3, 0, 0)
+    assert [r.round_reduction_ratio for r in result.round_results] == [1 / 3, 1 / 2]
+    assert result.final_retained_item_ids == ("a",)
+
+
+def test_inter_round_restriction_failure_preserves_evidence(monkeypatch):
+    import qreduce.pipeline.multi_round as rounds
+    from qreduce.pipeline.single_pass import RoundExecutionResult
+
+    config = make_multi_round_config(max_rounds=2)
+    problem = SimpleProblem([SimpleItem("a"), SimpleItem("b")])
+    entry = FixingEntry("b", {"x_b": 0.0}, "test", "mis_heuristic", "heuristic")
+    manifest = FixingManifest(("a",), ("b",), (entry,), origin="test", round_index=0)
+    counts = LogicalVariableCounts(2, 0, 0)
+
+    def execute(current, original, adapter, cfg, index, *args, **kwargs):
+        del current, original, adapter, index, args, kwargs
+        result = RoundExecutionResult(
+            run_result=RunResult(cfg.run_identity.run_id, RunStatus.FAILED, PipelineStage.CLASSICAL,
+                                 TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                                 ClassicalSolverStatus.INFEASIBLE, PostcheckStatus.NOT_RUN,
+                                 AdoptionStatus.NOT_ADOPTED),
+            resolved_config=cfg, original_variable_counts=counts,
+            retained_item_ids=("a",), fixing_manifest=manifest,
+        )
+        return result, manifest, []
+
+    class FailingAdapter(SimpleAdapter):
+        def restrict_problem(self, problem, retained, fixing):
+            raise ValueError("second restriction failed")
+
+    monkeypatch.setattr(rounds, "_run_round_with_recovery", execute)
+    monkeypatch.setattr(rounds, "_check_stopping_criteria", lambda *args: None)
+    result = run_pipeline(problem, FailingAdapter(), config)
+    assert result.run_result.stage is PipelineStage.RESTRICTION
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.diagnostic_message == "restrict_problem: second restriction failed"
+    assert len(result.round_results) == 1
+    assert result.cumulative_fixing_manifest is not None
+    assert result.final_retained_item_ids == ("a",)
+    assert result.original_variable_counts == counts
+
+
+def test_cumulative_manifest_failure_invalidates_partial_success(monkeypatch):
+    import qreduce.pipeline.multi_round as rounds
+    from qreduce.pipeline.single_pass import RoundExecutionResult
+
+    config = make_multi_round_config(max_rounds=1)
+    manifest = FixingManifest(("a",), (), (), origin="test")
+    round_result = RoundExecutionResult(
+        run_result=RunResult(config.run_identity.run_id, RunStatus.PARTIAL_SUCCESS,
+                             PipelineStage.POSTCHECK, None, ClassicalSolverStatus.FEASIBLE,
+                             PostcheckStatus.PASSED, AdoptionStatus.ADOPTED),
+        resolved_config=config, retained_item_ids=("a",), fixing_manifest=manifest,
+    )
+
+    def fail_manifest(*args):
+        raise ValueError("invalid cumulative fixing")
+
+    monkeypatch.setattr(rounds, "cumulative_fixing_manifest", fail_manifest)
+    result = rounds._build_pipeline_result(
+        config, [round_result], [manifest], [], ("a",), None, 0.0, None,
+        SimpleProblem([SimpleItem("a")]), SimpleAdapter(),
+    )
+    assert result.run_result.run_status is RunStatus.FAILED
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert result.run_result.terminal_reason is TerminalReason.ADAPTER_FAILURE
+    assert result.run_result.diagnostic_message == "invalid cumulative fixing"
 
 # --- Test fixtures and helpers ---
 
@@ -275,7 +422,7 @@ def test_single_round_behaves_like_single_pass():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -300,7 +447,7 @@ def test_multi_round_stops_on_success():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -325,7 +472,7 @@ def test_multi_round_reaches_max_rounds():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", lambda: solver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -350,7 +497,7 @@ def test_multi_round_cumulative_manifest_tracks_all_exclusions():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -376,7 +523,7 @@ def test_multi_round_monotonicity_retained_items_never_increase():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", lambda: solver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -406,7 +553,7 @@ def test_multi_round_excluded_items_never_reappear():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", lambda: solver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -450,7 +597,7 @@ def test_multi_round_round_index_propagates_to_backends():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RoundRecordingSolver)
 
-    run_multi_round(
+    run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -507,7 +654,7 @@ def test_multi_round_metrics_include_round_count():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -525,7 +672,7 @@ def test_multi_round_result_is_serializable():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -610,7 +757,7 @@ def test_recovery_expands_domain_on_infeasible():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", DomainTrackingSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -630,7 +777,7 @@ def test_recovery_expands_domain_on_infeasible():
 
 def test_recovery_attempts_are_recorded():
     """RecoveryAttempt records are created with correct metadata."""
-    from qreduce.pipeline.multi_round import RecoveryAttempt
+    from qreduce.pipeline.recovery import RecoveryAttempt
 
     problem = SimpleProblem([
         SimpleItem("a", 1.0),
@@ -661,7 +808,7 @@ def test_recovery_attempts_are_recorded():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", AlwaysInfeasibleSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -705,7 +852,7 @@ def test_recovery_stops_when_domain_cannot_expand():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", AlwaysInfeasibleSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -809,7 +956,7 @@ def test_post_check_uses_original_problem_with_cumulative_manifest():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", RecordingClassicalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -856,7 +1003,7 @@ def test_infeasible_without_recovery_terminates_immediately():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", InfeasibleSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -912,7 +1059,7 @@ def test_adapter_failure_in_recovery_build_fixing_manifest():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", InfeasibleThenFailSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -967,7 +1114,7 @@ def test_adapter_failure_in_recovery_restrict_problem():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", InfeasibleSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -1025,7 +1172,7 @@ def test_adapter_failure_in_recovery_validate_candidate_domain():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", InfeasibleSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -1107,7 +1254,7 @@ def test_end_to_end_recovery_with_portfolio_adapter_and_adoption():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", InfeasibleThenOptimalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )
@@ -1128,6 +1275,93 @@ def test_end_to_end_recovery_with_portfolio_adapter_and_adoption():
 
     # Verify we had at least 2 solver calls (initial + after recovery)
     assert call_count[0] >= 2, "Expected at least 2 solver calls (initial + recovery)"
+    assert result.original_variable_counts == LogicalVariableCounts(5, 0, 0)
+    assert result.residual_variable_counts == LogicalVariableCounts(
+        len(result.final_retained_item_ids), 0, 0
+    )
+    assert result.domain_evaluation_metrics == ()
+    assert result.metrics["candidate_domain_size"] == len(result.final_retained_item_ids)
+    assert result.metrics["classical_solver_claimed_feasible"] is True
+    assert result.metrics["classical_runtime_seconds"] == 0.5
+    assert result.metrics["objective_value"] == 0.0
+    assert result.metrics["best_bound"] == 0.0
+    assert result.metrics["solver_gap"] == 0.0
+
+
+@pytest.mark.parametrize("mode", ["none", "wrong_type", "exception", "metric_error", "bad_solver", "identify_error"])
+def test_recovery_normalizes_invalid_postcheck(mode):
+    class InvalidPostcheckAdapter(SimpleAdapter):
+        identify_calls = 0
+
+        def identify_reducible_items(self, problem):
+            self.identify_calls += 1
+            if mode == "identify_error" and solver.calls >= 2 and problem is original_problem:
+                raise RuntimeError("identify failed")
+            return super().identify_reducible_items(problem)
+
+        def build_fixing_manifest(self, problem, retained):
+            excluded = tuple(item for item in self.identify_reducible_items(problem) if item not in retained)
+            entries = tuple(FixingEntry(item, {f"x_{item}": 0.0}, "test", "mis_heuristic", "heuristic") for item in excluded)
+            return FixingManifest(retained, excluded, entries, origin="test")
+
+        def build_conflict_graph(self, problem, state=None):
+            ids = tuple(self.identify_reducible_items(problem))
+            edges = tuple(edge for edge in (("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")) if set(edge) <= set(ids))
+            return ReductionGraph(ids, dict.fromkeys(ids, 1.0), edges,
+                                  {edge: "test" for edge in edges}, "test", "1")
+
+        def validate_final_solution(self, *args, **kwargs):
+            if mode == "metric_error":
+                return super().validate_final_solution(*args, **kwargs)
+            if mode == "exception":
+                raise ValueError("postcheck failure")
+            return None if mode == "none" else object()
+
+        def evaluate_domain_metrics(self, *args):
+            raise ValueError("metric failure")
+
+    class RetrySolver:
+        calls = 0
+
+        def solve(self, problem, request):
+            self.calls += 1
+            feasible = self.calls > 1
+            if feasible and mode == "bad_solver":
+                return None
+            return ClassicalSolveResult(
+                ClassicalSolverStatus.OPTIMAL if feasible else ClassicalSolverStatus.INFEASIBLE,
+                None if feasible else TerminalReason.CLASSICAL_SOLVER_INFEASIBLE,
+                feasible, 0.0 if feasible else None, 0.0 if feasible else None,
+                0.0 if feasible else None, feasible, False, 0.0,
+                variable_values={"x": 1.0} if feasible else {},
+            )
+
+    problem = SimpleProblem(
+        [SimpleItem(name, index + 1.0) for index, name in enumerate(("a", "b", "c", "d", "e"))],
+    )
+    original_problem = problem
+    config = make_multi_round_config(max_rounds=1, max_recovery=1,
+                                     recovery_on_infeasible="retry_with_larger_domain")
+    config = replace(config, reduction=replace(config.reduction, num_source_mis_candidates=1))
+    solver = RetrySolver()
+    registry = ClassicalSolverRegistry(include_builtins=False)
+    registry.register("recording", lambda: solver)
+    result = run_pipeline(problem, InvalidPostcheckAdapter(), config, classical_solver_registry=registry)
+    assert solver.calls == 2, result.run_result.diagnostic_message
+    assert result.run_result.stage is (PipelineStage.CLASSICAL if mode == "bad_solver" else PipelineStage.POSTCHECK)
+    assert result.run_result.terminal_reason is (
+        TerminalReason.CLASSICAL_SOLVER_FAILED if mode == "bad_solver" else TerminalReason.ADAPTER_FAILURE
+    )
+    assert result.run_result.adoption_status is AdoptionStatus.NOT_ADOPTED
+    assert (result.classical_result is None) is (mode == "bad_solver")
+    assert result.residual_variable_counts is not None
+    if mode == "bad_solver":
+        assert "classical_solver_claimed_feasible" not in result.metrics
+        assert "classical_runtime_seconds" not in result.metrics
+        assert result.metrics["candidate_domain_size"] == len(result.final_retained_item_ids)
+    if mode == "metric_error":
+        assert result.postcheck_result is not None
+        assert "metric failure" in result.run_result.diagnostic_message
 
 
 def test_end_to_end_multi_round_success_without_recovery():
@@ -1169,7 +1403,7 @@ def test_end_to_end_multi_round_success_without_recovery():
     classical_registry = ClassicalSolverRegistry(include_builtins=False)
     classical_registry.register("recording", OptimalSolver)
 
-    result = run_multi_round(
+    result = run_pipeline(
         problem, adapter, config,
         classical_solver_registry=classical_registry,
     )

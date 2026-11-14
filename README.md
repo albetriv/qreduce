@@ -10,7 +10,12 @@ rappresenta MILP e MIQP con vincoli lineari, quindi l'obiettivo originale puo`
 essere lineare o quadratico; vincoli quadratici, conici, indicatori o non
 lineari richiedono una riformulazione oppure un'estensione esplicita.
 
-> **Stato sintetico**: il repository contiene un nucleo single-pass utilizzabile, con risultato auditabile in memoria e un esperimento sintetico persistito. Lo stato dettagliato delle feature previste e delle relative milestone e` mantenuto nella roadmap di implementazione.
+> **Stato sintetico**: il repository espone una pipeline unificata tramite
+> `qreduce.pipeline.run_pipeline`, con risultato auditabile in memoria e un
+> esperimento sintetico persistito. Le modalita` classical-only, a un round e
+> multi-round sono determinate da `max_reduction_rounds`. Lo stato dettagliato
+> delle feature previste e delle relative milestone e` mantenuto nella roadmap
+> di implementazione.
 
 Gli adapter devono implementare `evaluate_domain_metrics`: dopo il post-check
 possono restituire metriche di dominio con valore, unita`, convenzione e
