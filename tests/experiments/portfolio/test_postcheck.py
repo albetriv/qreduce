@@ -45,7 +45,6 @@ def valid_values() -> dict[str, float]:
 
 def test_valid_solution_passes_and_recomputes_objective(portfolio_problem: PortfolioProblem) -> None:
     """The solver may select a feasible subset inside the retained candidate domain."""
-
     result = validate_portfolio_solution(portfolio_problem, valid_values(), make_manifest(portfolio_problem), make_tolerances())
 
     assert result.postcheck_feasible is True
@@ -57,7 +56,6 @@ def test_valid_solution_passes_and_recomputes_objective(portfolio_problem: Portf
 
 def test_fixing_integrality_and_budget_failures_are_independently_observable(portfolio_problem: PortfolioProblem) -> None:
     """No invalid residual solution is adopted merely because a solver reported one."""
-
     values = valid_values()
     values.update({"delta__asset-a": 0.5, "x__asset-b": 0.5, "x__asset-c": 0.1})
     result = validate_portfolio_solution(portfolio_problem, values, make_manifest(portfolio_problem), make_tolerances())
@@ -73,7 +71,6 @@ def test_fixing_integrality_and_budget_failures_are_independently_observable(por
 
 def test_solver_objective_mismatch_fails_postcheck(portfolio_problem: PortfolioProblem) -> None:
     """Objective recomputation uses the configured absolute and relative tolerances."""
-
     result = validate_portfolio_solution(
         portfolio_problem,
         valid_values(),

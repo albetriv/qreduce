@@ -19,7 +19,6 @@ class CallerMISBackend:
 
 def test_builtin_registry_resolves_bundled_mis_solvers() -> None:
     """The standard catalog supplies QReduce's local heuristic and Ocean simulator."""
-
     registry = builtin_mis_solver_registry()
 
     assert registry.solver_ids == ("dwave_simulated_annealing", "local_greedy")
@@ -31,7 +30,6 @@ def test_builtin_registry_resolves_bundled_mis_solvers() -> None:
 
 def test_registry_resolves_a_solver_registered_by_the_caller() -> None:
     """Applications can deliberately extend an otherwise empty registry."""
-
     registry = MISSolverRegistry(include_builtins=False)
     registry.register("caller_mis", CallerMISBackend)
 
@@ -41,7 +39,6 @@ def test_registry_resolves_a_solver_registered_by_the_caller() -> None:
 
 def test_unknown_mis_solver_is_rejected_without_substitution() -> None:
     """An unsupported solver ID never falls back to another registered solver."""
-
     with pytest.raises(UnknownMISSolverError, match="unknown_mis_solver"):
         builtin_mis_solver_registry().create("unknown_mis_solver")
 

@@ -37,6 +37,66 @@ markers = [
 [tool.ruff]
 target-version = "py312"
 
+[tool.ruff.lint]
+# Mantiene le regole predefinite (E, F) e aggiunge gradualmente le regole pydocstyle.
+# Le regole D sono attivate progressivamente per evitare docstring cosmetiche.
+# E501 (line too long) è ignorata per mantenere il comportamento precedente.
+extend-select = [
+    "D100",  # Docstring nei moduli pubblici
+    "D101",  # Docstring nelle classi pubbliche
+    "D102",  # Docstring nei metodi pubblici
+    "D103",  # Docstring nelle funzioni pubbliche
+    "D107",  # Docstring nei __init__ (consigliato, non obbligatorio nei test)
+    "D200",  # One-line docstrings su una riga
+    "D201",  # Nessuna riga vuota prima della docstring
+    "D202",  # Nessuna riga vuota dopo la docstring
+    "D205",  # 1 blank line required between summary and description
+    "D210",  # No whitespace around docstring text
+    "D300",  # Usa """triple double quotes"""
+    "D400",  # La prima riga termina con un punto
+    "D401",  # Prima riga in imperativo (inglese)
+    "D403",  # Prima riga non inizia con "This"
+]
+ignore = [
+    "E501",  # Line too long - non era controllata precedentemente
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test: non richiedere docstring per funzioni test e helper di test
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D107", "D401"]
+# __init__.py: spesso solo export, non richiedere docstring se banali
+"**/__init__.py" = ["D104"]
+# Esperimenti: moduli interni (non adapter) hanno docstring meno stringenti
+# Gli adapter implementano ReducibleProblemAdapter e sono documentati
+"src/qreduce/experiments/**/models.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/formulation.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/datasets.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/postcheck.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/analysis.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/benchmark.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/run.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/graph_policy.py" = ["D101", "D102", "D103", "D107"]
+"src/qreduce/experiments/**/inputs.py" = ["D101", "D102", "D103", "D107"]
+# Moduli interni multi-round: docstring interne meno critiche
+"src/qreduce/pipeline/multi_round.py" = ["D401"]
+# Contratti con pattern to_dict ripetitivo: il contratto comune è documentato nel modulo
+# Questi metodi implementano un'interfaccia di serializzazione uniforme
+"src/qreduce/domains/contracts.py" = ["D102"]
+"src/qreduce/solving/mwis/contracts.py" = ["D102"]
+"src/qreduce/solving/residual/contracts.py" = ["D102"]
+"src/qreduce/pipeline/single_pass.py" = ["D102"]
+"src/qreduce/solving/residual/model.py" = ["D102"]
+# Registry: pattern builder con contratto comune documentato sulla classe
+"src/qreduce/solving/mwis/registry.py" = ["D102", "D107"]
+"src/qreduce/solving/residual/registry.py" = ["D102", "D107"]
+# MWISValidationError: eccezione con __init__ semplice
+"src/qreduce/mwis/validation.py" = ["D107"]
+# Notebook: E402 (import not at top) è comune nei notebook dopo magic commands
+"notebooks/**/*.ipynb" = ["E402"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.poetry]
 packages = [{ include = "qreduce", from = "src" }]
 exclude = ["src/qreduce/experiments/**"]

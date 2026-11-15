@@ -18,7 +18,6 @@ pytestmark = [
 
 def test_default_portfolio_path_solves_with_scip(tmp_path) -> None:
     """The default local-MIS portfolio run translates its MIQP for SCIP."""
-
     run = run_synthetic_portfolio_experiment("scip-integration", output_root=tmp_path)
 
     assert run.result.run_result.run_status in {

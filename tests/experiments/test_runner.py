@@ -257,7 +257,6 @@ def test_runner_refuses_to_overwrite_a_published_experiment(
 
 def test_loader_rejects_incomplete_directories(tmp_path: Path) -> None:
     """Notebooks cannot mistake an incomplete directory for a published experiment."""
-
     incomplete_directory = tmp_path / "incomplete"
     incomplete_directory.mkdir()
 
@@ -411,7 +410,6 @@ def test_terminal_outcomes_round_trip_through_artifact_serialization(
     monkeypatch, tmp_path: Path, scenario: str
 ) -> None:
     """Every terminal outcome is persisted and loaded with correct status fields."""
-
     expected = {
         "success": (RunStatus.SUCCESS, None, ClassicalSolverStatus.OPTIMAL,
                     PostcheckStatus.PASSED, AdoptionStatus.ADOPTED),

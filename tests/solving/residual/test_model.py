@@ -14,7 +14,6 @@ from qreduce.solving.residual import (
 
 def test_model_freezes_and_validates_a_generic_miqp() -> None:
     """A domain adapter can expose a reusable solver-neutral MIQP model."""
-
     model = ClassicalOptimizationModel(
         variables=(
             ClassicalVariable("delta", ClassicalVariableType.BINARY, 0.0, 1.0),
@@ -40,7 +39,6 @@ def test_model_freezes_and_validates_a_generic_miqp() -> None:
 
 def test_model_rejects_unknown_variables_in_constraints() -> None:
     """Backend translators never receive a model with dangling variable names."""
-
     with pytest.raises(ValueError, match="model variable names"):
         ClassicalOptimizationModel(
             variables=(ClassicalVariable("x", ClassicalVariableType.CONTINUOUS),),

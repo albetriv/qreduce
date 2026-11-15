@@ -20,7 +20,6 @@ from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalRe
 
 def make_problem() -> CanonicalMWISProblem:
     """Build a graph with multiple valid greedy tie-break outcomes."""
-
     graph = ReductionGraph(
         node_ids=("a", "b", "c", "d"),
         node_weights={"a": 3.0, "b": 2.0, "c": 2.0, "d": 1.0},
@@ -40,7 +39,6 @@ def make_problem() -> CanonicalMWISProblem:
 
 def make_compilation_request(problem: CanonicalMWISProblem) -> MISCompilationRequest:
     """Build a request matching the local backend's declared capability."""
-
     return MISCompilationRequest(
         run_id="run-001",
         round_index=0,
@@ -56,7 +54,6 @@ def make_compilation_request(problem: CanonicalMWISProblem) -> MISCompilationReq
 
 def test_local_backend_compiles_and_returns_seeded_binary_samples_in_canonical_order() -> None:
     """The local implementation respects the separate compile/solve contracts."""
-
     backend = LocalGreedyMISBackend()
     problem = make_problem()
     compilation = backend.compile(problem, make_compilation_request(problem))
@@ -84,7 +81,6 @@ def test_local_backend_compiles_and_returns_seeded_binary_samples_in_canonical_o
 
 def test_local_backend_rejects_unsupported_problem_form_before_compilation() -> None:
     """The backend does not silently substitute QUBO or Ising for its graph input."""
-
     backend = LocalGreedyMISBackend()
     problem = make_problem()
     request = MISCompilationRequest(
@@ -107,7 +103,6 @@ def test_local_backend_rejects_unsupported_problem_form_before_compilation() -> 
 
 def test_compilation_rejects_the_actual_problem_size_above_backend_limit() -> None:
     """The operational size check uses graph variables, not the exact diagnostic cap."""
-
     backend = LocalGreedyMISBackend()
     problem = make_problem()
     limited_capabilities = replace(backend.capabilities(), maximum_variables=3)
@@ -121,7 +116,6 @@ def test_compilation_rejects_the_actual_problem_size_above_backend_limit() -> No
 
 def test_local_backend_returns_explicit_time_limited_result_when_budget_is_exhausted() -> None:
     """Budget exhaustion is reported rather than triggering a fallback algorithm."""
-
     backend = LocalGreedyMISBackend()
     problem = make_problem()
     compilation = backend.compile(problem, make_compilation_request(problem))
@@ -145,7 +139,6 @@ def test_local_backend_returns_explicit_time_limited_result_when_budget_is_exhau
 
 def test_local_backend_returns_time_limited_compilation_when_budget_expires(monkeypatch) -> None:
     """The declared compilation timeout is enforced before a job is returned."""
-
     import qreduce.solving.mwis.local_backend as local_backend_module
 
     timestamps = iter((0.0, 0.1))

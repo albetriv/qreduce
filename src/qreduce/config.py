@@ -27,7 +27,6 @@ class ValidationResult:
     @classmethod
     def valid(cls) -> "ValidationResult":
         """Create a successful validation result."""
-
         return cls(is_valid=True, terminal_reason=None)
 
     @classmethod
@@ -37,7 +36,6 @@ class ValidationResult:
         terminal_reason: TerminalReason = TerminalReason.INVALID_CONFIGURATION,
     ) -> "ValidationResult":
         """Create an invalid result with a normalized terminal reason."""
-
         return cls(is_valid=False, terminal_reason=terminal_reason, issues=issues)
 
 
@@ -51,7 +49,6 @@ class EffectiveTimeout:
 
 def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     """Validate static invariants without inspecting a reduction graph."""
-
     issues: list[ValidationIssue] = []
     reduction = config.reduction
     execution = config.mis_execution
@@ -327,7 +324,6 @@ def effective_timeout(
     residual_end_to_end_budget_seconds: float,
 ) -> EffectiveTimeout:
     """Clamp a requested timeout to the available end-to-end time budget."""
-
     if (
         not math.isfinite(residual_end_to_end_budget_seconds)
         or residual_end_to_end_budget_seconds <= 0

@@ -53,7 +53,6 @@ def run_experiment(
     - 1: Single reduction round
     - >1: Iterative reduction with optional recovery
     """
-
     _require_identifier(experiment_id, "experiment_id")
     run_id = config.run_identity.run_id
     _require_identifier(run_id, "config.run_identity.run_id")
@@ -232,7 +231,6 @@ def _write_artifacts(
 
 def _write_json(path: Path, contents: object) -> None:
     """Write readable JSON while content hashes use compact canonical JSON."""
-
     path.write_text(pretty_json(contents) + "\n", encoding="utf-8")
 
 

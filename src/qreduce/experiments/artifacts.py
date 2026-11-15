@@ -95,7 +95,6 @@ class ExperimentRunArtifacts:
 
 def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
     """Load one fully published experiment run without invoking the QReduce pipeline."""
-
     directory = Path(run_directory)
     if not directory.is_dir():
         raise ExperimentArtifactError(

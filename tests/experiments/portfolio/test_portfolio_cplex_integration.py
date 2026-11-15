@@ -37,7 +37,6 @@ pytestmark = [
 
 def make_live_config() -> ResolvedRunConfig:
     """Build the deterministic configuration for this live experiment path."""
-
     return ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(1, 1, 3, 1, 0.1, 3, 60.0),
@@ -67,7 +66,6 @@ def test_cplex_solves_portfolio_after_local_greedy_reduction(
     portfolio_problem: PortfolioProblem,
 ) -> None:
     """Run only where a CPLEX binding and usable local license are available."""
-
     result = run_pipeline(
         portfolio_problem,
         MeanVariancePortfolioAdapter(

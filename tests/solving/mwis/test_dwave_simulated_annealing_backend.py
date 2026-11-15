@@ -23,7 +23,6 @@ from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalRe
 
 def make_problem() -> CanonicalMWISProblem:
     """Create a small canonical MWIS QUBO for translation and sample tests."""
-
     graph = ReductionGraph(
         node_ids=("a", "b", "c"),
         node_weights={"a": 3.0, "b": 2.0, "c": 1.0},
@@ -38,7 +37,6 @@ def make_problem() -> CanonicalMWISProblem:
 
 def make_compilation_request(problem: CanonicalMWISProblem) -> MISCompilationRequest:
     """Create a request matching the D-Wave simulator capability."""
-
     return MISCompilationRequest(
         run_id="run-001",
         round_index=0,
@@ -74,7 +72,6 @@ def test_capabilities_report_explicit_sdk_unavailability(monkeypatch) -> None:
 
 def test_backend_compiles_qubo_and_preserves_ocean_samples(monkeypatch) -> None:
     """The adapter translates canonical QUBO terms and maps SampleSet rows by node order."""
-
     recorded: dict[str, object] = {}
 
     class FakeBQM:
@@ -151,7 +148,6 @@ def test_backend_compiles_qubo_and_preserves_ocean_samples(monkeypatch) -> None:
 
 def test_backend_rejects_mis_graph_without_silent_representation_substitution(monkeypatch) -> None:
     """The simulator only accepts its declared QUBO representation."""
-
     fake_runtime = lambda _: SimpleNamespace()
     monkeypatch.setattr(
         "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", fake_runtime

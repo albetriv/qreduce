@@ -34,7 +34,6 @@ class SyntheticPortfolioAnalysis:
 
     def node_rows(self) -> list[dict[str, object]]:
         """Return graph nodes in declared order for tables and plots."""
-
         return [
             {"asset": asset_id, "retention_score": self.graph.node_weights[asset_id]}
             for asset_id in self.asset_ids
@@ -42,7 +41,6 @@ class SyntheticPortfolioAnalysis:
 
     def edge_rows(self) -> list[dict[str, object]]:
         """Return graph edges with their persisted construction reasons."""
-
         return [
             {
                 "source": left,
@@ -54,7 +52,6 @@ class SyntheticPortfolioAnalysis:
 
     def domain_rows(self) -> list[dict[str, object]]:
         """Return retained-domain membership without inferring a final portfolio selection."""
-
         retained = None if self.retained_item_ids is None else set(self.retained_item_ids)
         return [
             {
@@ -69,7 +66,6 @@ def load_synthetic_portfolio_analysis(
     run_directory: str | Path,
 ) -> SyntheticPortfolioAnalysis:
     """Load and validate presentation data for the synthetic portfolio experiment."""
-
     artifacts = load_experiment_run(run_directory)
     if artifacts.manifest["experiment_id"] != SYNTHETIC_PORTFOLIO_EXPERIMENT_ID:
         raise ExperimentArtifactError(

@@ -34,7 +34,6 @@ class DWaveSimulatedAnnealingMISBackend:
 
     def capabilities(self) -> RuntimeCapabilities:
         """Report whether the optional local Ocean sampler is importable."""
-
         try:
             _load_ocean_runtime()
         except (ImportError, ModuleNotFoundError):
@@ -84,7 +83,6 @@ class DWaveSimulatedAnnealingMISBackend:
         request: MISCompilationRequest,
     ) -> MISCompilationResult:
         """Validate a QUBO request and retain the canonical problem for local execution."""
-
         started_at = perf_counter()
         validation = validate_compilation_request(problem, request, self.capabilities())
         runtime_seconds = perf_counter() - started_at
@@ -131,7 +129,6 @@ class DWaveSimulatedAnnealingMISBackend:
 
     def solve(self, compiled_job: CompiledMISJob, request: MISBackendRequest) -> MISBackendResult:
         """Sample the canonical QUBO and preserve native QUBO energies and occurrences."""
-
         started_at = perf_counter()
         failure_reason = self._validate_execution_request(compiled_job, request)
         if failure_reason is not None:
@@ -234,13 +231,11 @@ class DWaveSimulatedAnnealingMISBackend:
 
 def _load_ocean_runtime() -> tuple[Any, Any]:
     """Import the two packages required by the local Ocean simulated annealer lazily."""
-
     return _import_module("dimod"), _import_module("dwave.samplers")
 
 
 def _build_bqm(dimod_module: Any, problem: CanonicalMWISProblem) -> Any:
     """Translate QReduce's binary QUBO coefficients without changing variable order."""
-
     qubo = problem.qubo
     coefficients = {(node_id, node_id): qubo.linear[node_id] for node_id in qubo.node_order}
     coefficients.update(qubo.quadratic)
@@ -249,7 +244,6 @@ def _build_bqm(dimod_module: Any, problem: CanonicalMWISProblem) -> Any:
 
 def _effective_execution_parameters(request: MISBackendRequest) -> dict[str, object]:
     """Combine QReduce standard controls with declared Ocean sampler parameters."""
-
     parameters = dict(request.execution_parameters)
     parameters.setdefault("num_reads", request.requested_solution_count)
     if request.random_seed is not None:
@@ -265,7 +259,6 @@ def _raw_samples(
     effective_execution_parameters: dict[str, object],
 ) -> tuple[RawMISSample, ...]:
     """Convert Ocean SampleSet rows into canonical-order, auditable binary samples."""
-
     samples: list[RawMISSample] = []
     for sample_index, record in enumerate(
         sampleset.data(fields=["sample", "energy", "num_occurrences"], sorted_by="energy")
@@ -318,7 +311,6 @@ def _decode_binary_sample_values(
     sample: Mapping[str, object], node_order: tuple[str, ...]
 ) -> tuple[int, ...]:
     """Accept provider integer scalars while rejecting floats, booleans and non-binary values."""
-
     decoded_values: list[int] = []
     for node_id in node_order:
         value = sample[node_id]

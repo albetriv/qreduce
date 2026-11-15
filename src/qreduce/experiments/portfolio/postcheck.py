@@ -19,7 +19,6 @@ def validate_portfolio_solution(
     solver_objective_value: float | None = None,
 ) -> FinalSolutionValidationResult:
     """Recompute feasibility and objective without trusting solver status alone."""
-
     mapping = PortfolioVariableMapping.for_problem(problem)
     values = dict(variable_values)
     reasons: list[str] = []

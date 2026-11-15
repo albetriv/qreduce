@@ -27,7 +27,6 @@ class LocalGreedyMISBackend:
 
     def capabilities(self) -> RuntimeCapabilities:
         """Return the actual local backend capability without optional SDK dependencies."""
-
         return RuntimeCapabilities(
             provider_id=self.provider_id,
             backend_id=self.backend_id,
@@ -50,7 +49,6 @@ class LocalGreedyMISBackend:
         request: MISCompilationRequest,
     ) -> MISCompilationResult:
         """Create a local graph job after explicit capability and order validation."""
-
         started_at = perf_counter()
         validation = validate_compilation_request(problem, request, self.capabilities())
         if not validation.is_valid:
@@ -110,7 +108,6 @@ class LocalGreedyMISBackend:
 
     def solve(self, compiled_job: CompiledMISJob, request: MISBackendRequest) -> MISBackendResult:
         """Generate dependency-free greedy independent-set samples within the given budget."""
-
         started_at = perf_counter()
         failure = self._validate_execution_request(compiled_job, request)
         if failure is not None:

@@ -23,7 +23,6 @@ class CanonicalQubo:
 
     def __post_init__(self) -> None:
         """Validate canonical QUBO terms and freeze its mappings."""
-
         node_order = tuple(self.node_order)
         if len(set(node_order)) != len(node_order):
             raise MWISValidationError("duplicate_node_id", "node_order", "QUBO node order must be unique.")
@@ -51,7 +50,6 @@ class CanonicalQubo:
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible QUBO with explicit quadratic-term records."""
-
         return {
             "variable_domain": "binary",
             "node_order": list(self.node_order),
@@ -67,7 +65,6 @@ class CanonicalQubo:
 
     def to_canonical_json(self) -> str:
         """Return deterministic JSON suitable for QUBO artifacts and hashing."""
-
         return canonical_json(self.to_dict())
 
 
@@ -78,7 +75,6 @@ def build_mwis_qubo(
     allow_noncertifying_penalty: bool = False,
 ) -> CanonicalQubo:
     """Build exactly the standard MWIS QUBO and no cardinality penalties."""
-
     penalty_validation = validate_edge_penalty(graph, lambda_edge)
     if not penalty_validation.proof_condition_satisfied and not allow_noncertifying_penalty:
         maximum_weight = penalty_validation.maximum_node_weight

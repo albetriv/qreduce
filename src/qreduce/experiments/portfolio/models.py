@@ -209,12 +209,10 @@ class PortfolioProblem:
 
     def asset_index(self, asset_id: str) -> int:
         """Return the stable covariance-matrix index for one asset ID."""
-
         return self.asset_ids.index(asset_id)
 
     def correlation(self, left_asset_id: str, right_asset_id: str) -> float:
         """Return the covariance-derived correlation for two known assets."""
-
         left_index = self.asset_index(left_asset_id)
         right_index = self.asset_index(right_asset_id)
         denominator = math.sqrt(self.covariance[left_index][left_index] * self.covariance[right_index][right_index])
@@ -291,7 +289,6 @@ class PortfolioResidualProblem:
 
     def build_classical_model(self) -> ClassicalOptimizationModel:
         """Compile the portfolio residual problem without importing a solver binding."""
-
         problem = self.original_problem
         mapping = self.variable_mapping
         asset_ids = problem.asset_ids

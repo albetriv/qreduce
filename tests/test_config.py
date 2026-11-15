@@ -29,7 +29,6 @@ from qreduce.status import (
 
 def make_config(**changes: object) -> ResolvedRunConfig:
     """Build a complete valid resolved configuration for contract tests."""
-
     config = ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(
@@ -86,7 +85,6 @@ def make_config(**changes: object) -> ResolvedRunConfig:
 
 def test_valid_configuration_is_immutable_and_hashes_deterministically() -> None:
     """Resolved configuration does not expose mutable request state."""
-
     config = make_config()
 
     assert validate_resolved_run_config(config).is_valid is True
@@ -215,7 +213,6 @@ def test_invalid_configuration_has_normalized_reason(
     expected_code: str,
 ) -> None:
     """Static violations are observable as invalid_configuration."""
-
     result = validate_resolved_run_config(config)
 
     assert result.is_valid is False
@@ -225,7 +222,6 @@ def test_invalid_configuration_has_normalized_reason(
 
 def test_nonpositive_budget_forbids_backend_invocation() -> None:
     """No effective timeout is provided after end-to-end budget exhaustion."""
-
     timeout = effective_timeout(5.0, 0.0)
 
     assert timeout.timeout_seconds is None
@@ -237,7 +233,6 @@ def test_nonpositive_budget_forbids_backend_invocation() -> None:
 
 def test_effective_timeout_never_exceeds_residual_budget() -> None:
     """Backend timeout is clamped to the remaining end-to-end budget."""
-
     timeout = effective_timeout(30.0, 4.5)
 
     assert timeout.validation.is_valid is True
@@ -246,7 +241,6 @@ def test_effective_timeout_never_exceeds_residual_budget() -> None:
 
 def test_run_result_rejects_adoption_after_failed_postcheck() -> None:
     """Post-check and adoption remain independently represented but coherent."""
-
     with pytest.raises(ValueError, match="post-check failure"):
         RunResult(
             run_id="run-001",

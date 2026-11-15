@@ -41,26 +41,37 @@ def _validate_manifest(problem, manifest, available, retained):
 
 
 class FacilityLocationAdapter:
+    """Implement ReducibleProblemAdapter for capacitated facility location.
+
+    Experimental adapter for OR-Library instances. Nodes represent facilities;
+    edges encode redundancy based on demand-profile overlap and similar capacity.
+    """
+
     def __init__(self, policy=None, *, protect_all=False, timing_metadata=None):
+        """Initialize with graph policy and optional protection mode."""
         self.policy = policy or FacilityLocationGraphPolicy()
         self.protect_all = protect_all
         self.graph_build_seconds = 0.0
         self.timing_metadata = timing_metadata
 
     def describe_input(self, problem):
+        """Return the problem unchanged for deterministic run identification."""
         return problem
 
     def identify_reducible_items(self, problem):
+        """Return facility IDs not yet excluded from the current problem."""
         original = getattr(problem, "original_problem", problem)
         excluded = set(getattr(problem, "excluded_facilities", ()))
         return [_id(i) for i in range(len(original.capacities)) if i not in excluded]
 
     def describe_logical_variables(self, problem):
+        """Count open/close binaries and allocation continuous variables."""
         original = getattr(problem, "original_problem", problem)
         count = len(self.identify_reducible_items(problem))
         return LogicalVariableCounts(count, 0, count * len(original.demands))
 
     def build_conflict_graph(self, problem, state=None):
+        """Delegate to the graph policy; record build time in timing_metadata."""
         original = getattr(problem, "original_problem", problem)
         started = perf_counter()
         try:
@@ -71,6 +82,7 @@ class FacilityLocationAdapter:
                 self.timing_metadata["graph_build_seconds"] = self.graph_build_seconds
 
     def declare_protected_items(self, problem):
+        """Protect facilities required to meet total demand."""
         original = getattr(problem, "original_problem", problem)
         available = self.identify_reducible_items(problem)
         total = sum(original.capacities[int(item[9:])] for item in available)
@@ -78,6 +90,7 @@ class FacilityLocationAdapter:
         return tuple(item for item in available if self.protect_all or total - original.capacities[int(item[9:])] < demand - 1e-6)
 
     def validate_candidate_domain(self, problem, retained_item_ids):
+        """Check that retained facilities have sufficient total capacity."""
         original = getattr(problem, "original_problem", problem)
         available = self.identify_reducible_items(problem)
         retained = tuple(retained_item_ids)
@@ -97,6 +110,7 @@ class FacilityLocationAdapter:
         return DomainValidationResult(True, minimum)
 
     def build_fixing_manifest(self, problem, retained_item_ids):
+        """Fix excluded facilities and their allocations to zero."""
         if not self.validate_candidate_domain(problem, retained_item_ids).is_valid:
             raise ValueError("Invalid candidate domain")
         original = getattr(problem, "original_problem", problem)
@@ -109,6 +123,7 @@ class FacilityLocationAdapter:
         return FixingManifest(tuple(retained_item_ids), excluded, tuple(entries), "heuristic_candidate_domain", {"optimality_preservation_claim": "none"}, policy_version=self.policy.policy_version)
 
     def restrict_problem(self, problem, retained_item_ids, fixing_manifest):
+        """Build the residual problem with excluded facilities removed."""
         if not self.validate_candidate_domain(problem, retained_item_ids).is_valid:
             raise ValueError("Invalid candidate domain")
         original = getattr(problem, "original_problem", problem)
@@ -119,6 +134,7 @@ class FacilityLocationAdapter:
         return FacilityLocationResidualProblem(original, excluded)
 
     def validate_final_solution(self, original_problem, solution, fixing_manifest, tolerances, solver_objective_value=None):
+        """Verify capacity, demand, integrality, fixings, and objective."""
         available = tuple(_id(i) for i in range(len(original_problem.capacities)))
         try:
             _validate_manifest(original_problem, fixing_manifest, available, fixing_manifest.retained_item_ids)
@@ -145,6 +161,7 @@ class FacilityLocationAdapter:
         return FinalSolutionValidationResult(not reasons, fixed, constraints, integral, result.objective, objective_ok, tuple(reasons))
 
     def evaluate_domain_metrics(self, problem, classical_result, postcheck_result):
+        """Compute facility-location metrics when postcheck succeeds."""
         if not postcheck_result.postcheck_feasible:
             return ()
         values = classical_result.variable_values

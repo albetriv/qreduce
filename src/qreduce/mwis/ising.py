@@ -25,7 +25,6 @@ class CanonicalIsing:
 
     def __post_init__(self) -> None:
         """Validate canonical Ising terms and freeze mappings."""
-
         node_order = tuple(self.node_order)
         if len(set(node_order)) != len(node_order):
             raise MWISValidationError("duplicate_node_id", "node_order", "Ising node order must be unique.")
@@ -48,7 +47,6 @@ class CanonicalIsing:
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible Ising representation with explicit offset."""
-
         return {
             "variable_domain": "spin",
             "node_order": list(self.node_order),
@@ -63,13 +61,11 @@ class CanonicalIsing:
 
     def to_canonical_json(self) -> str:
         """Return deterministic JSON suitable for Ising artifacts and hashing."""
-
         return canonical_json(self.to_dict())
 
 
 def qubo_to_ising(qubo: CanonicalQubo) -> CanonicalIsing:
     """Convert a binary QUBO using delta_i = (1 + z_i) / 2 exactly."""
-
     linear = {node_id: 0.5 * qubo.linear[node_id] for node_id in qubo.node_order}
     offset = qubo.offset + 0.5 * sum(qubo.linear.values())
     quadratic: dict[Edge, float] = {}
@@ -84,13 +80,11 @@ def qubo_to_ising(qubo: CanonicalQubo) -> CanonicalIsing:
 
 def delta_to_spin(delta: tuple[int, ...] | list[int]) -> tuple[int, ...]:
     """Map binary delta values to spins with z = 2 * delta - 1."""
-
     return tuple(2 * value - 1 for value in normalize_binary_vector(delta))
 
 
 def spin_to_delta(z_spin: tuple[int, ...] | list[int]) -> tuple[int, ...]:
     """Map Ising spins to binary values with delta = (1 + z) / 2."""
-
     from qreduce.mwis.energy import normalize_spin_vector
 
     return tuple((1 + value) // 2 for value in normalize_spin_vector(z_spin))

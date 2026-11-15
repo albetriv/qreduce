@@ -1,136 +1,17 @@
 # QReduce
 
-QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi di ottimizzazione mista prima del solve classico del problema residuo.
+QReduce riduce il dominio combinatorio di grandi problemi di ottimizzazione
+mista prima del solve classico del problema residuo.
 
-Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate esplicitamente; obiettivo e vincoli hard del problema originale restano responsabilita` del solver classico.
+Usa **Maximum Weight Independent Set (MWIS)** per selezionare un sottoinsieme di
+decisioni binarie da mantenere attive. Le decisioni escluse vengono fissate
+esplicitamente; obiettivo e vincoli hard del problema originale restano
+responsabilita` del solver classico.
 
 La QUBO MWIS e` un problema ausiliario di riduzione: i suoi termini quadratici
-non vengono sommati all'obiettivo di dominio. Il contratto residuale corrente
-rappresenta MILP e MIQP con vincoli lineari, quindi l'obiettivo originale puo`
-essere lineare o quadratico; vincoli quadratici, conici, indicatori o non
-lineari richiedono una riformulazione oppure un'estensione esplicita.
+non vengono sommati all'obiettivo di dominio.
 
-> **Stato sintetico**: il repository espone una pipeline unificata tramite
-> `qreduce.pipeline.run_pipeline`, con risultato auditabile in memoria e un
-> esperimento sintetico persistito. Le modalita` classical-only, a un round e
-> multi-round sono determinate da `max_reduction_rounds`. Lo stato dettagliato
-> delle feature previste e delle relative milestone e` mantenuto nella roadmap
-> di implementazione.
-
-Gli adapter devono implementare `evaluate_domain_metrics`: dopo il post-check
-possono restituire metriche di dominio con valore, unita`, convenzione e
-provenance, oppure una sequenza vuota. Il metodo non viene chiamato se il
-post-check non e` raggiunto; in quel caso il campo del risultato e` `None`.
-Un errore del metodo produce `adapter_failure` e conserva i risultati precedenti.
-Anche eccezioni o risultati non validi del post-check producono `adapter_failure`,
-conservando il risultato del solve e il fixing manifest senza adottare la soluzione.
-Il manifest degli esperimenti include la provenance della policy redatta.
-Le metriche single-pass distinguono sample uniche prima del cap, sample elaborate
-e candidate riparate; la ratio misura item del grafo, non variabili logiche.
-Il fixing manifest distingue origine e garanzia per ogni entry e registra round,
-candidate selezionate e versione della policy del grafo. Gli adapter possono
-fornire `describe_input` per calcolare un hash dell'input serializzabile redatto;
-se assente o non serializzabile, l'hash resta indisponibile.
-
-## Specifiche e roadmap
-
-`docs/specifications.md` definisce le feature previste, i requisiti, le
-garanzie e i non-obiettivi di QReduce. La roadmap in
-`docs/implementation/00-implementation-overview.md` stabilisce invece come tali
-feature vengono completate, con milestone, stato ed evidenze di verifica.
-
-Questo README riassume le capacita` utilizzabili e le istruzioni operative del
-repository; non sostituisce ne` duplica il piano di implementazione.
-
-## Sviluppo
-
-Il progetto usa [Poetry](https://python-poetry.org/) e adotta un layout `src/`.
-La compatibilita` tecnica supportata e` Python `>=3.12,<3.13`; il valore in
-`pyproject.toml` e` la fonte autorevole.
-
-```powershell
-poetry lock
-poetry install
-poetry run pytest
-poetry run ruff check .
-```
-
-I backend built-in opzionali usano binding runtime-specifici. Per installare
-CPLEX, PySCIPOpt e il simulatore locale D-Wave Ocean per gli esperimenti o per
-l'esecuzione dei backend corrispondenti:
-
-```powershell
-poetry install --with experiments
-```
-
-`poetry lock` risolve le dipendenze e crea o rigenera il file `poetry.lock`, che
-e` versionato. `poetry install` crea o riusa l'ambiente virtuale e installa il
-package in modalita` editable insieme alle dipendenze gia` risolte.
-
-Le dipendenze core restano provider-agnostic. I binding Python `cplex`,
-`pyscipopt`, `dimod` e `dwave-samplers` sono opzionali e vengono importati lazy
-dai backend QReduce; `import qreduce` non li carica. Se il binding, il runtime o
-una licenza richiesta non sono disponibili, QReduce produce una failure esplicita
-e non seleziona automaticamente un'alternativa.
-
-## Selezione dei solver
-
-L'applicazione seleziona i solver tramite ID pubblici e serializzabili. La pipeline
-risolve automaticamente gli ID forniti da QReduce; non richiede registry popolati
-dal chiamante per usare i backend standard.
-
-```text
-mis_solver_id = "local_greedy"
-# oppure: mis_solver_id = "dwave_simulated_annealing"
-classical_solver_id = "cplex"
-# oppure: classical_solver_id = "scip"
-```
-
-Il catalogo iniziale QReduce contiene `local_greedy` e
-`dwave_simulated_annealing` per MWIS, oltre a `cplex` e `scip` per il solve
-classico residuo. `dwave_simulated_annealing` usa il simulatore locale Ocean
-`dwave.samplers.SimulatedAnnealingSampler` sul QUBO canonico; richiede le
-dipendenze opzionali `dimod` e `dwave-samplers`, non credenziali Leap, QPU o
-embedding. Puoi impostare `num_reads`, `num_sweeps`, `beta_range` e
-`beta_schedule_type` in `mis_execution.provider_parameters`. Un ID sconosciuto
-e` un errore esplicito di configurazione; un ID noto con binding, runtime o
-licenza non disponibile produce un failure esplicito del backend. Non e` previsto
-fallback silenzioso. Le registry restano disponibili soltanto come estensione
-esplicita per backend applicativi.
-
-Per installare i binding opzionali dei solver inclusi nel repository:
-
-```bash
-poetry install --with experiments
-```
-
-## Policy e valutazione esterna
-
-QReduce esegue policy graph/MIS/riduzione fornite dall'applicazione chiamante e ne registra configurazione, provenance ed esiti. Non include un workflow di calibrazione, benchmark o selezione automatica della policy: riferimenti classici, metriche di qualita`, soglie e separazione fra tuning e valutazione finale restano responsabilita` dell'applicazione o dell'adapter di dominio.
-
-Il portfolio media-varianza presente in `qreduce.experiments` e` un esempio
-sintetico interno: dimostra un adapter che costruisce il grafo, applica fixing,
-compila un MIQP residuo ed esegue il post-check. Non e` un adapter finanziario
-generico, una policy raccomandata o una dipendenza della distribuzione; gli
-adapter di altri domini devono implementare il contratto QReduce con la propria
-semantica.
-
-Per il portfolio, le covarianze calcolate dalle serie sintetiche sono
-semidefinite positive per costruzione e non richiedono una fattorizzazione.
-Le matrici fornite esplicitamente a `PortfolioProblem` sono invece verificate
-con Cholesky dopo uno shift diagonale assoluto di `1e-8`, senza modificare
-la matrice originale. Il criterio e` stretto al confine ed e` soggetto ad
-arrotondamenti numerici; le matrici singolari sono ammesse entro la tolleranza.
-
-Gli adapter di dominio devono implementare `describe_logical_variables(problem)`
-e restituire `LogicalVariableCounts` per problema originale e residuo. I conteggi
-escludono le variabili esplicitamente fissate e le ausiliarie dei solver; non
-richiedono un solve per dedurre fixing impliciti. Gli adapter precedenti devono
-essere aggiornati: l'assenza del metodo produce `adapter_failure`. Il risultato
-espone `original_variable_counts` e `residual_variable_counts`; quest'ultimo e`
-assente finche` il residuo non e` costruito e descritto con successo.
-
-## Integrazione concettuale
+## Come funziona
 
 ```text
 applicazione esterna
@@ -141,193 +22,130 @@ applicazione esterna
   -> decisione dell'applicazione
 ```
 
-L'applicazione mantiene la responsabilita` del modello di dominio, della scelta della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce gestisce la riduzione e restituisce un risultato auditabile in memoria senza scrivere file. Il runner interno `qreduce.experiments` persiste invece ogni esperimento completato per l'analisi successiva; non e` incluso nella distribuzione della libreria. La descrizione completa del flusso e dei confini di responsabilita` e` nella sezione 5.1 delle specifiche.
-
-## Flusso
+**Flusso interno:**
 
 ```text
-problema MIP/MIQP/MIQCP
+problema MILP/MIQP (vincoli lineari)
   -> grafo di conflitto/ridondanza
-  -> MWIS canonico: grafo, QUBO e/o BQM/Ising
-  -> compilation ed esecuzione del MIS solver
+  -> MWIS canonico (QUBO e/o BQM/Ising)
+  -> esecuzione del MIS solver
   -> validazione, repair e candidate domain
   -> fixing delle decisioni escluse
   -> solve classico del problema residuo
   -> post-check della soluzione finale
 ```
 
-## Backend indipendenti dal provider
+L'applicazione mantiene la responsabilita` del modello di dominio, della scelta
+della policy, delle metriche di qualita` e dell'adozione del risultato. QReduce
+gestisce la riduzione e restituisce un risultato auditabile in memoria.
 
-Il kernel e` indipendente da QPU, simulatore e SDK specifici. Il backend
-configurato dichiara le proprie capability e QReduce rifiuta richieste
-incompatibili senza selezionare automaticamente un'alternativa. Le feature
-previste e lo stato dei rispettivi adapter sono documentati nelle specifiche e
-nella roadmap.
+L'entry point principale e` `qreduce.pipeline.run_pipeline`.
 
-## Garanzie
+Il contratto residuale corrente supporta MILP e MIQP con vincoli lineari.
+Vincoli quadratici, conici, indicatori o non lineari richiedono una
+riformulazione o un'estensione esplicita del contratto. Le specifiche
+dettagliate sono in [`docs/specifications.md`](./docs/specifications.md).
 
-- MWIS propone una riduzione del dominio; non e` la soluzione finale del problema originale.
-- Un fixing derivato euristicamente non certifica l'ottimalita` globale dell'originale.
-- Ogni soluzione residua deve superare un post-check rispetto ai fixing e ai vincoli del problema originale.
-- Configuration, risultati intermedi, failure e provenance del backend sono disponibili nel risultato in memoria; il runner interno del repository li serializza per gli esperimenti.
+Le tre modalita` di esecuzione sono determinate da `max_reduction_rounds`:
+- `0`: classical-only baseline, senza riduzione;
+- `1`: single-pass, un solo round di riduzione;
+- `>1`: multi-round, arresto al primo successo o successo parziale.
 
-## Esperimenti interni e notebook
+## Garanzie e limiti
 
-Per default gli esperimenti portfolio salvano gli artifact sotto:
+- MWIS propone una riduzione del dominio; non e` la soluzione finale del
+  problema originale.
+- Un fixing derivato euristicamente non certifica l'ottimalita` globale.
+- Ogni soluzione residua deve superare un post-check rispetto ai fixing e ai
+  vincoli del problema originale.
+- Configuration, risultati intermedi, failure e provenance del backend sono
+  disponibili nel risultato in memoria.
+- Il kernel e` indipendente da QPU, simulatore e SDK specifici.
+- Non e` previsto fallback silenzioso: un backend non disponibile produce un
+  failure esplicito.
+
+## Sviluppo
+
+Il progetto usa [Poetry](https://python-poetry.org/) e adotta un layout `src/`.
+La compatibilita` tecnica supportata e` Python `>=3.12,<3.13`; il valore in
+`pyproject.toml` e` la fonte autorevole.
+
+```bash
+poetry lock
+poetry install
+poetry run pytest
+poetry run ruff check .
+```
+
+I dependency groups `experiments` e `notebooks` sono definiti nel
+`pyproject.toml` e vengono installati per default. Per escluderli:
+
+```bash
+poetry install --without experiments,notebooks
+```
+
+## Selezione dei solver
+
+L'applicazione seleziona i solver tramite ID pubblici. La pipeline risolve
+automaticamente gli ID forniti da QReduce.
+
+```python
+mis_solver_id = "local_greedy"        # oppure "dwave_simulated_annealing"
+classical_solver_id = "scip"          # oppure "cplex"
+```
+
+Il catalogo iniziale contiene:
+- **MWIS**: `local_greedy`, `dwave_simulated_annealing`
+- **Classico residuo**: `cplex`, `scip`
+
+Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non
+disponibile produce un failure esplicito. I parametri provider-specifici sono
+documentati nelle docstring dei backend.
+
+## Esperimenti interni
+
+Gli esperimenti sono organizzati per famiglia di problemi:
 
 ```text
-outputs/portfolio/{run_id}/
+src/qreduce/experiments/<famiglia>/
+notebooks/experiments/<famiglia>/
+outputs/<famiglia>/<run_id>/
 ```
 
-L'opzione `--output-root` sostituisce interamente `outputs/portfolio`: il runner
-generico usa `output_root/{run_id}/` e non aggiunge automaticamente la famiglia.
-I notebook portfolio si trovano in `notebooks/experiments/portfolio/`.
+Runner e loader degli artifact sono condivisi; adapter e parametri appartengono
+alle singole famiglie. I notebook caricano artifact gia` prodotti tramite
+`load_experiment_run` e non eseguono direttamente la pipeline.
 
-Il `run_id` deve essere unico nella directory di output, anche tra esperimenti
-diversi: una directory esistente non viene sovrascritta. I run degli esempi
-iniziano con il numero a tre cifre del notebook associato (`001_`, `002_`,
-`003_` o `004_`); per un nuovo run mantenere il prefisso e scegliere un nome
-distinto. Gli artifact con la vecchia struttura restano leggibili indicando
-esplicitamente la loro directory, ma non vengono spostati automaticamente.
+Famiglie disponibili:
+- **portfolio**: ottimizzazione media-varianza sintetica;
+- **facility_location**: esperimento sperimentale con istanze OR-Library.
 
-Un esperimento interno disponibile e` il portfolio sintetico single-pass. Per
-produrre un run da analizzare:
+Un run con esito `failed` viene comunque salvato come risultato analizzabile.
+Comandi, parametri e notebook specifici sono descritti nelle guide delle
+famiglie in [`docs/experiments/`](./docs/experiments/).
 
-```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
-  --run-id 002_scip \
-  --asset-count 12 \
-  --graph-edge-mode correlation_only \
-  --correlation-threshold 0.80 \
-  --mis-solver-id local_greedy \
-  --classical-solver-id scip
-```
+## Notebook di visualizzazione
 
-Il notebook corrispondente e`
-`notebooks/experiments/portfolio/002_synthetic_portfolio_single_pass.ipynb` e carica
-`outputs/portfolio/002_scip/`. Il percorso predefinito
-usa `local_greedy` per MIS e `scip` per il solve classico residuo.
-
-L'opzione `--asset-count` cambia la dimensione del portfolio sintetico (minimo 6,
-default 30). Per esempio:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
-  --run-id 002_scip_12assets \
-  --asset-count 12 \
-  --classical-solver-id scip
-```
-
-L'export del modello residuo e` disabilitato per default. Per richiederlo,
-aggiungere `--model-export`: il runner pubblica `residual_model.lp` nella
-directory del run. Con `--model-export-path /percorso/modello.lp` si sceglie
-invece un file `.lp` o `.mps`; la directory esterna deve gia` esistere e un
-file esistente non viene sovrascritto. Il manifest registra formato e hash.
-L'export predefinito segue la pubblicazione atomica del run; un file esterno
-non fa parte della stessa transazione. Nell'uso diretto di `run_pipeline`,
-chi abilita l'export deve fornire `model_export_path` nella configurazione.
-Il loader verifica l'hash del modello interno al run; l'hash del file esterno
-e` registrato nel manifest, ma non viene verificato dal loader.
-
-Per analizzare il percorso con simulatore MIS D-Wave Ocean locale e solve
-classico CPLEX, produrre prima artifact distinti:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
-  --run-id 003_dwave_cplex \
-  --asset-count 12 \
-  --graph-edge-mode correlation_only \
-  --correlation-threshold 0.80 \
-  --mis-solver-id dwave_simulated_annealing \
-  --classical-solver-id cplex \
-  --mis-num-reads 100 \
-  --mis-num-sweeps 1000
-```
-
-Il notebook `notebooks/experiments/portfolio/003_synthetic_portfolio_single_pass.ipynb`
-carica `outputs/portfolio/003_dwave_cplex/`. Il simulatore
-Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
-licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
-artifact analizzabile.
-
-Per entrambi i notebook le crocette rosse rappresentano gli archi effettivi del
-grafo persistito. Gli esempi usano la policy `correlation_only` con soglia
-0.80; un grafo senza archi non mostra crocette. I run già pubblicati non sono
-modificati: per ripubblicare con lo stesso run ID occorre prima archiviare o
-rimuovere la directory esistente.
-
-Anche per il percorso D-Wave/CPLEX, l'opzione `--asset-count` permette di
-generare portfolio piu` grandi:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
-  --run-id 003_dwave_cplex_12assets \
-  --asset-count 12 \
-  --mis-solver-id dwave_simulated_annealing \
-  --classical-solver-id cplex \
-  --mis-num-reads 100 \
-  --mis-num-sweeps 1000
-```
-
-Per l'esperimento multi-round più grande, con 30 asset predefiniti e SCIP:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio.multi_round --run-id 004_multi_round
-```
-
-Il notebook `notebooks/experiments/portfolio/004_synthetic_portfolio_multi_round.ipynb`
-analizza gli artifact pubblicati. L'opzione `--asset-count` cambia la dimensione
-(minimo 6). Il limite di tre round non garantisce tre iterazioni: la pipeline
-si arresta al primo successo o successo parziale.
-
-Per confrontare lo stesso portfolio con SCIP senza alcuna riduzione:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio.classical --run-id 001_classical
-```
-
-Il notebook `notebooks/experiments/portfolio/001_synthetic_portfolio_classical.ipynb` legge
-gli artifact della baseline. Anche qui `--asset-count` ha valore predefinito 30
-e minimo 6: usare lo stesso valore nei due esperimenti per ottenere lo stesso
-problema. La configurazione SCIP è identica, ma i tempi non sono necessariamente
-confrontabili direttamente: il percorso multi-round include la riduzione.
-
-Un run QReduce con esito normalizzato `failed` viene comunque salvato: e` un risultato analizzabile, non un fallimento della serializzazione. Se invece la scrittura degli artifact non riesce, il runner fallisce e non pubblica una directory finale incompleta.
-
-I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal filesystem tramite `qreduce.experiments.load_experiment_run`; non devono chiamare direttamente la pipeline.
-
-## Documentazione
-
-L'esperimento repository facility location, tuttora sperimentale ed escluso dal
-wheel, e descritto in `docs/implementation/facility-location-experiment.md`.
-Richiede istanze locali acquisite separatamente; non esegue download automatici.
-
-### Notebook di visualizzazione
-
-I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria: grafo
-MWIS ed equivalenza QUBO/Ising. La logica degli esempi risiede in
-`src/qreduce/notebooks/examples.py`; questi notebook non esportano artifact e non
-sono benchmark o raccomandazioni di policy. I notebook in `notebooks/experiments/`
-sono invece dedicati all'analisi degli artifact gia` prodotti.
-I grafici di riduzione mostrano nodi, pesi e archi con un layout circolare
-illustrativo, non coordinate geometriche del problema. Nell'esperimento portfolio
-sintetico il caso usa cinque asset; la matrice delle correlazioni evidenzia gli
-archi generati dalla soglia assoluta. Nel grafo del risultato il colore
-evidenzia il dominio mantenuto, non la selezione finale. Gli archi non sono
-vincoli hard del problema originale.
+I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:
+grafo MWIS ed equivalenza QUBO/Ising. La logica risiede in
+`src/qreduce/notebooks/examples.py`; non esportano artifact.
 
 ```bash
 poetry install --with notebooks
 poetry run jupyter lab
 ```
-Per eseguire il runner portfolio con un solve classico reale, installare inoltre
-`poetry install --with notebooks,experiments` e configurare `cplex` o `scip`.
-CPLEX richiede una licenza utilizzabile; SCIP usa il binding PySCIPOpt. In assenza
-del binding selezionato il runner salva la failure effettiva e gli eventuali
-risultati intermedi, senza sostituire il solver. Le selezioni MWIS non sono la
-soluzione finale e non certificano l'ottimo del problema originale.
+
+## Documentazione
 
 Le fonti autorevoli sono:
 
-- [`docs/specifications.md`](./docs/specifications.md) per feature previste e requisiti normativi;
-- [`docs/implementation/00-implementation-overview.md`](./docs/implementation/00-implementation-overview.md) per roadmap, stato ed evidenze di implementazione.
+- [`docs/specifications.md`](./docs/specifications.md): feature previste,
+  requisiti e garanzie;
+- [`docs/implementation/00-implementation-overview.md`](./docs/implementation/00-implementation-overview.md):
+  roadmap, stato ed evidenze di implementazione;
+- [`docs/experiments/`](./docs/experiments/): guide operative degli esperimenti
+  per famiglia;
+- docstring nei moduli `src/qreduce/`: contratti operativi delle API.
+
+Questo README riassume le capacita` utilizzabili e le istruzioni operative del
+repository; non sostituisce le specifiche ne` la documentazione tecnica.

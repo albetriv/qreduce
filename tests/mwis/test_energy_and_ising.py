@@ -13,7 +13,6 @@ from qreduce.mwis.validation import MWISValidationError
 
 def make_qubo():
     """Create a nontrivial two-variable QUBO from a one-edge MWIS graph."""
-
     graph = ReductionGraph(
         node_ids=("a", "b"),
         node_weights={"a": 1.0, "b": 2.0},
@@ -27,7 +26,6 @@ def make_qubo():
 
 def test_local_qubo_energy_matches_expected_polynomial_value() -> None:
     """Local energy includes the explicit offset, linear terms and edge term once."""
-
     qubo = make_qubo()
 
     assert qubo_energy(qubo, (1, 1)) == 0.0
@@ -38,7 +36,6 @@ def test_local_qubo_energy_matches_expected_polynomial_value() -> None:
 
 def test_qubo_ising_conversion_preserves_all_energies_and_argmin() -> None:
     """The declared delta-to-spin conversion preserves energy including offset."""
-
     qubo = make_qubo()
     ising = qubo_to_ising(qubo)
     qubo_energies = {}
@@ -60,7 +57,6 @@ def test_qubo_ising_conversion_preserves_all_energies_and_argmin() -> None:
 
 def test_canonical_problem_serializes_graph_qubo_and_ising_with_one_node_order() -> None:
     """The backend-facing aggregate contains only serializable canonical forms."""
-
     qubo = make_qubo()
     problem = CanonicalMWISProblem(
         graph=ReductionGraph(

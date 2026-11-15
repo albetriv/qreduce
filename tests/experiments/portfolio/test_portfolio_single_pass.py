@@ -45,7 +45,6 @@ pytestmark = pytest.mark.integration
 
 def make_config() -> ResolvedRunConfig:
     """Build the deterministic solver configuration used by this experiment path."""
-
     return ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(1, 1, 3, 1, 0.1, 3, 60.0),
@@ -440,7 +439,6 @@ def test_pipeline_retains_declared_protected_items_before_applying_cap(
     monkeypatch, portfolio_problem: PortfolioProblem
 ) -> None:
     """A protected asset absent from the MIS sample takes precedence over the cap."""
-
     declaration_calls = 0
 
     def raise_missing_binding(module_name: str):

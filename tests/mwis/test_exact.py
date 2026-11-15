@@ -13,7 +13,6 @@ from qreduce.mwis.validation import MWISValidationError, validate_binary_selecti
 
 def make_graph() -> ReductionGraph:
     """Build a graph whose unique maximum-weight independent set is a and c."""
-
     return ReductionGraph(
         node_ids=("a", "b", "c"),
         node_weights={"a": 2.0, "b": 1.0, "c": 3.0},
@@ -26,7 +25,6 @@ def make_graph() -> ReductionGraph:
 
 def test_exact_solver_certifies_qubo_and_mwis_optimum_for_small_standard_instance() -> None:
     """Full enumeration yields a distinct certified diagnostic result."""
-
     graph = make_graph()
     result = solve_exact_mwis(graph, build_mwis_qubo(graph, 4.0), exact_solver_max_variables=3)
 
@@ -41,7 +39,6 @@ def test_exact_solver_certifies_qubo_and_mwis_optimum_for_small_standard_instanc
 
 def test_every_global_standard_qubo_minimizer_is_an_mwis() -> None:
     """The structural penalty guarantee applies to all tied global minimizers."""
-
     graph = ReductionGraph(
         node_ids=("a", "b", "c"),
         node_weights={"a": 2.0, "b": 2.0, "c": 1.0},
@@ -67,7 +64,6 @@ def test_every_global_standard_qubo_minimizer_is_an_mwis() -> None:
 
 def test_exact_solver_rejects_instances_above_explicit_limit() -> None:
     """Diagnostic enumeration cannot silently exceed its configured variable limit."""
-
     graph = make_graph()
     with pytest.raises(MWISValidationError) as error:
         solve_exact_mwis(graph, build_mwis_qubo(graph, 4.0), exact_solver_max_variables=2)

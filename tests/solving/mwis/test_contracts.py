@@ -15,7 +15,6 @@ from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalRe
 
 def make_capabilities() -> RuntimeCapabilities:
     """Build a minimal available local capability for serializable contracts."""
-
     return RuntimeCapabilities(
         provider_id="local",
         backend_id="greedy_mis",
@@ -34,7 +33,6 @@ def make_capabilities() -> RuntimeCapabilities:
 
 def test_raw_sample_is_binary_redacted_and_never_certified_by_its_contract() -> None:
     """Raw samples preserve backend data but expose no optimality claim."""
-
     sample = RawMISSample(
         raw_sample_id="sample-001",
         node_order=("a", "b"),
@@ -53,7 +51,6 @@ def test_raw_sample_is_binary_redacted_and_never_certified_by_its_contract() -> 
 
 def test_failed_execution_requires_a_normalized_terminal_reason() -> None:
     """Failure state cannot silently omit the reason needed by pipeline artifacts."""
-
     with pytest.raises(ValueError, match="requires a terminal reason"):
         MISBackendResult(
             samples=(),
@@ -87,7 +84,6 @@ def test_failed_execution_requires_a_normalized_terminal_reason() -> None:
 
 def test_execution_request_serialization_redacts_sensitive_provider_parameters() -> None:
     """Execution artifacts cannot expose secret-bearing provider parameters."""
-
     request = MISBackendRequest(
         run_id="run-001",
         round_index=0,
@@ -104,7 +100,6 @@ def test_execution_request_serialization_redacts_sensitive_provider_parameters()
 
 def test_capability_serialization_retains_the_required_credentials_flag() -> None:
     """A credential requirement is capability metadata, not a credential to redact."""
-
     capabilities = RuntimeCapabilities(
         provider_id="remote-provider",
         backend_id="remote-backend",

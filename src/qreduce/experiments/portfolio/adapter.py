@@ -24,6 +24,7 @@ class MeanVariancePortfolioAdapter:
     """Build reduction artifacts and validate solutions for a mean-variance MIQP."""
 
     def __init__(self, graph_policy: PortfolioGraphPolicy) -> None:
+        """Initialize with the graph policy defining edge criteria."""
         self._graph_policy = graph_policy
 
     def describe_input(self, problem: PortfolioProblem) -> object:
@@ -34,10 +35,11 @@ class MeanVariancePortfolioAdapter:
         self, problem: object, classical_result: ClassicalSolveResult,
         postcheck_result: FinalSolutionValidationResult,
     ) -> tuple[DomainEvaluationMetric, ...]:
-        """The demonstration does not define external evaluation metrics."""
+        """Return an empty tuple; the demonstration does not define evaluation metrics."""
         return ()
 
     def identify_reducible_items(self, problem: PortfolioProblem | PortfolioResidualProblem) -> list[str]:
+        """Return asset IDs available for reduction in the current problem."""
         if isinstance(problem, PortfolioResidualProblem):
             return list(problem.retained_item_ids)
         return list(problem.asset_ids)
@@ -46,7 +48,6 @@ class MeanVariancePortfolioAdapter:
         self, problem: PortfolioProblem | PortfolioResidualProblem
     ) -> LogicalVariableCounts:
         """Count explicit model decisions, excluding manifest-fixed variables."""
-
         if isinstance(problem, PortfolioResidualProblem):
             original = problem.original_problem
             fixed = {
@@ -67,6 +68,7 @@ class MeanVariancePortfolioAdapter:
         )
 
     def build_conflict_graph(self, problem: PortfolioProblem | PortfolioResidualProblem, state: object | None = None) -> ReductionGraph:
+        """Build edges based on correlation threshold and optional near-duplicate criteria."""
         del state
         item_ids = tuple(self.identify_reducible_items(problem))
         if isinstance(problem, PortfolioResidualProblem):
@@ -142,7 +144,6 @@ class MeanVariancePortfolioAdapter:
 
     def declare_protected_items(self, problem: PortfolioProblem) -> tuple[str, ...]:
         """Return no additional protections for the baseline portfolio experiment."""
-
         del problem
         return ()
 
@@ -151,6 +152,7 @@ class MeanVariancePortfolioAdapter:
         problem: PortfolioProblem | PortfolioResidualProblem,
         retained_item_ids: tuple[str, ...],
     ) -> DomainValidationResult:
+        """Check that retained assets can satisfy the unit budget constraint."""
         retained = tuple(retained_item_ids)
         if len(set(retained)) != len(retained):
             return DomainValidationResult(False, None, failure_reasons=("duplicate_retained_item_id",))
@@ -171,6 +173,7 @@ class MeanVariancePortfolioAdapter:
         return DomainValidationResult(True, minimum_required_items)
 
     def build_fixing_manifest(self, problem: PortfolioProblem | PortfolioResidualProblem, retained_item_ids: tuple[str, ...]) -> FixingManifest:
+        """Fix excluded assets' allocation and selection variables to zero."""
         validation = self.validate_candidate_domain(problem, retained_item_ids)
         if not validation.is_valid:
             raise ValueError("Cannot build a fixing manifest for an invalid candidate domain.")
@@ -209,6 +212,7 @@ class MeanVariancePortfolioAdapter:
         retained_item_ids: tuple[str, ...],
         fixing_manifest: FixingManifest,
     ) -> PortfolioResidualProblem:
+        """Build a residual problem with cumulative fixings from all rounds."""
         validation = self.validate_candidate_domain(problem, retained_item_ids)
         if not validation.is_valid:
             raise ValueError("Cannot restrict an invalid candidate domain.")
@@ -264,6 +268,7 @@ class MeanVariancePortfolioAdapter:
         tolerances: ClassicalSolveOptions,
         solver_objective_value: float | None = None,
     ) -> FinalSolutionValidationResult:
+        """Verify budget, bounds, fixings, and objective via postcheck module."""
         from collections.abc import Mapping
         if not isinstance(solution, Mapping):
             raise TypeError("Portfolio post-check expects a variable-value mapping.")

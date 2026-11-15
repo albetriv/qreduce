@@ -149,7 +149,6 @@ class RoundExecutionResult:
 
     def to_dict(self) -> dict[str, object]:
         """Return the complete in-memory result for repository runner persistence or transport."""
-
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
 
@@ -165,7 +164,6 @@ def _execute_reduction_round_with_counts(
     _round_index: int = 0,
 ) -> RoundExecutionResult:
     """Validate mandatory logical counts and preserve them across partial outcomes."""
-
     validation = validate_resolved_run_config(config)
     if not validation.is_valid:
         return _failed(config, PipelineStage.VALIDATION, validation.terminal_reason, _issues_message(validation))
@@ -255,7 +253,6 @@ def _execute_reduction_round(
     _round_index: int = 0,
 ) -> RoundExecutionResult:
     """Run one reduction using built-in solver factories and optional extensions."""
-
     if (
         config.classical_solve.model_export_enabled
         and _model_export_write_path is None
@@ -992,7 +989,6 @@ def _issues_message(validation: object) -> str:
 
 def _select_problem_form(supported_forms: frozenset[ProblemForm]) -> ProblemForm | None:
     """Choose the first canonical form accepted by the selected MIS backend."""
-
     for problem_form in (
         ProblemForm.MIS_GRAPH,
         ProblemForm.QUBO,
@@ -1006,7 +1002,6 @@ def _select_problem_form(supported_forms: frozenset[ProblemForm]) -> ProblemForm
 
 def _resolved_lambda_edge(config: ResolvedRunConfig) -> float:
     """Return the validated effective edge penalty from the explicit value or policy."""
-
     if config.lambda_edge is not None:
         return config.lambda_edge
     assert config.lambda_edge_policy is not None
@@ -1018,7 +1013,6 @@ def _remaining_budget_seconds(
     config: ResolvedRunConfig, started_at: float
 ) -> float | None:
     """Return the positive end-to-end budget available at the current pipeline stage."""
-
     remaining = config.reduction.max_end_to_end_runtime_seconds - (
         perf_counter() - started_at
     )
@@ -1027,7 +1021,6 @@ def _remaining_budget_seconds(
 
 def _remaining_budget_or_zero(config: ResolvedRunConfig, started_at: float) -> float:
     """Return the remaining end-to-end budget for timeout clamping helpers."""
-
     return config.reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
 
 
@@ -1038,7 +1031,6 @@ def _budget_exhausted(
     **result_context: object,
 ) -> RoundExecutionResult:
     """Produce the normalized result used when no positive backend budget remains."""
-
     return _failed(
         config,
         stage,
@@ -1061,7 +1053,6 @@ def _candidate_metrics(
     postcheck_result: FinalSolutionValidationResult | None = None,
 ) -> dict[str, object]:
     """Build the common in-memory observability summary after candidate selection."""
-
     return _run_metrics(
         started_at,
         raw_sample_count=len(execution.samples),
@@ -1090,7 +1081,6 @@ def _run_metrics(
     postcheck_result: FinalSolutionValidationResult | None = None,
 ) -> dict[str, object]:
     """Build metrics that callers may inspect or persist without filesystem side effects."""
-
     metrics: dict[str, object] = {
         "end_to_end_runtime_seconds": perf_counter() - started_at
     }
@@ -1142,7 +1132,6 @@ def _valid_or_repaired_samples(
     config: ResolvedRunConfig,
 ) -> tuple[RawMISSample, ...]:
     """Return structurally valid samples, repairing invalid samples only when enabled."""
-
     valid_samples: list[RawMISSample] = []
     for sample in samples:
         if sample.is_independent_set:
@@ -1166,7 +1155,6 @@ def _candidate_records(
     config: ResolvedRunConfig,
 ) -> tuple[CandidateRecord, ...]:
     """Describe every deduplicated sample, including invalid and non-selected outcomes."""
-
     valid_by_id = {sample.raw_sample_id: sample for sample in valid_samples}
     selected_ids = {sample.raw_sample_id for sample in selected_samples}
     records: list[CandidateRecord] = []
@@ -1214,7 +1202,6 @@ def _candidate_record(
     rejection_reason: str | None,
 ) -> CandidateRecord:
     """Build one audit record without treating a sample as a certified MWIS optimum."""
-
     selected_item_ids = (
         tuple(
             node_id
@@ -1281,7 +1268,6 @@ def _candidate_rejection_reason(
     config: ResolvedRunConfig,
 ) -> str | None:
     """Expose why a candidate did not reach the selected source-candidate set."""
-
     if processed_sample is None:
         return (
             "invalid_independent_set"
@@ -1293,7 +1279,6 @@ def _candidate_rejection_reason(
 
 def _candidate_rank_key(sample: RawMISSample) -> tuple[object, ...]:
     """Return the standard declared lexicographic ranking key for one valid sample."""
-
     return (
         -(sample.selection_weight or 0.0),
         -(sample.num_selected or 0),
@@ -1308,7 +1293,6 @@ def _normalize_protection_declaration(
     declaration: tuple[str, ...] | ProtectionDeclaration,
 ) -> ProtectionDeclaration:
     """Accept the legacy mandatory tuple while making categorized protections explicit."""
-
     if isinstance(declaration, ProtectionDeclaration):
         return declaration
     return ProtectionDeclaration(mandatory_item_ids=tuple(declaration))
@@ -1320,7 +1304,6 @@ def _repair_sample(
     repair_max_iterations: int,
 ) -> RawMISSample | None:
     """Repair conflicts by the mandatory deterministic endpoint-removal policy."""
-
     delta = list(sample.delta)
     for _ in range(repair_max_iterations):
         validation = validate_binary_selection(problem.graph, delta)
@@ -1342,7 +1325,6 @@ def _repair_endpoint_to_remove(
     right: str,
 ) -> str:
     """Choose an endpoint by weight, induced degree, then descending item ID."""
-
     selected = {
         node_id
         for node_id, value in zip(problem.graph.node_ids, delta, strict=True)
@@ -1370,7 +1352,6 @@ def _repair_endpoint_to_remove(
 
 def _descending_lexical_key(value: str) -> tuple[int, ...]:
     """Sort lexically larger IDs first while retaining a normal ascending key API."""
-
     return tuple(-ord(character) for character in value)
 
 
@@ -1380,7 +1361,6 @@ def _recomputed_sample(
     delta: tuple[int, ...],
 ) -> RawMISSample:
     """Preserve raw provenance while recomputing canonical facts after repair."""
-
     validation = validate_binary_selection(problem.graph, delta)
     return replace(
         sample,
@@ -1398,7 +1378,6 @@ def _select_diverse_samples(
     samples: tuple[RawMISSample, ...], config: ResolvedRunConfig
 ) -> tuple[RawMISSample, ...]:
     """Rank valid samples and retain up to the configured number under Jaccard diversity."""
-
     selected_samples, _ = _select_diverse_samples_with_audit(samples, config)
     return selected_samples
 
@@ -1407,7 +1386,6 @@ def _select_diverse_samples_with_audit(
     samples: tuple[RawMISSample, ...], config: ResolvedRunConfig
 ) -> tuple[tuple[RawMISSample, ...], Mapping[str, str]]:
     """Apply diversity selection while retaining deterministic reasons for every rejection."""
-
     ranked_samples = sorted(samples, key=_candidate_rank_key)
     selected: list[RawMISSample] = []
     rejection_reasons: dict[str, str] = {}
@@ -1429,7 +1407,6 @@ def _jaccard_distance(
     left_delta: tuple[int, ...], right_delta: tuple[int, ...]
 ) -> float:
     """Return set Jaccard distance, defining two empty selections as distance zero."""
-
     left = {index for index, value in enumerate(left_delta) if value == 1}
     right = {index for index, value in enumerate(right_delta) if value == 1}
     union = left | right
@@ -1447,7 +1424,6 @@ def _candidate_domain_item_ids(
     apply_cap: bool = True,
 ) -> tuple[str, ...]:
     """Aggregate candidate votes and apply declared protection before the domain cap."""
-
     frequencies = {node_id: 0 for node_id in node_ids}
     quality_sums = {node_id: 0.0 for node_id in node_ids}
     for sample in selected_samples:
@@ -1496,7 +1472,6 @@ def _candidate_domain_item_records(
     protection_declaration: ProtectionDeclaration,
 ) -> tuple[CandidateDomainItemRecord, ...]:
     """Record the policy reason for every retained or excluded graph item."""
-
     frequencies = {node_id: 0 for node_id in node_ids}
     quality_sums = {node_id: 0.0 for node_id in node_ids}
     for sample in selected_samples:
@@ -1548,7 +1523,6 @@ def _fixing_manifest_matches_candidate_domain(
     retained_item_ids: tuple[str, ...],
 ) -> bool:
     """Ensure an adapter fixes exactly the graph items outside the requested domain."""
-
     retained_item_id_set = set(retained_item_ids)
     expected_excluded_item_ids = tuple(
         node_id for node_id in graph_node_ids if node_id not in retained_item_id_set

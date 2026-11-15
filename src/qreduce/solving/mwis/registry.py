@@ -38,13 +38,11 @@ class MISSolverRegistry:
 
 def builtin_mis_solver_registry() -> MISSolverRegistry:
     """Create the standard QReduce MWIS solver catalog."""
-
     return MISSolverRegistry()
 
 
 def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
     """Import local implementations only while constructing the built-in catalog."""
-
     from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
         DWaveSimulatedAnnealingMISBackend,
     )

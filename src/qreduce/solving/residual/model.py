@@ -122,4 +122,25 @@ class ClassicalOptimizationModel:
 class ClassicalModelProvider(Protocol):
     """Domain boundary that compiles one opaque residual problem into a generic model."""
 
-    def build_classical_model(self) -> ClassicalOptimizationModel: ...
+    def build_classical_model(self) -> ClassicalOptimizationModel:
+        """Build a generic optimization model from the domain-specific residual problem.
+
+        Called by the classical backend to obtain a solver-agnostic representation.
+        The provider compiles domain-specific structure (variables, constraints,
+        objective) into the generic ClassicalOptimizationModel format.
+
+        Returns:
+            A ClassicalOptimizationModel with variables, linear/quadratic
+            objective coefficients, and linear constraints.
+
+        Raises:
+            Exception: Any exception indicates model construction failure.
+                The backend normalizes this as UNSUPPORTED_PROBLEM_STRUCTURE
+                or propagates diagnostics in the result.
+
+        Note:
+            The returned model must satisfy the current contract: linear
+            constraints only. Quadratic, conic, or nonlinear constraints
+            require contract extension.
+        """
+        ...

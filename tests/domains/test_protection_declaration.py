@@ -7,7 +7,6 @@ from qreduce.domains import ProtectionDeclaration
 
 def test_categorized_protection_declaration_exposes_required_and_best_effort_items() -> None:
     """Required categories survive the cap while best-effort incumbents remain distinct."""
-
     declaration = ProtectionDeclaration(
         mandatory_item_ids=("mandatory",),
         user_locked_item_ids=("locked",),
@@ -23,7 +22,6 @@ def test_categorized_protection_declaration_exposes_required_and_best_effort_ite
 
 def test_protection_declaration_rejects_ambiguous_categories_and_unknown_modes() -> None:
     """An adapter cannot issue ambiguous protection precedence."""
-
     with pytest.raises(ValueError, match="more than one protection category"):
         ProtectionDeclaration(
             mandatory_item_ids=("same",), user_locked_item_ids=("same",)

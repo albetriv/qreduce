@@ -91,7 +91,6 @@ class RecordingTimeoutBackend(LocalGreedyMISBackend):
 
 def test_capability_mismatch_stops_pipeline_before_backend_compilation() -> None:
     """A requested unsupported limit is rejected before an adapter compilation call."""
-
     CompileMustNotRunBackend.compile_called = False
     registry = MISSolverRegistry(include_builtins=False)
     registry.register("compile_must_not_run", CompileMustNotRunBackend)
@@ -138,7 +137,6 @@ def test_capability_mismatch_stops_pipeline_before_backend_compilation() -> None
 
 def test_pipeline_clamps_each_mis_phase_to_its_configured_timeout() -> None:
     """Compilation and execution receive their phase limit, never the larger run budget."""
-
     RecordingTimeoutBackend.compile_budget_seconds = None
     RecordingTimeoutBackend.execution_budget_seconds = None
     registry = MISSolverRegistry(include_builtins=False)

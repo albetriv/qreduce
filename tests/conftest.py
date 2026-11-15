@@ -8,7 +8,6 @@ from qreduce.experiments.portfolio import PortfolioProblem
 @pytest.fixture
 def portfolio_problem() -> PortfolioProblem:
     """Return a small synthetic portfolio feasible under the unit budget."""
-
     return PortfolioProblem(
         asset_ids=("asset-a", "asset-b", "asset-c"),
         expected_returns={"asset-a": 0.10, "asset-b": 0.08, "asset-c": 0.06},

@@ -30,7 +30,6 @@ class ReductionGraph:
 
     def __post_init__(self) -> None:
         """Validate graph invariants and freeze mappings at the kernel boundary."""
-
         node_ids = tuple(self.node_ids)
         if any(not isinstance(node_id, str) or not node_id.strip() for node_id in node_ids):
             raise MWISValidationError("invalid_node_id", "node_ids", "Each node ID must be a non-blank string.")
@@ -98,7 +97,6 @@ class ReductionGraph:
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible representation with explicit edge records."""
-
         return {
             "node_ids": list(self.node_ids),
             "node_weights": {node_id: self.node_weights[node_id] for node_id in self.node_ids},
@@ -112,7 +110,6 @@ class ReductionGraph:
 
     def to_canonical_json(self) -> str:
         """Return deterministic JSON suitable for graph artifacts and hashing."""
-
         return canonical_json(self.to_dict())
 
 
@@ -126,7 +123,6 @@ class CanonicalMWISProblem:
 
     def __post_init__(self) -> None:
         """Ensure every canonical representation uses the graph node order."""
-
         if self.qubo.node_order != self.graph.node_ids:
             raise MWISValidationError("node_order_mismatch", "qubo.node_order", "QUBO order must match graph node_ids.")
         if self.ising.node_order != self.graph.node_ids:
@@ -134,5 +130,4 @@ class CanonicalMWISProblem:
 
     def to_dict(self) -> dict[str, object]:
         """Return a fully serializable canonical MWIS problem."""
-
         return {"graph": self.graph.to_dict(), "qubo": self.qubo.to_dict(), "ising": self.ising.to_dict()}

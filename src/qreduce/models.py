@@ -62,7 +62,6 @@ class MISExecutionOptions:
 
     def __post_init__(self) -> None:
         """Freeze provider parameters so the resolved request cannot be mutated."""
-
         object.__setattr__(
             self,
             "provider_parameters",
@@ -127,21 +126,18 @@ class ResolvedRunConfig:
 
     def to_dict(self) -> dict[str, object]:
         """Return a deterministic, serialization-ready representation."""
-
         from qreduce.artifacts.metadata import redact_metadata, to_primitive
 
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]
 
     def to_canonical_json(self) -> str:
         """Return deterministic JSON suitable for persisted resolved configuration."""
-
         from qreduce.artifacts.metadata import canonical_json
 
         return canonical_json(self)
 
     def config_hash(self) -> str:
         """Return the SHA-256 digest of this resolved configuration."""
-
         from qreduce.artifacts.metadata import sha256_hex
 
         return sha256_hex(self)
@@ -159,12 +155,10 @@ class RoundResult:
 
     def __post_init__(self) -> None:
         """Freeze metadata captured at the end of a reduction round."""
-
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     def to_dict(self) -> dict[str, object]:
         """Return primitive metadata suitable for a future round artifact."""
-
         from qreduce.artifacts.metadata import to_primitive
 
         return to_primitive(self)
@@ -189,7 +183,6 @@ class RunResult:
 
     def __post_init__(self) -> None:
         """Reject terminal states that would make adoption ambiguous."""
-
         if self.run_status is RunStatus.SUCCESS:
             if self.adoption_status is not AdoptionStatus.ADOPTED:
                 raise ValueError("A successful run must have an adopted solution.")
@@ -212,7 +205,6 @@ class RunResult:
 
     def to_dict(self) -> dict[str, object]:
         """Return a serialization-ready terminal result."""
-
         from qreduce.artifacts.metadata import to_primitive
 
         return to_primitive(self)

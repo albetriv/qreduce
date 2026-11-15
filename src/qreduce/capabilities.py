@@ -47,12 +47,10 @@ class RuntimeCapabilities:
 
     def __post_init__(self) -> None:
         """Freeze declared runtime metadata at the capability observation boundary."""
-
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     def to_dict(self) -> dict[str, object]:
         """Return a serialization-ready representation without runtime SDK objects."""
-
         from qreduce.artifacts.metadata import to_primitive
 
         return to_primitive(self)
@@ -64,7 +62,6 @@ def validate_backend_compatibility(
     required_problem_form: ProblemForm,
 ) -> ValidationResult:
     """Reject execution options incompatible with an already-selected MIS solver."""
-
     issues: list[ValidationIssue] = []
 
     if not capabilities.runtime_available:

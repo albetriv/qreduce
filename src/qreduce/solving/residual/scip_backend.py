@@ -25,7 +25,6 @@ class ScipClassicalBackend:
 
     def capabilities(self) -> ClassicalRuntimeCapabilities:
         """Report optional binding availability without creating a SCIP model."""
-
         try:
             _import_module("pyscipopt")
         except (ImportError, ModuleNotFoundError):
@@ -57,7 +56,6 @@ class ScipClassicalBackend:
 
     def solve(self, reduced_problem: object, request: ClassicalSolveRequest) -> ClassicalSolveResult:
         """Solve one residual model or return an explicit, normalized failure result."""
-
         if request.requested_solver_id != self.solver_id:
             return _failure_result(
                 request,
@@ -153,7 +151,6 @@ def _set_quadratic_objective_via_epigraph(
     variables: dict[str, Any],
 ) -> None:
     """Represent a quadratic minimization objective with SCIP's linear objective API."""
-
     epigraph_name = "__qreduce_objective_epigraph"
     while epigraph_name in variables:
         epigraph_name = f"_{epigraph_name}"

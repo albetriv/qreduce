@@ -23,7 +23,6 @@ _REDACTED_VALUE = "[REDACTED]"
 
 def to_primitive(value: object) -> object:
     """Recursively convert supported contracts into JSON-compatible primitives."""
-
     if is_dataclass(value) and not isinstance(value, type):
         return {
             dataclass_field.name: to_primitive(getattr(value, dataclass_field.name))
@@ -47,7 +46,6 @@ def to_primitive(value: object) -> object:
 
 def canonical_json(value: object) -> str:
     """Serialize a contract deterministically as compact UTF-8-safe JSON text."""
-
     return json.dumps(
         to_primitive(value),
         ensure_ascii=False,
@@ -59,7 +57,6 @@ def canonical_json(value: object) -> str:
 
 def pretty_json(value: object) -> str:
     """Serialize a contract as deterministic, human-readable UTF-8-safe JSON text."""
-
     return json.dumps(
         to_primitive(value),
         ensure_ascii=False,
@@ -71,19 +68,16 @@ def pretty_json(value: object) -> str:
 
 def canonical_json_bytes(value: object) -> bytes:
     """Return canonical JSON encoded as UTF-8 bytes."""
-
     return canonical_json(value).encode("utf-8")
 
 
 def sha256_hex(value: object) -> str:
     """Return the SHA-256 digest of canonical JSON for ``value``."""
-
     return sha256(canonical_json_bytes(value)).hexdigest()
 
 
 def redact_metadata(value: object) -> object:
     """Redact common secret-bearing keys and sensitive URL query parameters."""
-
     if isinstance(value, Mapping):
         result: dict[str, object] = {}
         for key, nested_value in value.items():
@@ -102,7 +96,6 @@ def redact_metadata(value: object) -> object:
 
 def utc_created_at() -> str:
     """Return an ISO 8601 UTC timestamp with explicit ``Z`` offset."""
-
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 

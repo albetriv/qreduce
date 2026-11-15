@@ -6,7 +6,6 @@ from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 def make_request(*, remaining_budget: float = 10.0) -> ClassicalSolveRequest:
     """Create one SCIP request with a bounded residual time budget."""
-
     return ClassicalSolveRequest(
         "run-001",
         0,

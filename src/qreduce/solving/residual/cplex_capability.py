@@ -26,7 +26,6 @@ class CplexRuntimeCapability:
 
     def to_dict(self) -> dict[str, object]:
         """Return a serialization-ready representation with primitive values."""
-
         return asdict(self)
 
 
@@ -37,7 +36,6 @@ def probe_cplex_runtime() -> CplexRuntimeCapability:
     importing :mod:`qreduce` never requires CPLEX. A successful import alone is
     not evidence of an available license or MIQP support.
     """
-
     try:
         _import_module("cplex")
     except (ImportError, ModuleNotFoundError):
@@ -64,7 +62,6 @@ def probe_cplex_runtime() -> CplexRuntimeCapability:
 
 def cplex_classical_capabilities() -> ClassicalRuntimeCapabilities:
     """Return the common capability view used by the classical solver registry."""
-
     observed = probe_cplex_runtime()
     return ClassicalRuntimeCapabilities(
         solver_id="cplex",

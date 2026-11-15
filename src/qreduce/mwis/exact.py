@@ -25,7 +25,6 @@ class ExactMWISResult:
 
     def to_dict(self) -> dict[str, object]:
         """Return a serializable exact-diagnostics result."""
-
         return {
             "node_order": list(self.node_order),
             "delta": list(self.delta),
@@ -46,7 +45,6 @@ def solve_exact_mwis(
     exact_solver_max_variables: int,
 ) -> ExactMWISResult:
     """Enumerate all binary assignments under an explicit diagnostic-only limit."""
-
     if qubo.node_order != graph.node_ids:
         raise MWISValidationError("node_order_mismatch", "qubo.node_order", "QUBO order must match graph node_ids.")
     if not isinstance(exact_solver_max_variables, int) or isinstance(exact_solver_max_variables, bool) or exact_solver_max_variables < 0:

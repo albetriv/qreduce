@@ -6,7 +6,6 @@ import sys
 
 def test_importing_qreduce_does_not_import_optional_solver_bindings() -> None:
     """The package root stays usable when optional classical and Ocean bindings are absent."""
-
     completed_process = subprocess.run(
         [
             sys.executable,

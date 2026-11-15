@@ -30,7 +30,6 @@ def test_probe_reports_importable_binding_without_claiming_runtime_readiness(
     monkeypatch,
 ) -> None:
     """Importability alone does not claim that licensing or MIQP is available."""
-
     imported_modules: list[str] = []
 
     def import_cplex(module_name: str) -> ModuleType:
@@ -51,7 +50,6 @@ def test_probe_reports_importable_binding_without_claiming_runtime_readiness(
 
 def test_capability_is_serializable_without_cplex_runtime_objects() -> None:
     """Capability data is ready for future artifacts without SDK values."""
-
     capability = cplex_capability.CplexRuntimeCapability(
         requested_backend="cplex",
         binding_importable=False,

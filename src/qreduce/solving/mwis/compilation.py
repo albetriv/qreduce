@@ -38,7 +38,6 @@ def validate_compilation_request(
     capabilities: RuntimeCapabilities,
 ) -> ValidationResult:
     """Reject incompatible form, identity, node order and real graph size before compilation."""
-
     if not capabilities.runtime_available:
         return ValidationResult.invalid(
             ValidationIssue("runtime_unavailable", "runtime_available", capabilities.diagnostic_message or "Backend unavailable."),

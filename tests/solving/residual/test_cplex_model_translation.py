@@ -43,7 +43,6 @@ class FakeCplex:
 
 def test_cplex_translation_converts_expanded_diagonal_polynomial_terms() -> None:
     """CPLEX receives its half-quadratic diagonal convention, not the generic one."""
-
     generic_model = ClassicalOptimizationModel(
         variables=(
             ClassicalVariable("delta", ClassicalVariableType.BINARY, 0.0, 1.0),

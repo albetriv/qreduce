@@ -22,7 +22,6 @@ from qreduce.status import (
 
 def make_config(**changes: object) -> ResolvedRunConfig:
     """Build a complete valid resolved configuration for capability tests."""
-
     config = ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(1, 1, 5, 2, 0.1, 3, 60.0),
@@ -43,7 +42,6 @@ def make_config(**changes: object) -> ResolvedRunConfig:
 
 def make_capabilities(**changes: object) -> RuntimeCapabilities:
     """Build a matching available local MIS capability."""
-
     values: dict[str, object] = {
         "provider_id": "local",
         "backend_id": "greedy_mis",
@@ -65,7 +63,6 @@ def make_capabilities(**changes: object) -> RuntimeCapabilities:
 
 def test_matching_capability_is_accepted_before_compilation() -> None:
     """An available backend accepting all requested features validates successfully."""
-
     result = validate_backend_compatibility(
         make_config().mis_execution, make_capabilities(), ProblemForm.QUBO
     )
@@ -75,7 +72,6 @@ def test_matching_capability_is_accepted_before_compilation() -> None:
 
 def test_unsupported_backend_parameter_is_rejected() -> None:
     """Unknown provider parameters do not reach compilation by default."""
-
     config = make_config(
         mis_execution=MISExecutionOptions(
             requested_solution_count=2,
@@ -100,7 +96,6 @@ def test_unsupported_backend_parameter_is_rejected() -> None:
 
 def test_unavailable_backend_produces_explicit_failure_without_fallback() -> None:
     """Runtime availability remains separate from the requested selection."""
-
     result = validate_backend_compatibility(
         make_config().mis_execution,
         make_capabilities(
@@ -116,7 +111,6 @@ def test_unavailable_backend_produces_explicit_failure_without_fallback() -> Non
 
 def test_unsupported_problem_form_is_rejected_before_compilation() -> None:
     """A configured form cannot be silently converted to another representation."""
-
     result = validate_backend_compatibility(
         make_config().mis_execution, make_capabilities(), ProblemForm.ISING
     )
@@ -131,7 +125,6 @@ def test_exact_solver_diagnostic_limit_does_not_constrain_heuristic_backend_capa
     None
 ):
     """The exact diagnostic limit is unrelated to an operational backend size limit."""
-
     result = validate_backend_compatibility(
         make_config().mis_execution,
         make_capabilities(maximum_variables=1),

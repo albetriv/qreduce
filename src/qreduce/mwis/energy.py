@@ -7,7 +7,6 @@ from qreduce.mwis.validation import MWISValidationError, normalize_binary_vector
 
 def qubo_energy(qubo: CanonicalQubo, delta: tuple[int, ...] | list[int]) -> float:
     """Evaluate QUBO energy for a binary vector in qubo.node_order."""
-
     normalized_delta = normalize_binary_vector(delta)
     if len(normalized_delta) != len(qubo.node_order):
         raise MWISValidationError("selection_length_mismatch", "delta", "delta length must equal QUBO node_order.")
@@ -20,7 +19,6 @@ def qubo_energy(qubo: CanonicalQubo, delta: tuple[int, ...] | list[int]) -> floa
 
 def ising_energy(ising: CanonicalIsing, z_spin: tuple[int, ...] | list[int]) -> float:
     """Evaluate Ising energy for a spin vector in ising.node_order."""
-
     normalized_spins = normalize_spin_vector(z_spin)
     if len(normalized_spins) != len(ising.node_order):
         raise MWISValidationError("selection_length_mismatch", "z_spin", "z_spin length must equal Ising node_order.")
@@ -33,7 +31,6 @@ def ising_energy(ising: CanonicalIsing, z_spin: tuple[int, ...] | list[int]) -> 
 
 def normalize_spin_vector(z_spin: tuple[int, ...] | list[int]) -> tuple[int, ...]:
     """Return a validated Ising spin vector without accepting booleans implicitly."""
-
     if not isinstance(z_spin, tuple | list):
         raise MWISValidationError("invalid_spin_vector", "z_spin", "Vector must be a tuple or list.")
     normalized_values: list[int] = []

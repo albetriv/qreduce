@@ -22,7 +22,6 @@ from qreduce.status import BackendFamily, ExecutionMode, ProblemForm
 
 def make_problem() -> CanonicalMWISProblem:
     """Build a small graph where selecting both nodes violates one edge."""
-
     graph = ReductionGraph(
         node_ids=("a", "b"),
         node_weights={"a": 1.0, "b": 2.0},
@@ -37,7 +36,6 @@ def make_problem() -> CanonicalMWISProblem:
 
 def make_result(samples: tuple[RawMISSample, ...]) -> MISBackendResult:
     """Wrap samples in an otherwise successful generic backend execution result."""
-
     capabilities = RuntimeCapabilities(
         provider_id="provider",
         backend_id="backend",
@@ -68,7 +66,6 @@ def make_result(samples: tuple[RawMISSample, ...]) -> MISBackendResult:
 
 def test_normalization_recomputes_canonical_metrics_without_reinterpreting_native_score() -> None:
     """Provider score stays declared probability while core derives graph and energy facts."""
-
     sample = RawMISSample(
         raw_sample_id="raw-001",
         node_order=("a", "b"),
@@ -92,7 +89,6 @@ def test_normalization_recomputes_canonical_metrics_without_reinterpreting_nativ
 
 def test_normalization_fails_explicitly_for_incompatible_node_order() -> None:
     """Provider bit ordering cannot be guessed or silently adapted by the core."""
-
     result = normalize_backend_result(
         make_problem(),
         make_result((RawMISSample("raw-001", ("b", "a"), (1, 0)),)),
@@ -104,7 +100,6 @@ def test_normalization_fails_explicitly_for_incompatible_node_order() -> None:
 
 def test_deduplication_aggregates_occurrences_and_uses_stable_representative_and_cap() -> None:
     """Equal delta vectors are aggregated independently of provider score or insertion order."""
-
     samples = (
         RawMISSample("z-id", ("a", "b"), (1, 0), occurrence_count=2),
         RawMISSample("a-id", ("a", "b"), (1, 0), occurrence_count=3),

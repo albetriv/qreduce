@@ -118,7 +118,6 @@ class ProtectionDeclaration:
     @property
     def required_item_ids(self) -> tuple[str, ...]:
         """Return categories whose members must survive the candidate-domain cap."""
-
         incumbent_item_ids = (
             self.incumbent_supported_item_ids
             if self.incumbent_protection_mode == "required"
@@ -134,7 +133,6 @@ class ProtectionDeclaration:
     @property
     def best_effort_item_ids(self) -> tuple[str, ...]:
         """Return incumbent items that may be excluded when the cap requires it."""
-
         return (
             self.incumbent_supported_item_ids
             if self.incumbent_protection_mode == "best_effort"
@@ -252,41 +250,275 @@ class FinalSolutionValidationResult:
 
 
 class ReducibleProblemAdapter(Protocol):
-    """Minimum boundary between the provider-neutral kernel and a domain model."""
+    """Boundary between the provider-neutral QReduce kernel and a domain model.
 
-    def describe_logical_variables(self, problem: object) -> LogicalVariableCounts: ...
+    An adapter translates between domain-specific semantics and QReduce's
+    reduction pipeline. Each method corresponds to a phase in the pipeline;
+    the kernel calls them in a defined order and expects consistent results.
+
+    The adapter owns the domain model and decides how to map reducible items
+    to graph nodes, how to fix excluded variables, and how to validate
+    solutions. QReduce does not inspect or modify the domain problem directly.
+
+    Implementations must be stateless between calls: the kernel may invoke
+    methods on fresh adapter instances. State across phases is passed
+    explicitly via method arguments.
+
+    Adapter failures (exceptions, invalid returns) are captured by the kernel
+    and normalized. Most adapter exceptions produce `adapter_failure` status;
+    graph construction exceptions produce `GRAPH_CONSTRUCTION_FAILED` to
+    distinguish graph-specific failures. Previous results are preserved;
+    the failing phase's output is not adopted.
+    """
+
+    def describe_logical_variables(self, problem: object) -> LogicalVariableCounts:
+        """Count logical free variables in the problem, excluding fixings.
+
+        Called by the kernel early in the pipeline to record the original
+        problem size. Called again after restriction to record the residual
+        size. The counts exclude variables already fixed by the adapter and
+        auxiliary variables introduced by solvers.
+
+        Args:
+            problem: The domain problem (original or residual).
+
+        Returns:
+            Counts of binary, integer, and continuous free variables.
+
+        Raises:
+            Exception: Any exception produces adapter_failure; the kernel
+                preserves prior results without adopting this phase's output.
+
+        Note:
+            The method does not require solving to compute counts. Implicit
+            fixings deduced by solvers are not reflected here.
+        """
+        ...
 
     def evaluate_domain_metrics(
-        self, problem: object, classical_result: ClassicalSolveResult,
+        self,
+        problem: object,
+        classical_result: ClassicalSolveResult,
         postcheck_result: FinalSolutionValidationResult,
-    ) -> tuple[DomainEvaluationMetric, ...]: ...
+    ) -> tuple[DomainEvaluationMetric, ...]:
+        """Compute domain-specific quality metrics after post-check completion.
 
-    def identify_reducible_items(self, problem: object) -> list[str]: ...
+        Called when the post-check has been reached and returned a valid
+        result, regardless of whether the post-check passed or failed.
+        The adapter may return an empty tuple if no metrics are defined
+        or if the metrics are not meaningful for a failed post-check.
 
-    def build_conflict_graph(self, problem: object, state: object | None = None) -> ReductionGraph: ...
+        Each metric includes value, unit, comparison convention, and
+        provenance for auditability.
+
+        Args:
+            problem: The original domain problem.
+            classical_result: The result of the classical residual solve.
+            postcheck_result: The validation result (may be passed or failed).
+
+        Returns:
+            A tuple of domain metrics, possibly empty. Each metric is
+            independently serializable.
+
+        Raises:
+            Exception: Any exception produces adapter_failure; the solution
+                is not adopted, but solve and fixing results are preserved.
+
+        Note:
+            This method is not called when the post-check was not reached
+            (e.g., classical solve failed). In that case, the result field
+            is None.
+        """
+        ...
+
+    def identify_reducible_items(self, problem: object) -> list[str]:
+        """List all item IDs eligible for reduction.
+
+        Called before graph construction. The returned IDs define the
+        universe of items that may appear as graph nodes. Items not listed
+        here cannot be reduced or protected.
+
+        Args:
+            problem: The domain problem.
+
+        Returns:
+            A list of unique, non-blank item IDs. Order is not significant.
+
+        Raises:
+            Exception: Any exception produces adapter_failure.
+
+        Note:
+            The kernel does not validate IDs against domain semantics. The
+            adapter must ensure IDs are consistent across all methods.
+        """
+        ...
+
+    def build_conflict_graph(
+        self, problem: object, state: object | None = None
+    ) -> ReductionGraph:
+        """Construct the MWIS graph encoding conflicts and preferences.
+
+        Called after identifying reducible items. The graph defines nodes
+        (items with weights) and edges (conflicts or redundancies). The
+        kernel uses this graph to formulate the MWIS problem.
+
+        Node weights express preference for retaining items. Edge semantics
+        depend on the adapter's policy: edges may represent hard conflicts,
+        redundancies, or correlation-based exclusions. The adapter documents
+        its policy; the kernel treats all edges uniformly as MWIS constraints.
+
+        Args:
+            problem: The domain problem.
+            state: Optional adapter-defined state from a prior round.
+                Reserved for future incremental graph updates. Currently
+                the pipeline does not pass state between rounds; this
+                parameter always receives its default value (None).
+
+        Returns:
+            A ReductionGraph with nodes for reducible items and edges
+            encoding the adapter's conflict/redundancy policy.
+
+        Raises:
+            Exception: Exceptions during graph construction produce
+                GRAPH_CONSTRUCTION_FAILED (not adapter_failure). The
+                distinction allows the kernel to identify graph-specific
+                failures separately from other adapter errors.
+
+        Note:
+            The graph is auxiliary: its edges are not constraints of the
+            original problem. MWIS selects items to retain, not the final
+            solution.
+        """
+        ...
 
     def declare_protected_items(
-        self, problem: object
-    ) -> tuple[str, ...] | ProtectionDeclaration: ...
+        self, problem: object,
+    ) -> tuple[str, ...] | ProtectionDeclaration:
+        """Declare items that should survive reduction, with varying guarantees.
+
+        Called before candidate domain validation. Protection categories
+        have different guarantees:
+
+        - **Required** (mandatory, user-locked, safe-retained): guaranteed
+          to appear in the retained set. If required protections exceed
+          the candidate-domain cap, reduction fails explicitly.
+        - **Best-effort** (incumbent-supported with best_effort mode): may
+          be excluded when the cap requires it.
+
+        A simple tuple of IDs is equivalent to mandatory (required)
+        protection. ProtectionDeclaration allows finer categorization.
+
+        Args:
+            problem: The domain problem.
+
+        Returns:
+            Either a tuple of item IDs (mandatory protection) or a
+            ProtectionDeclaration with categorized protections.
+
+        Raises:
+            Exception: Any exception produces adapter_failure.
+
+        Note:
+            Protected items count against the candidate-domain cap. Only
+            required protections are guaranteed; best-effort items may be
+            sacrificed to respect the cap.
+        """
+        ...
 
     def validate_candidate_domain(
         self,
         problem: object,
         retained_item_ids: tuple[str, ...],
-    ) -> DomainValidationResult: ...
+    ) -> DomainValidationResult:
+        """Validate a proposed candidate domain before fixing.
+
+        Called after MWIS selection and repair. The adapter verifies that
+        the retained items form a valid reducible domain: sufficient
+        coverage, no missing dependencies, etc.
+
+        Args:
+            problem: The domain problem.
+            retained_item_ids: The proposed items to retain.
+
+        Returns:
+            A validation result with is_valid, optional minimum_required_items,
+            and failure_reasons if invalid.
+
+        Raises:
+            Exception: Any exception produces adapter_failure.
+
+        Note:
+            If invalid (is_valid=False) or the retained count is below
+            minimum_required_items, the kernel produces CANDIDATE_DOMAIN_TOO_SMALL.
+            Recovery may then be attempted depending on the configured
+            recovery_policy_on_domain_too_small and the remaining recovery
+            budget, regardless of whether minimum_required_items was provided.
+        """
+        ...
 
     def build_fixing_manifest(
         self,
         problem: object,
         retained_item_ids: tuple[str, ...],
-    ) -> FixingManifest: ...
+    ) -> FixingManifest:
+        """Build explicit variable fixings for excluded items.
+
+        Called after candidate domain validation succeeds. The adapter
+        decides how to fix variables for items not in the retained set.
+        Each fixing entry includes origin and guarantee level for
+        auditability.
+
+        Args:
+            problem: The domain problem.
+            retained_item_ids: The validated items to retain.
+
+        Returns:
+            A FixingManifest covering exactly the excluded items, with
+            entries specifying variable values and their provenance.
+
+        Raises:
+            Exception: Any exception produces adapter_failure.
+
+        Note:
+            The manifest distinguishes MIS heuristic fixings (no optimality
+            guarantee), certified safe fixings (with proof reference), and
+            user-mandated fixings. The kernel records this provenance.
+        """
+        ...
 
     def restrict_problem(
         self,
         problem: object,
         retained_item_ids: tuple[str, ...],
         fixing_manifest: FixingManifest,
-    ) -> object: ...
+    ) -> object:
+        """Create the residual problem by applying fixings.
+
+        Called after building the fixing manifest. The adapter produces a
+        new problem instance with the excluded variables fixed according
+        to the manifest. The residual problem is then solved by the
+        classical backend.
+
+        The original problem must remain unmodified.
+
+        Args:
+            problem: The original domain problem (unmodified).
+            retained_item_ids: Items to keep free.
+            fixing_manifest: Explicit fixings for excluded items.
+
+        Returns:
+            A new residual problem instance suitable for classical solving.
+            The return type is domain-specific and opaque to the kernel.
+
+        Raises:
+            Exception: Any exception produces adapter_failure.
+
+        Note:
+            The residual problem may have a different structure than the
+            original (fewer variables, simplified constraints). The adapter
+            must ensure the classical backend can solve it.
+        """
+        ...
 
     def validate_final_solution(
         self,
@@ -295,4 +527,34 @@ class ReducibleProblemAdapter(Protocol):
         fixing_manifest: FixingManifest,
         tolerances: object,
         solver_objective_value: float | None = None,
-    ) -> FinalSolutionValidationResult: ...
+    ) -> FinalSolutionValidationResult:
+        """Validate the residual solution against the original problem.
+
+        Called after classical solve succeeds. The adapter performs an
+        independent post-check: verifying fixed variable compliance,
+        original constraint satisfaction, integrality, and optionally
+        objective consistency.
+
+        Args:
+            original_problem: The unmodified domain problem.
+            solution: The solution returned by the classical solver.
+            fixing_manifest: The fixings applied during restriction.
+            tolerances: Domain-specific numerical tolerances.
+            solver_objective_value: The objective reported by the solver,
+                if available. None if the solver did not report one.
+
+        Returns:
+            A validation result with compliance flags, recomputed objective,
+            failure reasons if any, and tolerances used.
+
+        Raises:
+            Exception: Any exception produces adapter_failure; the solution
+                is not adopted, but solve and fixing results are preserved.
+
+        Note:
+            A failed post-check does not invalidate the experiment: the
+            failure is recorded and the run is published as analyzable.
+            The adapter should not raise for validation failures; it should
+            return a result with postcheck_feasible=False and reasons.
+        """
+        ...

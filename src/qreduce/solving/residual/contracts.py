@@ -46,7 +46,6 @@ class ClassicalSolveRequest:
     @property
     def effective_time_limit_seconds(self) -> float | None:
         """Return the positive time limit that the backend may actually consume."""
-
         if self.remaining_end_to_end_seconds <= 0:
             return None
         return min(self.time_limit_seconds, self.remaining_end_to_end_seconds)
@@ -108,9 +107,52 @@ class ClassicalSolveResult:
 
 
 class ClassicalBackend(Protocol):
-    """Uniform solver boundary; residual problems remain owned by adapters."""
+    """Uniform solver boundary for residual classical problems.
 
-    def solve(self, reduced_problem: object, request: ClassicalSolveRequest) -> ClassicalSolveResult: ...
+    A backend receives a residual problem from the adapter and returns a
+    normalized solve result. The problem type is defined by the adapter's
+    model provider (e.g., `ClassicalModelProvider`), not by the QReduce
+    kernel. The kernel treats the problem as opaque; the backend knows
+    how to translate it into solver-specific structures.
+
+    The backend is responsible for:
+    - Building solver-specific variables, objective, and constraints
+    - Respecting time limits and thread constraints
+    - Returning normalized status even on solver errors
+    - Exporting the model if requested and supported
+    - Including effective parameters in the result for auditability
+
+    The backend does not validate domain semantics: whether the solution
+    satisfies fixing requirements and original constraints is checked by
+    the adapter's post-check, not by the backend.
+
+    QReduce resolves backend selection by solver ID. An unknown ID is
+    a configuration error; a known ID with unavailable binding or license
+    produces an explicit failure. There is no silent fallback.
+    """
+
+    def solve(
+        self, reduced_problem: object, request: ClassicalSolveRequest
+    ) -> ClassicalSolveResult:
+        """Solve a residual classical problem and return a normalized result.
+
+        Args:
+            reduced_problem: The residual problem from the adapter. The
+                backend expects a type compatible with its model provider
+                (e.g., `ClassicalModelProvider.build_classical_model()`).
+            request: Resolved solve parameters including time limit,
+                threads, and export settings.
+
+        Returns:
+            A normalized result with status, objective, variable values,
+            and provenance. The result is produced even for solver errors.
+
+        Note:
+            Domain-level validation (fixing compliance, original constraint
+            satisfaction) is performed by the adapter's post-check, not
+            by the backend.
+        """
+        ...
 
 
 def _require_finite(value: float, field_name: str) -> None:

@@ -24,7 +24,6 @@ from qreduce.status import (
 
 def make_config() -> ResolvedRunConfig:
     """Build a resolved configuration containing nested contracts and enums."""
-
     return ResolvedRunConfig(
         schema_version="1.0",
         reduction=ReductionPolicy(1, 1, 5, 2, 0.1, 3, 60.0),
@@ -42,7 +41,6 @@ def make_config() -> ResolvedRunConfig:
 
 def test_canonical_json_and_hash_ignore_mapping_insertion_order() -> None:
     """Equivalent mapping data produces the same persisted bytes and digest."""
-
     left = {"b": 2, "a": {"z": 1, "x": 3}}
     right = {"a": {"x": 3, "z": 1}, "b": 2}
 
@@ -52,7 +50,6 @@ def test_canonical_json_and_hash_ignore_mapping_insertion_order() -> None:
 
 def test_pretty_json_is_deterministic_and_human_readable() -> None:
     """Readable artifact text preserves deterministic ordering without changing data."""
-
     serialized = pretty_json({"z": [1, {"b": True}], "a": {"x": 3}})
 
     assert serialized.startswith("{\n")
@@ -62,7 +59,6 @@ def test_pretty_json_is_deterministic_and_human_readable() -> None:
 
 def test_config_serializes_nested_dataclasses_and_enums() -> None:
     """Resolved configuration has no SDK objects or non-primitive enum values."""
-
     serialized_config = make_config().to_dict()
 
     assert (
@@ -72,7 +68,6 @@ def test_config_serializes_nested_dataclasses_and_enums() -> None:
 
 def test_redaction_removes_secrets_recursively_and_from_url_queries() -> None:
     """Metadata serialization cannot expose common credentials or tokens."""
-
     redacted = redact_metadata(
         {
             "token": "top-secret",
@@ -89,7 +84,6 @@ def test_redaction_removes_secrets_recursively_and_from_url_queries() -> None:
 
 def test_required_credentials_boolean_is_preserved_but_non_boolean_values_are_redacted() -> None:
     """Capability flags remain observable without making the key a secret bypass."""
-
     redacted = redact_metadata(
         {
             "required_credentials": True,
@@ -103,5 +97,4 @@ def test_required_credentials_boolean_is_preserved_but_non_boolean_values_are_re
 
 def test_created_at_is_explicit_utc_iso_timestamp() -> None:
     """Artifact timestamps identify UTC rather than depending on local timezone."""
-
     assert utc_created_at().endswith("Z")

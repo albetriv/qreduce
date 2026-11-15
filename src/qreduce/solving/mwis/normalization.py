@@ -20,7 +20,6 @@ def normalize_backend_result(
     backend_result: MISBackendResult,
 ) -> MISNormalizationResult:
     """Recompute canonical metrics while preserving native score semantics and raw metadata."""
-
     normalized_samples: list[RawMISSample] = []
     try:
         for sample in backend_result.samples:
@@ -69,7 +68,6 @@ def deduplicate_raw_mis_samples(
     max_distinct_samples: int,
 ) -> DeduplicationResult:
     """Aggregate equal delta vectors, choose stable IDs, then enforce a deterministic cap."""
-
     if not isinstance(max_distinct_samples, int) or isinstance(max_distinct_samples, bool) or max_distinct_samples < 1:
         raise ValueError("max_distinct_samples must be an integer greater than zero.")
     grouped_samples: dict[tuple[int, ...], list[RawMISSample]] = defaultdict(list)

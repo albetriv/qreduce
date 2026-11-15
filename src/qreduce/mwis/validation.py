@@ -41,7 +41,6 @@ class SelectionValidationResult:
 
 def validate_edge_penalty(graph: "ReductionGraph", lambda_edge: float) -> PenaltyValidationResult:
     """Validate the standard condition lambda_edge > max_i(w_i)."""
-
     if (
         not isinstance(lambda_edge, (int, float))
         or isinstance(lambda_edge, bool)
@@ -69,7 +68,6 @@ def validate_binary_selection(
     delta: tuple[int, ...] | list[int],
 ) -> SelectionValidationResult:
     """Validate a delta vector in graph.node_ids order and report conflicts."""
-
     normalized_delta = _normalize_binary_vector(delta, "delta")
     if len(normalized_delta) != len(graph.node_ids):
         raise MWISValidationError(
@@ -97,7 +95,6 @@ def validate_binary_selection(
 
 def normalize_binary_vector(delta: tuple[int, ...] | list[int], field: str = "delta") -> tuple[int, ...]:
     """Return a validated binary vector without accepting booleans implicitly."""
-
     if not isinstance(delta, tuple | list):
         raise MWISValidationError("invalid_binary_vector", field, "Vector must be a tuple or list.")
     normalized_values: list[int] = []

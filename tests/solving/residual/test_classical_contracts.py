@@ -8,7 +8,6 @@ from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 def test_effective_time_limit_is_clamped_to_remaining_budget() -> None:
     """The solver cannot consume more than the end-to-end budget still available."""
-
     request = ClassicalSolveRequest("run-001", 0, 30.0, 5.0, None, None, None, False, requested_solver_id="test")
 
     assert request.effective_time_limit_seconds == 5.0
@@ -16,7 +15,6 @@ def test_effective_time_limit_is_clamped_to_remaining_budget() -> None:
 
 def test_no_remaining_budget_forbids_backend_invocation() -> None:
     """A non-positive residual budget produces no effective solver time limit."""
-
     request = ClassicalSolveRequest("run-001", 0, 30.0, 0.0, None, None, None, False, requested_solver_id="test")
 
     assert request.effective_time_limit_seconds is None
@@ -24,7 +22,6 @@ def test_no_remaining_budget_forbids_backend_invocation() -> None:
 
 def test_failed_classical_result_requires_a_terminal_reason() -> None:
     """Failure states cannot omit the reason required by artifacts."""
-
     with pytest.raises(ValueError, match="requires a terminal reason"):
         ClassicalSolveResult(
             classical_solver_status=ClassicalSolverStatus.FAILED,

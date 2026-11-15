@@ -26,12 +26,10 @@ class CplexClassicalBackend:
 
     def capabilities(self) -> ClassicalRuntimeCapabilities:
         """Report binding availability without creating a CPLEX model."""
-
         return cplex_classical_capabilities()
 
     def solve(self, reduced_problem: object, request: ClassicalSolveRequest) -> ClassicalSolveResult:
         """Solve one residual problem or return a normalized, explicit failure result."""
-
         if request.requested_solver_id != self.solver_id:
             return _failure_result(
                 request,
@@ -220,7 +218,6 @@ def _failure_result(
 
 def _build_cplex_model(cplex_module: Any, generic_model: ClassicalOptimizationModel) -> Any:
     """Translate the solver-independent polynomial model into the CPLEX API."""
-
     model = cplex_module.Cplex()
     model.objective.set_sense(model.objective.sense.minimize)
     type_by_variable = {
@@ -273,7 +270,6 @@ def _optional_solution_value(target: Any, method_name: str) -> float | None:
 
 def _terminal_reason_for_cplex_exception(error: Exception) -> TerminalReason:
     """Classify binding/license startup failures without silently changing backend."""
-
     diagnostic_text = f"{type(error).__name__}: {error}".lower()
     if "license" in diagnostic_text or "licence" in diagnostic_text:
         return TerminalReason.CLASSICAL_BACKEND_UNAVAILABLE

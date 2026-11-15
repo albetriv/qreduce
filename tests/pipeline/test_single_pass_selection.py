@@ -20,7 +20,6 @@ from qreduce.solving.mwis.contracts import RawMISSample
 
 def make_selection_config() -> SimpleNamespace:
     """Build only the configuration fields consumed by candidate helper tests."""
-
     return SimpleNamespace(
         reduction=SimpleNamespace(
             candidate_domain_max_items=1, num_source_mis_candidates=2
@@ -35,7 +34,6 @@ def make_selection_config() -> SimpleNamespace:
 
 def make_problem() -> CanonicalMWISProblem:
     """Build a graph exercising repair tie-breakers and candidate aggregation."""
-
     graph = ReductionGraph(
         node_ids=("a", "b", "c"),
         node_weights={"a": 1.0, "b": 1.0, "c": 2.0},
@@ -52,7 +50,6 @@ def test_repair_removes_lexically_larger_endpoint_after_weight_and_degree_ties()
     None
 ):
     """The repair rule removes b from the equal-weight, equal-degree violated edge a-b."""
-
     problem = make_problem()
     repaired = _repair_sample(
         problem,
@@ -68,7 +65,6 @@ def test_repair_removes_lexically_larger_endpoint_after_weight_and_degree_ties()
 
 def test_diversity_ranking_and_domain_cap_use_declared_keys() -> None:
     """Higher-ranked candidates are selected only when sufficiently distant, then item cap is enforced."""
-
     problem = make_problem()
     config = make_selection_config()
     samples = (
@@ -115,7 +111,6 @@ def test_diversity_ranking_and_domain_cap_use_declared_keys() -> None:
 
 def test_candidate_domain_protection_precedes_cap_in_canonical_order() -> None:
     """Protected IDs survive the cap before ranked MWIS-derived items are considered."""
-
     problem = make_problem()
     config = make_selection_config()
     samples = (
@@ -143,7 +138,6 @@ def test_candidate_domain_protection_precedes_cap_in_canonical_order() -> None:
 
 def test_diversity_audit_records_the_observed_rejection_reason() -> None:
     """A diversity rejection is retained rather than inferred from the final sample set."""
-
     problem = make_problem()
     config = make_selection_config()
     samples = (
@@ -175,7 +169,6 @@ def test_diversity_audit_records_the_observed_rejection_reason() -> None:
 
 def test_candidate_records_retain_repair_and_distinct_sample_cap_outcomes() -> None:
     """Every processed or distinct-sample-cap discard remains visible in the candidate audit."""
-
     problem = make_problem()
     config = make_selection_config()
     invalid = RawMISSample(
@@ -211,7 +204,6 @@ def test_candidate_records_retain_repair_and_distinct_sample_cap_outcomes() -> N
 
 def test_best_effort_protection_can_be_excluded_by_the_candidate_domain_cap() -> None:
     """Best-effort incumbent items compete under the cap instead of becoming mandatory."""
-
     problem = make_problem()
     config = make_selection_config()
     sample = RawMISSample(

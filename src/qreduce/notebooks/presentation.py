@@ -10,7 +10,6 @@ from collections.abc import Mapping, Sequence
 
 def display_vertical(values: Mapping[str, object], *, title: str | None = None) -> None:
     """Display one mapping as a vertical field/value table."""
-
     if title is not None:
         print(title)
     _display_dataframe(
@@ -27,7 +26,6 @@ def display_records(
     record_label: str,
 ) -> None:
     """Display repeated records vertically instead of as a wide table."""
-
     if not record_label.strip():
         raise ValueError("record_label cannot be blank.")
     rows: list[dict[str, object]] = []

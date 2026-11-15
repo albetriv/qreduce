@@ -10,7 +10,6 @@ from qreduce.mwis.validation import MWISValidationError, validate_binary_selecti
 
 def make_graph(**changes: object) -> ReductionGraph:
     """Build a small valid graph with intentionally non-lexicographic node order."""
-
     values: dict[str, object] = {
         "node_ids": ("b", "a", "c"),
         "node_weights": {"b": 2.0, "a": 1.0, "c": 3.0},
@@ -25,7 +24,6 @@ def make_graph(**changes: object) -> ReductionGraph:
 
 def test_graph_preserves_declared_node_order_and_serializes_edges_explicitly() -> None:
     """The adapter's node order is retained as the sole delta-vector order."""
-
     graph = make_graph()
     serialized = json.loads(graph.to_canonical_json())
 
@@ -54,7 +52,6 @@ def test_graph_preserves_declared_node_order_and_serializes_edges_explicitly() -
 )
 def test_invalid_graph_invariants_fail_explicitly(changes: dict[str, object], code: str) -> None:
     """Invalid graphs expose stable validation error codes rather than normalizing silently."""
-
     with pytest.raises(MWISValidationError) as error:
         make_graph(**changes)
 
@@ -63,7 +60,6 @@ def test_invalid_graph_invariants_fail_explicitly(changes: dict[str, object], co
 
 def test_selection_validation_reports_conflicts_weight_and_selected_nodes() -> None:
     """Structural validation is computed against the graph's declared node order."""
-
     result = validate_binary_selection(make_graph(), (1, 1, 0))
 
     assert result.is_independent_set is False
