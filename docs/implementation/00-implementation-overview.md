@@ -2,6 +2,9 @@
 
 ## Scopo e autorita` documentale
 
+Il percorso sperimentale della sola famiglia facility location e descritto in
+`facility-location-experiment.md`; questo non promuove l'intera iniziativa N03.
+
 Questo documento e` la roadmap tecnica verso il completamento delle feature
 previste in `docs/specifications.md`. Le specifiche sono la fonte normativa per
 requisiti funzionali, garanzie, confini di responsabilita`, stati, failure reason

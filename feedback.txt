@@ -1,0 +1,252 @@
+﻿FEEDBACK AGGIORNATO SULL'IMPLEMENTAZIONE FACILITY LOCATION
+Data: 15 novembre 2026
+
+VALUTAZIONE COMPLESSIVA
+
+L'implementazione e migliorata in modo sostanziale rispetto alla revisione
+precedente. Il percorso principale e ora verificato con test e solve reali:
+392 test passano, le baseline SCIP di cap41-cap44 riproducono i riferimenti
+locali, il wheel viene costruito ed esclude gli esperimenti.
+
+Il problema principale dei fixing e stato corretto per i casi segnalati:
+restrict_problem valida il manifest, le esclusioni pregresse vengono preservate
+e il post-check controlla anche i valori espliciti delle entry. Anche il
+benchmark ora persiste il riepilogo e gli errori di preparazione, e l'analisi
+usa l'obiettivo ricalcolato solo dopo un post-check riuscito.
+
+Non considero ancora concluso il piano. Rimangono un caso limite nella
+validazione dei manifest, un controllo di benchmark non valido quando si usa
+un cap restrittivo, osservabilita incompleta dei fallimenti, documentazione e
+provenienza da consolidare. Il lint globale non passa per un errore nel nuovo
+notebook. Inoltre, la policy iniziale non ha ancora evidenze di utilita:
+su cap41 il recovery produce una perdita di qualita dell'11,26%.
+
+1. VERIFICHE ESEGUITE
+
+- Test mirati facility location: 15 passati in 0,14 secondi.
+- Suite completa: 392 passati in 11,81 secondi.
+- Ruff sui nuovi moduli Python e test: superato.
+- Ruff globale: fallisce con I001 sugli import della cella 2 del notebook.
+- Build del wheel: superata; nessun file experiments incluso nel wheel.
+- Checksum: tutte e quattro le istanze corrispondono al manifest locale.
+- Smoke test SCIP: baseline cap41, cap42, cap43 e cap44, tutte con post-check
+  riuscito e differenza zero rispetto ai riferimenti registrati localmente.
+- Benchmark completo su cap41 e controllo su istanza artificiale con cap=1.
+- CLI su un run fallito: verificato il codice di uscita.
+- Prova in memoria con manifest contenente una sede mantenuta sconosciuta.
+
+La prima invocazione della suite tramite il wrapper dei comandi e scaduta
+per timeout senza esito disponibile. La suite e stata poi rieseguita con
+log separati fino al completamento: il risultato riportato e quello del run
+completato, non una deduzione dal timeout.
+
+2. PROBLEMI RESIDUI, ORDINATI PER PRIORITA
+
+2.1 Priorita media: il validatore dei manifest accetta item mantenuti sconosciuti
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\src\qreduce\experiments\facility_location\adapter.py
+Righe 24-38 e 116-121.
+
+_validate_manifest controlla differenze di insiemi ed entry, ma non verifica
+che tutti i retained_item_ids appartengano all'universo disponibile.
+Nel post-check il confronto dei retained usa come atteso lo stesso insieme
+letto dal manifest, rendendo quel controllo tautologico.
+
+Riproduzione: manifest con tutte le sedi valide piu 'unknown_facility', nessuna
+esclusione, soluzione originale valida. Il risultato e postcheck_feasible=True
+e fixed_variable_compliance=True.
+
+Il percorso ordinario di restrict_problem e protetto da
+validate_candidate_domain, quindi il problema e piu circoscritto rispetto
+alla revisione precedente: riguarda soprattutto il confine del post-check
+e l'uso diretto dell'adapter. Non invalida i solve ordinari verificati.
+
+Raccomandazione: richiedere una partizione esatta dell'universo noto fra
+mantenuti ed esclusi, prima di verificare entry e valori. Aggiungere test con
+item sconosciuti, mancanti ed entry incomplete.
+
+2.2 Priorita media: il cap del benchmark rende non eseguibile il controllo completo
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\src\qreduce\experiments\facility_location\benchmark.py
+Righe 18-28.
+
+Il medesimo cap viene passato anche allo scenario all_protected. Se il cap e
+inferiore al numero totale di sedi, il controllo non mantiene semplicemente
+tutte le sedi: fallisce prima del solve per
+protected_items_exceed_candidate_domain_cap.
+
+Riprodotto su istanza artificiale con tre sedi e cap=1: all_protected fallisce
+e non produce un obiettivo, mentre dovrebbe controllare l'equivalenza con la
+baseline senza esclusioni.
+
+Raccomandazione: disabilitare il cap restrittivo per il solo controllo oppure
+impostarlo al numero originale di sedi, registrando la differenza di
+configurazione. Conservare il cap richiesto negli scenari di riduzione.
+
+2.3 Priorita media: tempi e report non coprono ancora tutti gli esiti
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\src\qreduce\experiments\facility_location\adapter.py
+Righe 60-66 e 142-152.
+D:\DATADIR\Programmazione\python\qreduce\src\qreduce\experiments\facility_location\benchmark.py
+Righe 26-38.
+
+Il tempo di costruzione del grafo e misurato, ma pubblicato soltanto dalle
+metriche di dominio dopo un post-check riuscito. Nel single-pass cap41 fallito
+il grafo e stato costruito, ma graph_build_seconds non compare negli artifact.
+Questo impedisce l'analisi completa dei costi proprio sui fallimenti, che il
+protocollo richiede di conservare e valutare.
+
+Il report del benchmark e scritto soltanto dopo tutti gli scenari: gli errori
+previsti vengono conservati a completamento, ma un'interruzione o un'eccezione
+non gestita puo lasciare senza riepilogo i run gia completati. Inoltre ogni
+OSError/ValueError nel blocco run+summary e etichettato preparation_error,
+anche se deriva da pubblicazione degli artifact o lettura del risultato.
+
+Raccomandazione: persistere tempi anche per gli esiti senza post-check,
+distinguere preparazione, esecuzione e analisi e valutare checkpoint atomici
+progressivi del report. Esporre anche conteggi originali/residui e rapporti di
+riduzione in colonne confrontabili, anziche soltanto in dati annidati.
+
+2.4 Priorita media: provenance e redistribuzione dei dati ancora da consolidare
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\data\benchmarks\or_library\capacitated_facility_location\manifest.json
+Righe 3-12.
+D:\DATADIR\Programmazione\python\qreduce\docs\implementation\facility-location-experiment.md
+Righe 7-9.
+D:\DATADIR\Programmazione\python\qreduce\README.md
+Sezione Documentazione.
+
+I file sono presenti, ma README e documento continuano a richiedere
+acquisizione separata. Il manifest dichiara origine non verificata
+indipendentemente; mancano fonti individuali delle istanze e avvisi locali di
+licenza/attribuzione. Non ho trovato file LICENSE, NOTICE o README nella
+raccolta dati.
+
+I checksum verificati provano coerenza interna, non autenticita rispetto alla
+fonte originale. In questa revisione non ho effettuato nuove verifiche web
+dei termini o dei byte upstream: non considero quindi chiusa la questione.
+
+Raccomandazione: completare la verifica di provenienza e gli avvisi prima
+della pubblicazione, oppure mantenere esplicitamente i dati esterni.
+
+2.5 Priorita bassa: lint globale fallito e notebook ancora minimale
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\notebooks\experiments\facility_location\001_or_library_comparison.ipynb
+Cella 2, import iniziali.
+
+Ruff globale segnala I001. L'errore e nuovo e circoscritto al notebook;
+i moduli Python e i test della famiglia passano il lint.
+
+Il notebook rispetta la separazione fra presentazione e logica, ma mostra
+ancora soltanto una DataFrame con campi annidati. Mancano confronti leggibili
+di costi, capacita, riduzione, tempi e fallimenti previsti dal piano.
+
+2.6 Priorita bassa: codice di uscita CLI non distingue il fallimento del run
+
+File:
+D:\DATADIR\Programmazione\python\qreduce\src\qreduce\experiments\facility_location\run.py
+Righe 63-65.
+
+Un run che stampa 'failed' termina con exit code 0. Riprodotto con un cap
+insufficiente. Non e una violazione di una specifica esplicita rilevata, ma
+per automazione e script shell il risultato e ambiguo.
+
+Raccomandazione: definire e documentare la convenzione di uscita; se si sceglie
+un codice nonzero per i fallimenti, testare anche success e partial_success.
+
+3. RISULTATI SPERIMENTALI OSSERVATI
+
+Baseline SCIP con post-check riuscito:
+
+- cap41: 1040444.375; differenza dal riferimento locale 0.
+- cap42: 1098000.450; differenza dal riferimento locale 0.
+- cap43: 1153000.450; differenza dal riferimento locale 0.
+- cap44: 1235500.450; differenza dal riferimento locale 0.
+
+Matrice cap41, policy predefinita, seed 7, budget 60 secondi:
+
+- Baseline: success, obiettivo 1040444.375.
+- Tutte le sedi protette: success, stesso obiettivo della baseline.
+- Single-pass senza recovery: failed per dominio di capacita insufficiente.
+- Single-pass con recovery: success dopo 12 tentativi registrati; 12 sedi
+  mantenute su 16, 12 aperte, obiettivo 1157583.05.
+- Configurazione multi-round con recovery: stesso obiettivo e stessi 12
+  tentativi, ma un solo round realmente eseguito.
+
+La riduzione logica e del 25%: da 16 a 12 binarie libere e da 800 a 600
+continue libere. La perdita rispetto alla baseline e 117138.675, pari a circa
+11,26%. La validita della soluzione non implica quindi qualita comparabile.
+
+Non traggo conclusioni di speedup da singoli run molto brevi. Queste evidenze
+mostrano che il percorso funziona, non che la policy predefinita sia efficace.
+Occorre separare fattibilita recuperata, qualita e costo end-to-end, ed evitare
+qualsiasi promessa di vantaggio prima di una valutazione piu ampia.
+
+4. STATO DEI PROBLEMI DEL FEEDBACK PRECEDENTE
+
+- Manifest ignorato: risolto per incoerenza di dominio, valori nonzero e
+  controllo delle entry; resta il caso limite degli item mantenuti sconosciuti.
+- Test insufficienti: migliorati; aggiunti controlli sui manifest, recovery,
+  cap, grafo indotto, protezioni, conteggi continui e cumulativita diretta.
+- Errori di preparazione non persistiti: risolto a completamento del benchmark.
+- Solver, backend MIS, policy e recovery non configurabili nel benchmark:
+  risolto.
+- Obiettivo non validato usato come qualita: risolto in analysis.summary.
+- Tempo del grafo assente: aggiunto per run con post-check riuscito, incompleto
+  per quelli falliti prima di tale fase.
+- Dataset e licenza: ancora aperto.
+- Multi-round: limite ora dichiarato correttamente nella documentazione.
+- Packaging e regressione: verificati positivamente in questa revisione.
+
+5. COPERTURA E ALLINEAMENTO ANCORA DA COMPLETARE
+
+I 15 test della famiglia sono tutti verdi, ma non coprono ancora il dettaglio
+del piano: mancano test mirati per timeout/incumbent, backend indisponibile,
+post-check failed in pipeline, CLI, analisi di artifact invalidi e violazioni
+isolate dei vincoli. Diversi test nuovi dipendono da SCIP invece di usare
+backend controllati, riducendo la copertura in ambienti senza solver.
+
+Il test multi-round continua a verificare il successo finale senza richiedere
+piu round reali. La cumulativita e testata tramite chiamate dirette all'adapter,
+non mediante una vera sequenza multi-round della pipeline. La documentazione
+riconosce ora questa limitazione: non attribuisco il comportamento preesistente
+del kernel alla nuova famiglia, ma non considero completata quella evidenza.
+
+Il documento dedicato e migliorato: contiene score, caso costi nulli,
+protocollo e semantica di stop. Rimangono da collegare e allineare:
+
+D:\DATADIR\Programmazione\python\qreduce\docs\specifications.md
+D:\DATADIR\Programmazione\python\qreduce\docs\implementation\00-implementation-overview.md
+D:\DATADIR\Programmazione\python\qreduce\docs\implementation\experiment-organization.md
+
+Nessun collegamento specifico alla nuova famiglia e stato trovato in tali
+file. Non occorre promuovere tutta N03, ma registrare il perimetro e lo stato
+reali della sola iniziativa implementata.
+
+6. GIUDIZIO FINALE E ORDINE CONSIGLIATO
+
+Stato: esperimento eseguibile e verificato nel percorso principale;
+consolidamento e protocollo sperimentale ancora parziali.
+
+Ordine consigliato:
+1. Correggere validazione dell'universo dei manifest e controllo all_protected
+   con cap restrittivo; aggiungere regression test.
+2. Risolvere I001 e completare osservabilita dei fallimenti.
+3. Consolidare provenienza/attribuzione dei dati e documentazione correlata.
+4. Estendere test con backend controllati e notebook comparativo.
+5. Valutare la policy su piu istanze, riportando anche la perdita di qualita.
+
+In questa revisione non ho modificato codice applicativo, test permanenti,
+README o specifiche. Ho sovrascritto soltanto questo feedback come deliverable.
+Script, wheel, log e artifact di revisione sono confinati in:
+D:\DATADIR\Programmazione\python\qreduce\.cline-tmp\
+
+Le evidenze locali principali sono conservate in:
+D:\DATADIR\Programmazione\python\qreduce\.cline-tmp\feedback-full.stdout.log
+D:\DATADIR\Programmazione\python\qreduce\.cline-tmp\feedback-wheel\
+D:\DATADIR\Programmazione\python\qreduce\.cline-tmp\feedback-smoke\

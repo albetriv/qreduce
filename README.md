@@ -298,6 +298,10 @@ I notebook in `notebooks/experiments/` devono caricare i dati gia` prodotti dal 
 
 ## Documentazione
 
+L'esperimento repository facility location, tuttora sperimentale ed escluso dal
+wheel, e descritto in `docs/implementation/facility-location-experiment.md`.
+Richiede istanze locali acquisite separatamente; non esegue download automatici.
+
 ### Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria: grafo

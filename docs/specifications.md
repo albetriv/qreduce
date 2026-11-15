@@ -2,6 +2,10 @@
 
 ## 1. Scopo
 
+L'esperimento repository facility location e descritto in
+`implementation/facility-location-experiment.md`; non estende il contratto del
+kernel e non promuove le altre famiglie pianificate.
+
 QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi di ottimizzazione mista prima della loro risoluzione classica.
 
 Il framework usa Maximum Weight Independent Set (MWIS) come meccanismo di selezione strutturale. Il kernel costruisce una rappresentazione canonica del problema MWIS, comprensiva di grafo, QUBO e, quando utile, BQM o Ising. Un adapter di esecuzione la compila verso il formato richiesto dal backend configurato e ne normalizza gli esiti in sample binarie. Dopo validazione e possibile repair, tali sample diventano candidate di insiemi indipendenti da cui derivare un sottoinsieme di decisioni binarie da trattenere. Il problema residuo viene quindi risolto da un backend classico.

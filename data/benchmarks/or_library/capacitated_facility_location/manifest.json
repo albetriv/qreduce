@@ -1,0 +1,14 @@
+{
+  "family": "capacitated-facility-location",
+  "acquired": "2026-11-15",
+  "acquisition": "user-provided; original source not independently verified",
+  "parser_version": "1",
+  "reference_source": "https://people.brunel.ac.uk/~mastjjb/jeb/orlib/files/capopt.txt",
+  "reference_decimals": 3,
+  "instances": [
+    {"id":"cap41","file":"cap41.txt","sha256":"31fa9f6ad3c684c66392f0ad5dfa3dcd0262a404ea02a79238f9a1200071358e","facilities":16,"customers":50,"reference":1040444.375},
+    {"id":"cap42","file":"cap42.txt","sha256":"fa065519070061e3eb897b5b91e22e053cc6a15e76297906294a56d90cfba27e","facilities":16,"customers":50,"reference":1098000.450},
+    {"id":"cap43","file":"cap43.txt","sha256":"a19afbd39576615f9ecc69f1a4667c80ddb77878c09a656db9500e39763a8e46","facilities":16,"customers":50,"reference":1153000.450},
+    {"id":"cap44","file":"cap44.txt","sha256":"d0ee030dbdc08e3d5f57cfc3337c546d85635b4ea9e14507bab91590696c3279","facilities":16,"customers":50,"reference":1235500.450}
+  ]
+}

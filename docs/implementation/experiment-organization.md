@@ -2,6 +2,9 @@
 
 ## Stato
 
+La famiglia facility location e descritta in `facility-location-experiment.md`;
+e sperimentale ed esclusa dal wheel.
+
 Decisione architetturale approvata nel piano di riorganizzazione. La migrazione
 del portfolio e implementata; test, CLI, notebook, wheel e smoke test locali sono
 stati verificati. Non erano disponibili artifact storici locali per una verifica

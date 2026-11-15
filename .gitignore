@@ -18,3 +18,6 @@ build/
 # Track only the placeholder so the output root exists in fresh clones.
 outputs/*
 !outputs/.gitkeep
+
+# User-acquired OR-Library files remain external; do not delete local copies.
+/data/benchmarks/or_library/capacitated_facility_location/*.txt
