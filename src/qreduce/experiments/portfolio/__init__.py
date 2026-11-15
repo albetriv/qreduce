@@ -1,7 +1,7 @@
 """Repository-internal mean-variance portfolio experiment domain."""
 
-from qreduce.experiments.portfolio_domain.adapter import MeanVariancePortfolioAdapter
-from qreduce.experiments.portfolio_domain.models import (
+from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
+from qreduce.experiments.portfolio.models import (
     PortfolioGraphPolicy,
     PortfolioProblem,
     PortfolioResidualProblem,

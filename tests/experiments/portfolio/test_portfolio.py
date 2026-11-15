@@ -8,14 +8,16 @@ import pytest
 from qreduce.experiments import (
     ExperimentArtifactError,
 )
-from qreduce.experiments.portfolio import (
-    SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
+from qreduce.experiments.portfolio.analysis import load_synthetic_portfolio_analysis
+from qreduce.experiments.portfolio.generator import default_generation_policy
+from qreduce.experiments.portfolio.inputs import (
     build_synthetic_portfolio_inputs,
     default_graph_policy,
-    load_synthetic_portfolio_analysis,
+)
+from qreduce.experiments.portfolio.single_pass import (
+    SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
     run_synthetic_portfolio_experiment,
 )
-from qreduce.experiments.portfolio_generator import default_generation_policy
 from qreduce.status import RunStatus
 
 

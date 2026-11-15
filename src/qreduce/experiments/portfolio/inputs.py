@@ -1,0 +1,188 @@
+"""Shared synthetic portfolio inputs and experiment configuration."""
+
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
+
+from qreduce.experiments.portfolio import (
+    MeanVariancePortfolioAdapter,
+    PortfolioGraphPolicy,
+    PortfolioProblem,
+)
+from qreduce.models import (
+    ClassicalSolveOptions,
+    LambdaEdgePolicy,
+    MISExecutionOptions,
+    ReductionPolicy,
+    ResolvedRunConfig,
+    RunIdentity,
+)
+from qreduce.status import PostcheckMode
+
+if TYPE_CHECKING:
+    from qreduce.experiments.portfolio.models import SyntheticPortfolioGenerationPolicy
+
+SYNTHETIC_PORTFOLIO_EXPERIMENT_ID = "synthetic-portfolio-single-pass"
+DEFAULT_PORTFOLIO_OUTPUT_ROOT = "outputs/portfolio"
+
+def default_graph_policy(
+    edge_mode: str = "near_duplicate",
+    *,
+    correlation_threshold: float = 0.90,
+    near_duplicate_max_relative_return_difference: float = 0.10,
+    near_duplicate_max_relative_variance_difference: float = 0.10,
+) -> PortfolioGraphPolicy:
+    """Create a default graph policy with the specified edge mode.
+
+    Args:
+        edge_mode: Either "correlation_only" or "near_duplicate"
+        correlation_threshold: Absolute correlation threshold for edges
+        near_duplicate_max_relative_return_difference: Max relative return diff (near_duplicate only)
+        near_duplicate_max_relative_variance_difference: Max relative variance diff (near_duplicate only)
+
+    Returns:
+        PortfolioGraphPolicy configured with the specified parameters
+    """
+    return PortfolioGraphPolicy(
+        policy_id=f"synthetic-portfolio-{edge_mode}",
+        policy_version="1",
+        correlation_absolute_threshold=correlation_threshold,
+        edge_mode=edge_mode,  # type: ignore[arg-type]
+        near_duplicate_max_relative_return_difference=near_duplicate_max_relative_return_difference,
+        near_duplicate_max_relative_variance_difference=near_duplicate_max_relative_variance_difference,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SyntheticPortfolioInputs:
+    """All domain and kernel inputs for the repository's synthetic portfolio experiment."""
+
+    problem: PortfolioProblem
+    graph_policy: PortfolioGraphPolicy
+    adapter: MeanVariancePortfolioAdapter
+    config: ResolvedRunConfig
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None
+
+
+def build_synthetic_portfolio_inputs(
+    run_id: str,
+    *,
+    asset_count: int = 30,
+    generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None,
+    graph_policy: PortfolioGraphPolicy | None = None,
+    mis_solver_id: str = "local_greedy",
+    classical_solver_id: str = "scip",
+    mis_num_reads: int | None = None,
+    mis_num_sweeps: int | None = None,
+) -> SyntheticPortfolioInputs:
+    """Build deterministic inputs with explicit optional solver selections.
+
+    Args:
+        run_id: Unique identifier for the run.
+        asset_count: Number of assets in the synthetic portfolio. Must be >= 6.
+            Default is 30 for meaningful reduction experiments.
+        generation_policy: Optional generation policy. If None, uses default_generation_policy().
+        graph_policy: Optional graph policy. If None, uses default_graph_policy() with near_duplicate.
+        mis_solver_id: MIS solver to use.
+        classical_solver_id: Classical solver to use.
+        mis_num_reads: Optional D-Wave num_reads parameter.
+        mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+
+    Returns:
+        SyntheticPortfolioInputs with problem, adapter, and configuration.
+
+    Raises:
+        ValueError: If asset_count < 6 or if D-Wave parameters are used with
+            a non-D-Wave solver.
+    """
+    from qreduce.experiments.portfolio.generator import (
+        default_generation_policy,
+        generate_portfolio_data,
+    )
+
+    if asset_count < 6:
+        raise ValueError("asset_count must be at least 6 for meaningful experiments.")
+
+    # Use provided policies or defaults
+    if generation_policy is None:
+        generation_policy = default_generation_policy(asset_count)
+    elif generation_policy.asset_count != asset_count:
+        raise ValueError(
+            f"generation_policy.asset_count ({generation_policy.asset_count}) "
+            f"does not match asset_count ({asset_count})."
+        )
+
+    if graph_policy is None:
+        graph_policy = default_graph_policy()
+
+    portfolio_data = generate_portfolio_data(generation_policy)
+    problem = portfolio_data.to_problem()
+
+    # Scale candidate_domain_max_items proportionally to asset_count
+    # For 30 assets: max_items = 18 (60%)
+    # Minimum is 3 to allow meaningful reduction
+    candidate_domain_max_items = max(3, (asset_count * 3) // 5)
+
+    config = ResolvedRunConfig(
+        schema_version="1.0",
+        reduction=ReductionPolicy(
+            max_reduction_rounds=1,
+            candidate_domain_min_items=1,
+            candidate_domain_max_items=candidate_domain_max_items,
+            num_source_mis_candidates=1,
+            min_reduction_ratio=0.1,
+            target_binary_variables=3,
+            max_end_to_end_runtime_seconds=60.0,
+        ),
+        lambda_edge=2.0,
+        lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
+        allow_noncertifying_penalty=False,
+        mis_solver_id=mis_solver_id,
+        mis_execution=MISExecutionOptions(1, 17, 1, False, 0, 0.0, 20),
+        classical_solve=ClassicalSolveOptions(
+            classical_solver_id=classical_solver_id,
+            time_limit_seconds=10.0,
+            mip_gap_tolerance=None,
+            threads=1,
+            model_export_enabled=False,
+            primal_feasibility_tolerance=1e-6,
+            integrality_tolerance=1e-6,
+            objective_recomputation_absolute_tolerance=1e-6,
+            objective_recomputation_relative_tolerance=1e-6,
+            postcheck_mode=PostcheckMode.STRICT,
+            random_seed=7,
+        ),
+        run_identity=RunIdentity(run_id),
+    )
+    if mis_num_reads is not None or mis_num_sweeps is not None:
+        if mis_solver_id != "dwave_simulated_annealing":
+            raise ValueError(
+                "mis_num_reads and mis_num_sweeps require "
+                "mis_solver_id='dwave_simulated_annealing'."
+            )
+        provider_parameters: dict[str, object] = {}
+        if mis_num_reads is not None:
+            _require_positive_int(mis_num_reads, "mis_num_reads")
+            provider_parameters["num_reads"] = mis_num_reads
+        if mis_num_sweeps is not None:
+            _require_positive_int(mis_num_sweeps, "mis_num_sweeps")
+            provider_parameters["num_sweeps"] = mis_num_sweeps
+        config = replace(
+            config,
+            mis_execution=replace(
+                config.mis_execution,
+                provider_parameters=provider_parameters,
+            ),
+        )
+    return SyntheticPortfolioInputs(
+        problem=problem,
+        graph_policy=graph_policy,
+        adapter=MeanVariancePortfolioAdapter(graph_policy),
+        config=config,
+        generation_policy=generation_policy,
+    )
+
+
+def _require_positive_int(value: int, field: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{field} must be an integer greater than zero.")
+

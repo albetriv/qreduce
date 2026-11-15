@@ -4,7 +4,7 @@ import math
 from collections.abc import Mapping
 
 from qreduce.domains.contracts import FinalSolutionValidationResult, FixingManifest
-from qreduce.experiments.portfolio_domain.models import (
+from qreduce.experiments.portfolio.models import (
     PortfolioProblem,
     PortfolioVariableMapping,
 )

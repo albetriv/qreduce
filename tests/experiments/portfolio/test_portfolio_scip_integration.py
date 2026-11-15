@@ -4,7 +4,7 @@ import importlib.util
 
 import pytest
 
-from qreduce.experiments.portfolio import run_synthetic_portfolio_experiment
+from qreduce.experiments.portfolio.single_pass import run_synthetic_portfolio_experiment
 from qreduce.status import ClassicalSolverStatus, RunStatus
 
 pytestmark = [

@@ -32,11 +32,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.random import PCG64, Generator
 
-from qreduce.experiments.portfolio_domain import PortfolioProblem
-from qreduce.experiments.portfolio_domain.models import _GENERATED_COVARIANCE
+from qreduce.experiments.portfolio import PortfolioProblem
+from qreduce.experiments.portfolio.models import _GENERATED_COVARIANCE
 
 if TYPE_CHECKING:
-    from qreduce.experiments.portfolio_domain.models import (
+    from qreduce.experiments.portfolio.models import (
         SyntheticPortfolioGenerationPolicy,
     )
 
@@ -263,7 +263,7 @@ def default_generation_policy(
     Returns:
         A SyntheticPortfolioGenerationPolicy with default parameters
     """
-    from qreduce.experiments.portfolio_domain.models import (
+    from qreduce.experiments.portfolio.models import (
         SyntheticPortfolioGenerationPolicy,
     )
 

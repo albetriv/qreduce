@@ -6,13 +6,13 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from qreduce.experiments.portfolio import build_synthetic_portfolio_inputs
-from qreduce.experiments.portfolio_domain.models import (
-    SyntheticPortfolioGenerationPolicy,
-)
-from qreduce.experiments.portfolio_generator import (
+from qreduce.experiments.portfolio.generator import (
     default_generation_policy,
     generate_portfolio_data,
+)
+from qreduce.experiments.portfolio.inputs import build_synthetic_portfolio_inputs
+from qreduce.experiments.portfolio.models import (
+    SyntheticPortfolioGenerationPolicy,
 )
 
 
@@ -376,7 +376,7 @@ class TestBuildSyntheticPortfolioInputs:
 
     def test_adapter_is_configured_with_graph_policy(self):
         """Adapter uses the specified graph policy."""
-        from qreduce.experiments.portfolio import default_graph_policy
+        from qreduce.experiments.portfolio.inputs import default_graph_policy
         policy = default_graph_policy("correlation_only", correlation_threshold=0.5)
         inputs = build_synthetic_portfolio_inputs(
             "test-run",

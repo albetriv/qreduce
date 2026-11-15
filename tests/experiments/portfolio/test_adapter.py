@@ -4,7 +4,7 @@
 import pytest
 
 from qreduce.domains import LogicalVariableCounts
-from qreduce.experiments.portfolio_domain import (
+from qreduce.experiments.portfolio import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

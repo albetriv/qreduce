@@ -8,13 +8,13 @@ from qreduce.domains.contracts import (
     FixingManifest,
     LogicalVariableCounts,
 )
-from qreduce.experiments.portfolio_domain.models import (
+from qreduce.experiments.portfolio.models import (
     PortfolioGraphPolicy,
     PortfolioProblem,
     PortfolioResidualProblem,
     PortfolioVariableMapping,
 )
-from qreduce.experiments.portfolio_domain.postcheck import validate_portfolio_solution
+from qreduce.experiments.portfolio.postcheck import validate_portfolio_solution
 from qreduce.models import ClassicalSolveOptions
 from qreduce.mwis import ReductionGraph
 from qreduce.solving.residual.contracts import ClassicalSolveResult

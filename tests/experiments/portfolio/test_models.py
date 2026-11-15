@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from qreduce.experiments.portfolio_domain import (
+from qreduce.experiments.portfolio import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

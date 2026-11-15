@@ -2,7 +2,7 @@
 
 import pytest
 
-from qreduce.experiments.portfolio_domain import PortfolioProblem
+from qreduce.experiments.portfolio import PortfolioProblem
 
 
 @pytest.fixture

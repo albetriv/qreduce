@@ -34,6 +34,9 @@ criteri di completamento, compresi i test proporzionati.
 
 ## Architettura di riferimento
 
+La decisione e il piano di consolidamento degli esperimenti interni sono
+descritti in [Organizzazione degli esperimenti](experiment-organization.md).
+
 ```text
 application problem
   -> application domain adapter builds ReductionGraph
@@ -46,7 +49,7 @@ application problem
   -> complete in-memory run result
 
 repository experiment runner
-  -> persists complete artifacts under outputs/{run_id}/
+  -> persists complete artifacts under {output_root}/{run_id}/
   -> notebooks load artifacts without rerunning the pipeline
 ```
 
@@ -149,6 +152,6 @@ Puo` essere dichiarata completata soltanto quando:
 | Logica riutilizzabile | `src/qreduce/` | Nessuna business logic nei notebook. |
 | Test permanenti | `tests/` | Ogni modifica osservabile richiede test proporzionati. |
 | Risultato di run | Oggetto Python serializzabile | Restituito in memoria dalla pipeline, senza side effect sul filesystem. |
-| Esperimenti interni | `src/qreduce/experiments/` | Runner interno escluso dal wheel, con artifact in `outputs/{run_id}/`. |
+| Esperimenti interni | `src/qreduce/experiments/` | Runner interno escluso dal wheel, con artifact in `{output_root}/{run_id}/`; portfolio usa `outputs/portfolio/` per default. |
 | Notebook experiments | `notebooks/experiments/` | Leggono artifact dal filesystem e non invocano la pipeline. |
 | File temporanei dell'agente | `.cline-tmp/` | Mai importati dal codice applicativo. |

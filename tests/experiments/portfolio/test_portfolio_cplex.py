@@ -1,6 +1,6 @@
 """Tests for lazy CPLEX backend failure behavior without requiring CPLEX."""
 
-from qreduce.experiments.portfolio_domain import (
+from qreduce.experiments.portfolio import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

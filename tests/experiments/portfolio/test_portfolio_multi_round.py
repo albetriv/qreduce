@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import pytest
 
 from qreduce.experiments import load_experiment_run
-from qreduce.experiments.portfolio_multi_round import (
-    load_multi_round_correlation_data,
+from qreduce.experiments.portfolio.analysis import load_multi_round_correlation_data
+from qreduce.experiments.portfolio.multi_round import (
     run_portfolio_multi_round_experiment,
 )
 
@@ -50,7 +50,7 @@ def test_correlation_remains_available_without_compiled_graph(tmp_path, monkeypa
     run = run_portfolio_multi_round_experiment("no-graph", output_root=tmp_path, asset_count=6)
     artifacts = load_experiment_run(run.run_directory)
     monkeypatch.setattr(
-        "qreduce.experiments.portfolio_multi_round.load_experiment_run",
+        "qreduce.experiments.portfolio.analysis.load_experiment_run",
         lambda _: replace(artifacts, round_results=()),
     )
     asset_ids, correlation, graph = load_multi_round_correlation_data(run.run_directory)
@@ -62,8 +62,8 @@ def test_notebook_displays_persisted_round_and_partial_failure(tmp_path):
     run = run_portfolio_multi_round_experiment("notebook", output_root=tmp_path, asset_count=6)
     artifacts = load_experiment_run(run.run_directory)
     notebook_path = (
-        Path(__file__).resolve().parents[2]
-        / "notebooks/experiments/004_synthetic_portfolio_multi_round.ipynb"
+        Path(__file__).resolve().parents[3]
+        / "notebooks/experiments/portfolio/004_synthetic_portfolio_multi_round.ipynb"
     )
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
     cell = next(cell for cell in notebook["cells"] if cell.get("id") == "86396ca6")

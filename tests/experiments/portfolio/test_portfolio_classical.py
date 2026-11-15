@@ -3,8 +3,8 @@
 import pytest
 
 from qreduce.experiments import load_experiment_run
-from qreduce.experiments.portfolio_classical import run_portfolio_classical_experiment
-from qreduce.experiments.portfolio_multi_round import (
+from qreduce.experiments.portfolio.classical import run_portfolio_classical_experiment
+from qreduce.experiments.portfolio.multi_round import (
     run_portfolio_multi_round_experiment,
 )
 

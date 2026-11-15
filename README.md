@@ -173,11 +173,15 @@ nella roadmap.
 
 ## Esperimenti interni e notebook
 
-Il runner interno salva sempre gli artifact sotto:
+Per default gli esperimenti portfolio salvano gli artifact sotto:
 
 ```text
-outputs/{run_id}/
+outputs/portfolio/{run_id}/
 ```
+
+L'opzione `--output-root` sostituisce interamente `outputs/portfolio`: il runner
+generico usa `output_root/{run_id}/` e non aggiunge automaticamente la famiglia.
+I notebook portfolio si trovano in `notebooks/experiments/portfolio/`.
 
 Il `run_id` deve essere unico nella directory di output, anche tra esperimenti
 diversi: una directory esistente non viene sovrascritta. I run degli esempi
@@ -190,7 +194,7 @@ Un esperimento interno disponibile e` il portfolio sintetico single-pass. Per
 produrre un run da analizzare:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio.single_pass \
   --run-id 002_scip \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -200,15 +204,15 @@ poetry run python -m qreduce.experiments.portfolio \
 ```
 
 Il notebook corrispondente e`
-`notebooks/experiments/002_synthetic_portfolio_single_pass.ipynb` e carica
-`outputs/002_scip/`. Il percorso predefinito
+`notebooks/experiments/portfolio/002_synthetic_portfolio_single_pass.ipynb` e carica
+`outputs/portfolio/002_scip/`. Il percorso predefinito
 usa `local_greedy` per MIS e `scip` per il solve classico residuo.
 
-L'opzione `--asset-count` cambia la dimensione del portfolio sintetico (minimo 5,
-default 5). Per portfolio più grandi:
+L'opzione `--asset-count` cambia la dimensione del portfolio sintetico (minimo 6,
+default 30). Per esempio:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio.single_pass \
   --run-id 002_scip_12assets \
   --asset-count 12 \
   --classical-solver-id scip
@@ -229,7 +233,7 @@ Per analizzare il percorso con simulatore MIS D-Wave Ocean locale e solve
 classico CPLEX, produrre prima artifact distinti:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio.single_pass \
   --run-id 003_dwave_cplex \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -240,8 +244,8 @@ poetry run python -m qreduce.experiments.portfolio \
   --mis-num-sweeps 1000
 ```
 
-Il notebook `notebooks/experiments/003_synthetic_portfolio_single_pass.ipynb`
-carica `outputs/003_dwave_cplex/`. Il simulatore
+Il notebook `notebooks/experiments/portfolio/003_synthetic_portfolio_single_pass.ipynb`
+carica `outputs/portfolio/003_dwave_cplex/`. Il simulatore
 Ocean non richiede credenziali o QPU; CPLEX richiede invece un binding e una
 licenza utilizzabile. Anche un eventuale failure CPLEX viene pubblicato come
 artifact analizzabile.
@@ -256,7 +260,7 @@ Anche per il percorso D-Wave/CPLEX, l'opzione `--asset-count` permette di
 generare portfolio piu` grandi:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio.single_pass \
   --run-id 003_dwave_cplex_12assets \
   --asset-count 12 \
   --mis-solver-id dwave_simulated_annealing \
@@ -268,10 +272,10 @@ poetry run python -m qreduce.experiments.portfolio \
 Per l'esperimento multi-round più grande, con 30 asset predefiniti e SCIP:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio_multi_round --run-id 004_multi_round
+poetry run python -m qreduce.experiments.portfolio.multi_round --run-id 004_multi_round
 ```
 
-Il notebook `notebooks/experiments/004_synthetic_portfolio_multi_round.ipynb`
+Il notebook `notebooks/experiments/portfolio/004_synthetic_portfolio_multi_round.ipynb`
 analizza gli artifact pubblicati. L'opzione `--asset-count` cambia la dimensione
 (minimo 6). Il limite di tre round non garantisce tre iterazioni: la pipeline
 si arresta al primo successo o successo parziale.
@@ -279,10 +283,10 @@ si arresta al primo successo o successo parziale.
 Per confrontare lo stesso portfolio con SCIP senza alcuna riduzione:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio_classical --run-id 001_classical
+poetry run python -m qreduce.experiments.portfolio.classical --run-id 001_classical
 ```
 
-Il notebook `notebooks/experiments/001_synthetic_portfolio_classical.ipynb` legge
+Il notebook `notebooks/experiments/portfolio/001_synthetic_portfolio_classical.ipynb` legge
 gli artifact della baseline. Anche qui `--asset-count` ha valore predefinito 30
 e minimo 6: usare lo stesso valore nei due esperimenti per ottenere lo stesso
 problema. La configurazione SCIP è identica, ma i tempi non sono necessariamente

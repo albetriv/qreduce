@@ -88,7 +88,7 @@ tests/              test permanenti
 docs/               specifiche e decisioni di implementazione
 notebooks/tasks/    notebook didattici in memoria
 notebooks/experiments/ notebook di analisi di artifact persistiti
-outputs/{run_id}/ artifact prodotti dal runner interno
+{output_root}/{run_id}/ artifact prodotti dal runner interno
 .cline-tmp/         file temporanei dell'agente, ignorati da Git
 ```
 

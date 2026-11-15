@@ -28,7 +28,7 @@ artifact senza rendere M07 dipendente dai loro modi operativi.
 
 ## Implementazione ed evidenze
 
-`src/qreduce/experiments/runner.py` esegue `run_pipeline` e pubblica gli artifact sotto `outputs/{run_id}/`. La pubblicazione e` atomica: una failure di serializzazione non rende disponibile una directory finale incompleta, mentre un esito normalizzato `failed` resta un risultato persistito e analizzabile.
+`src/qreduce/experiments/runner.py` esegue `run_pipeline` e pubblica gli artifact sotto `{output_root}/{run_id}/`. Il default del runner generico e` `outputs/`; gli esperimenti portfolio usano `outputs/portfolio/`. La pubblicazione e` atomica: una failure di serializzazione non rende disponibile una directory finale incompleta, mentre un esito normalizzato `failed` resta un risultato persistito e analizzabile.
 
 Il manifest conserva configurazione, hash, policy provenance redatta, stato e metadati. Il loader `load_experiment_run` controlla gli hash dei file interni, incluso l'eventuale modello esportato internamente; un export esterno viene registrato ma non fa parte della stessa garanzia di verifica. Il runner rifiuta di sovrascrivere un run gia` pubblicato.
 
@@ -41,7 +41,7 @@ I notebook in `notebooks/experiments/` leggono artifact attraverso `qreduce.expe
 - `tests/experiments/test_runner.py` verifica pubblicazione atomica, hash, rifiuto di sovrascrittura, redazione, metriche e round-trip di esiti terminali.
 - `test_loader_rejects_artifacts_changed_after_publication` verifica il rifiuto di artifact manomessi.
 - `test_terminal_outcomes_round_trip_through_artifact_serialization` copre success, partial success, failure di post-check e failure classica.
-- `tests/experiments/test_portfolio_multi_round.py` e il test della baseline classical-only verificano artifact dei modi aggiuntivi della pipeline.
+- `tests/experiments/portfolio/test_portfolio_multi_round.py` e il test della baseline classical-only verificano artifact dei modi aggiuntivi della pipeline.
 
 ## Criteri di completamento
 

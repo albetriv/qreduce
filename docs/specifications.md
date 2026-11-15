@@ -822,6 +822,10 @@ Il backend effettivo e` una capacita` runtime e non un semplice valore dichiarat
 
 ## 12. Repair, validazione e diversita`
 
+La semantica di validazione e riduzione appartiene all'adapter di dominio:
+esperimenti e origini di dati diverse possono riutilizzare lo stesso adapter
+quando condividono tale semantica, senza dedurla automaticamente da MIP generici.
+
 ### 12.1 Validazione strutturale
 
 Una `RawMISSample` o una `IndependentSetCandidate` e` strutturalmente valida se:
@@ -1195,6 +1199,13 @@ Quando un'applicazione esterna usa QReduce in un workflow di calibrazione o benc
 
 ## 17. Risultato in memoria, esperimenti interni e riproducibilita`
 
+Gli esperimenti interni sono organizzati per famiglia di problemi; origini dei
+dati e configurazioni sperimentali restano distinte dagli adapter. Runner e
+lettura generica degli artifact non dipendono da famiglie concrete. I benchmark
+del solo core MWIS sono distinti dagli esperimenti end-to-end.
+Notebook e directory di output predefinite degli esperimenti sono organizzati
+per famiglia; il runner generico continua a rispettare `output_root` esplicito.
+
 L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
 
 Per input opachi l'adapter puo` esporre `describe_input(problem)` con una
@@ -1208,7 +1219,7 @@ L'export del modello residuo e` una scrittura esplicitamente richiesta tramite
 diretto della pipeline il chiamante fornisce `model_export_path`, percorso
 completo del file; un percorso mancante o gia` esistente produce failure di
 configurazione. Il runner interno, quando l'export e` abilitato senza override,
-risolve il percorso a `outputs/{run_id}/residual_model.lp`,
+risolve il percorso a `{output_root}/{run_id}/residual_model.lp`,
 rispettando `output_root`. L'override indica un file `.lp` o `.mps`. Il runner
 non sovrascrive file esistenti, registra percorso, formato e hash dell'export
 effettivamente prodotto e pubblica il file predefinito insieme agli artifact.
@@ -1221,7 +1232,7 @@ Il chiamante della libreria puo` persistere, trasmettere o scartare il risultato
 Per ogni run pubblicato dal runner interno, la struttura minima e`:
 
 ```text
-outputs/{run_id}/
+{output_root}/{run_id}/
   config_used.json
   problem.json
   canonical_mwis_problem.json       # presente se la compilation MIS e` disponibile

@@ -1,39 +1,40 @@
-"""Classical-only baseline for the larger deterministic portfolio experiment."""
+"""Larger deterministic portfolio experiment using the multi-round runner."""
 
 import argparse
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qreduce.experiments.portfolio import (
+from qreduce.experiments.portfolio.inputs import (
+    DEFAULT_PORTFOLIO_OUTPUT_ROOT,
     build_synthetic_portfolio_inputs,
     default_graph_policy,
 )
+from qreduce.experiments.portfolio.models import PortfolioGraphPolicy
 from qreduce.experiments.runner import ExperimentRun, run_experiment
 
 if TYPE_CHECKING:
-    from qreduce.experiments.portfolio_domain.models import (
+    from qreduce.experiments.portfolio.models import (
         SyntheticPortfolioGenerationPolicy,
     )
 
 
-def run_portfolio_classical_experiment(
+def run_portfolio_multi_round_experiment(
     run_id: str,
     *,
-    output_root: str | Path = "outputs",
+    output_root: str | Path = DEFAULT_PORTFOLIO_OUTPUT_ROOT,
     asset_count: int = 30,
     generation_policy: "SyntheticPortfolioGenerationPolicy | None" = None,
+    graph_policy: PortfolioGraphPolicy | None = None,
 ) -> ExperimentRun:
-    """Publish the portfolio solved by SCIP without reduction (classical baseline).
-
-    Uses the same generation policy as the reduced experiments to ensure
-    identical problem instances for fair comparison.
+    """Publish a reproducible larger portfolio run with at most three rounds.
 
     Args:
         run_id: Unique identifier for the run.
         output_root: Root directory for experiment artifacts.
         asset_count: Number of assets. Must be >= 6.
         generation_policy: Optional generation policy. If None, uses default.
+        graph_policy: Optional graph policy. If None, uses near_duplicate default.
 
     Returns:
         ExperimentRun with the run directory and result.
@@ -41,9 +42,9 @@ def run_portfolio_classical_experiment(
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
         raise ValueError("asset_count must be an integer greater than or equal to 6.")
 
-    # Use the shared inputs builder - it handles generation policy
-    # For classical baseline, we don't need a real graph policy but include one for metadata
-    graph_policy = default_graph_policy()  # Not used, but included for consistency
+    # Use the shared inputs builder
+    if graph_policy is None:
+        graph_policy = default_graph_policy()
 
     inputs = build_synthetic_portfolio_inputs(
         run_id,
@@ -52,12 +53,12 @@ def run_portfolio_classical_experiment(
         graph_policy=graph_policy,
     )
 
-    # Override config for classical-only (no reduction)
+    # Override config for multi-round
     config = replace(
         inputs.config,
         reduction=replace(
             inputs.config.reduction,
-            max_reduction_rounds=0,
+            max_reduction_rounds=3,
             candidate_domain_max_items=asset_count,
             target_binary_variables=0,
         ),
@@ -65,13 +66,12 @@ def run_portfolio_classical_experiment(
 
     experiment_metadata: dict[str, object] = {
         "portfolio_graph_policy": inputs.graph_policy,
-        "baseline_mode": "classical_only",
     }
     if inputs.generation_policy is not None:
         experiment_metadata["generation_policy"] = inputs.generation_policy
 
     return run_experiment(
-        "synthetic-portfolio-classical",
+        "synthetic-portfolio-multi-round",
         inputs.problem,
         inputs.adapter,
         config,
@@ -83,28 +83,48 @@ def run_portfolio_classical_experiment(
 def _main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--output-root", default="outputs")
+    parser.add_argument("--output-root", default=DEFAULT_PORTFOLIO_OUTPUT_ROOT)
     parser.add_argument("--asset-count", type=int, default=30)
-    parser.add_argument("--generation-seed", type=int, default=42, help="Random seed for generation.")
-    parser.add_argument("--observation-count", type=int, help="Number of historical observations.")
+    # Graph edge mode options
+    parser.add_argument(
+        "--graph-edge-mode",
+        choices=("correlation_only", "near_duplicate"),
+        default="near_duplicate",
+        help="Graph edge semantics. Default: near_duplicate.",
+    )
+    parser.add_argument("--correlation-threshold", type=float, default=0.90)
+    parser.add_argument("--near-duplicate-max-relative-return-difference", type=float, default=0.10)
+    parser.add_argument("--near-duplicate-max-relative-variance-difference", type=float, default=0.10)
+    # Generation policy options
+    parser.add_argument("--generation-seed", type=int, default=42)
+    parser.add_argument("--observation-count", type=int)
     args = parser.parse_args()
 
     if args.asset_count < 6:
         parser.error("--asset-count must be at least 6")
 
-    # Build generation policy to match reduced experiments
-    from qreduce.experiments.portfolio_generator import default_generation_policy
+    # Build generation policy
+    from qreduce.experiments.portfolio.generator import default_generation_policy
     generation_policy = default_generation_policy(
         args.asset_count,
         random_seed=args.generation_seed,
         observation_count=args.observation_count,
     )
 
-    run = run_portfolio_classical_experiment(
+    # Build graph policy
+    graph_policy = default_graph_policy(
+        edge_mode=args.graph_edge_mode,
+        correlation_threshold=args.correlation_threshold,
+        near_duplicate_max_relative_return_difference=args.near_duplicate_max_relative_return_difference,
+        near_duplicate_max_relative_variance_difference=args.near_duplicate_max_relative_variance_difference,
+    )
+
+    run = run_portfolio_multi_round_experiment(
         args.run_id,
         output_root=args.output_root,
         asset_count=args.asset_count,
         generation_policy=generation_policy,
+        graph_policy=graph_policy,
     )
     print(run.run_directory)
 
