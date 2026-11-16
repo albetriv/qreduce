@@ -1,4 +1,4 @@
-"""Coverage for the larger persisted portfolio experiment."""
+"""Coverage for the larger persisted portfolio experiment using unified API."""
 
 import json
 from dataclasses import replace
@@ -9,13 +9,29 @@ import pytest
 
 from qreduce.experiments import load_experiment_run
 from qreduce.experiments.portfolio.analysis import load_multi_round_correlation_data
-from qreduce.experiments.portfolio.multi_round import (
-    run_portfolio_multi_round_experiment,
-)
+from qreduce.experiments.portfolio.execution import run_portfolio_experiment
+from qreduce.models import ReductionPolicy
+
+
+def _multi_round_policy(asset_count: int, max_rounds: int = 3) -> ReductionPolicy:
+    """Create a multi-round reduction policy."""
+    return ReductionPolicy(
+        max_reduction_rounds=max_rounds,
+        candidate_domain_min_items=1,
+        candidate_domain_max_items=asset_count,
+        num_source_mis_candidates=1,
+        min_reduction_ratio=0.1,
+        target_binary_variables=0,
+        max_end_to_end_runtime_seconds=60.0,
+    )
 
 
 def test_multi_round_portfolio_publishes_larger_instance(tmp_path):
-    run = run_portfolio_multi_round_experiment("larger", output_root=tmp_path)
+    run = run_portfolio_experiment(
+        "larger",
+        output_root=tmp_path,
+        reduction_policy=_multi_round_policy(30),
+    )
     artifacts = load_experiment_run(run.run_directory)
     # With unified pipeline, has_reduction is True for any run with rounds
     assert artifacts.has_reduction
@@ -43,11 +59,21 @@ def test_multi_round_portfolio_publishes_larger_instance(tmp_path):
 @pytest.mark.parametrize("count", [True, 5, 3.5])
 def test_multi_round_portfolio_rejects_invalid_size(tmp_path, count):
     with pytest.raises(ValueError, match="asset_count"):
-        run_portfolio_multi_round_experiment("invalid", output_root=tmp_path, asset_count=count)
+        run_portfolio_experiment(
+            "invalid",
+            output_root=tmp_path,
+            asset_count=count,
+            reduction_policy=_multi_round_policy(30),
+        )
 
 
 def test_correlation_remains_available_without_compiled_graph(tmp_path, monkeypatch):
-    run = run_portfolio_multi_round_experiment("no-graph", output_root=tmp_path, asset_count=6)
+    run = run_portfolio_experiment(
+        "no-graph",
+        output_root=tmp_path,
+        asset_count=6,
+        reduction_policy=_multi_round_policy(6),
+    )
     artifacts = load_experiment_run(run.run_directory)
     monkeypatch.setattr(
         "qreduce.experiments.portfolio.analysis.load_experiment_run",
@@ -59,7 +85,12 @@ def test_correlation_remains_available_without_compiled_graph(tmp_path, monkeypa
 
 
 def test_notebook_displays_persisted_round_and_partial_failure(tmp_path):
-    run = run_portfolio_multi_round_experiment("notebook", output_root=tmp_path, asset_count=6)
+    run = run_portfolio_experiment(
+        "notebook",
+        output_root=tmp_path,
+        asset_count=6,
+        reduction_policy=_multi_round_policy(6),
+    )
     artifacts = load_experiment_run(run.run_directory)
     notebook_path = (
         Path(__file__).resolve().parents[3]

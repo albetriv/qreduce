@@ -27,26 +27,37 @@ Le covarianze da serie sintetiche sono semidefinite positive per costruzione.
 Matrici fornite esplicitamente sono verificate con Cholesky dopo shift
 diagonale di `1e-8`.
 
-## Modalità di esecuzione
+## CLI unificata
+
+Tutti gli esperimenti portfolio usano un singolo comando CLI. La modalità di
+esecuzione è controllata da `--max-reduction-rounds`:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio --help
+```
+
+| Valore                     | Modalità                         |
+|----------------------------|----------------------------------|
+| `--max-reduction-rounds 0` | Classical-only baseline          |
+| `--max-reduction-rounds 1` | Single-pass (default)            |
+| `--max-reduction-rounds N` | Multi-round (N > 1)              |
 
 ### Classical-only baseline (senza riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio.classical \
+poetry run python -m qreduce.experiments.portfolio \
   --run-id 001_classical \
-  --asset-count 30
+  --asset-count 30 \
+  --max-reduction-rounds 0
 ```
 
-`max_reduction_rounds=0`: il problema è risolto direttamente senza riduzione
-MWIS. Utile come baseline per confronto. Usa SCIP come solver predefinito.
-
-**Opzioni disponibili:** `--run-id`, `--output-root`, `--asset-count`,
-`--generation-seed`, `--observation-count`.
+Il problema è risolto direttamente senza riduzione MWIS. Utile come baseline
+per confronto.
 
 ### Single-pass (un round di riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
+poetry run python -m qreduce.experiments.portfolio \
   --run-id 002_scip \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -55,68 +66,83 @@ poetry run python -m qreduce.experiments.portfolio.single_pass \
   --classical-solver-id scip
 ```
 
-`max_reduction_rounds=1`: un solo round di riduzione seguito dal solve
-classico del residuo.
-
-**Opzioni disponibili:** tutte le opzioni della tabella sotto, inclusi
-`--classical-solver-id`, `--mis-solver-id`, `--model-export`,
-`--model-export-path`.
+Un solo round di riduzione seguito dal solve classico del residuo. È la
+modalità predefinita (`--max-reduction-rounds 1`).
 
 ### Multi-round (più round di riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio.multi_round \
+poetry run python -m qreduce.experiments.portfolio \
   --run-id 004_correlation_only \
   --asset-count 30 \
   --graph-edge-mode correlation_only \
-  --correlation-threshold 0.90
+  --correlation-threshold 0.90 \
+  --max-reduction-rounds 3
 ```
 
-`max_reduction_rounds>1` (default 3): la pipeline si arresta al primo successo
-o successo parziale. Non garantisce tre iterazioni. Usa solver predefiniti
-(SCIP, local_greedy).
+La pipeline si arresta al primo successo o successo parziale. Non garantisce
+tre iterazioni.
 
-**Opzioni disponibili:** `--run-id`, `--output-root`, `--asset-count`,
-`--graph-edge-mode`, `--correlation-threshold`,
-`--near-duplicate-max-relative-return-difference`,
-`--near-duplicate-max-relative-variance-difference`, `--generation-seed`,
-`--observation-count`.
+## Opzioni CLI
 
-**Non disponibili in multi_round:** `--classical-solver-id`, `--mis-solver-id`,
-`--model-export`.
+Tutte le opzioni sono disponibili per tutte le modalità. La CLI unificata
+espone i seguenti gruppi di opzioni:
 
-## Opzioni per entry point
+### Opzioni generali
 
-Le opzioni variano tra gli entry point. La tabella seguente indica la
-disponibilità:
+| Opzione                  | Descrizione                                      | Default               |
+|--------------------------|--------------------------------------------------|-----------------------|
+| `--run-id`               | Identificatore unico del run (obbligatorio)      |                       |
+| `--output-root`          | Directory radice degli artifact                  | `outputs/portfolio`   |
+| `--model-export`         | Esporta il modello residuo                       | disabilitato          |
+| `--model-export-path`    | Percorso per export esterno                      |                       |
 
-| Opzione                  | classical | single_pass | multi_round |
-|--------------------------|:---------:|:-----------:|:-----------:|
-| `--run-id`               | ✓         | ✓           | ✓           |
-| `--output-root`          | ✓         | ✓           | ✓           |
-| `--asset-count`          | ✓         | ✓           | ✓           |
-| `--generation-seed`      | ✓         | ✓           | ✓           |
-| `--observation-count`    | ✓         | ✓           | ✓           |
-| `--classical-solver-id`  |           | ✓           |             |
-| `--mis-solver-id`        |           | ✓           |             |
-| `--graph-edge-mode`      |           | ✓           | ✓           |
-| `--correlation-threshold`|           | ✓           | ✓           |
-| `--mis-num-reads`        |           | ✓           |             |
-| `--mis-num-sweeps`       |           | ✓           |             |
-| `--model-export`         |           | ✓           |             |
-| `--model-export-path`    |           | ✓           |             |
+### Opzioni di generazione
 
-### Opzioni MIS D-Wave (solo single_pass)
+| Opzione                  | Descrizione                                      | Default               |
+|--------------------------|--------------------------------------------------|-----------------------|
+| `--asset-count`          | Numero di asset nel portfolio                    | 30                    |
+| `--generation-seed`      | Seed per la generazione                          | 42                    |
+| `--observation-count`    | Numero di osservazioni storiche                  | 10 × asset_count      |
 
-| Opzione                  | Descrizione                                      |
-|--------------------------|--------------------------------------------------|
-| `--mis-num-reads`        | Numero di sample                                 |
-| `--mis-num-sweeps`       | Sweep per sample                                 |
+### Opzioni del grafo
 
-Esempio con D-Wave simulated annealing e CPLEX:
+| Opzione                                        | Descrizione                     | Default         |
+|------------------------------------------------|---------------------------------|-----------------|
+| `--graph-edge-mode`                            | `correlation_only`, `near_duplicate` | `near_duplicate` |
+| `--correlation-threshold`                      | Soglia correlazione assoluta    | 0.90            |
+| `--near-duplicate-max-relative-return-difference`  | Diff. relativa rendimento   | 0.10            |
+| `--near-duplicate-max-relative-variance-difference`| Diff. relativa varianza     | 0.10            |
+
+### Opzioni solver
+
+| Opzione                  | Descrizione                                      | Default               |
+|--------------------------|--------------------------------------------------|-----------------------|
+| `--mis-solver-id`        | `local_greedy`, `dwave_simulated_annealing`      | `local_greedy`        |
+| `--classical-solver-id`  | `cplex`, `scip`                                  | `scip`                |
+| `--mis-num-reads`        | D-Wave num_reads (richiede dwave_simulated_annealing) |                  |
+| `--mis-num-sweeps`       | D-Wave num_sweeps (richiede dwave_simulated_annealing) |                 |
+
+### Opzioni reduction policy
+
+| Opzione                                | Descrizione                           | Default               |
+|----------------------------------------|---------------------------------------|-----------------------|
+| `--max-reduction-rounds`               | Numero massimo di round               | 1                     |
+| `--candidate-domain-min-items`         | Minimo item nel dominio candidato     | 1                     |
+| `--candidate-domain-max-items`         | Massimo item nel dominio candidato    | 60% di asset_count    |
+| `--target-binary-variables`            | Target variabili binarie              | 3                     |
+| `--min-reduction-ratio`                | Rapporto minimo di riduzione          | 0.1                   |
+| `--max-end-to-end-runtime-seconds`     | Timeout totale                        | 60.0                  |
+| `--recovery-policy-on-domain-too-small`| `fail`, `retry_with_larger_domain`    | `fail`                |
+| `--recovery-policy-on-infeasible`      | `fail`, `retry_with_larger_domain`    | `fail`                |
+| `--max-recovery-attempts`              | Massimo tentativi di recovery         | 0                     |
+
+## Esempi
+
+### D-Wave simulated annealing con CPLEX
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio.single_pass \
+poetry run python -m qreduce.experiments.portfolio \
   --run-id 003_dwave_cplex \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -130,7 +156,18 @@ poetry run python -m qreduce.experiments.portfolio.single_pass \
 Il simulatore D-Wave Ocean non richiede credenziali o QPU; CPLEX richiede
 binding e licenza.
 
-## Export del modello residuo (solo single_pass)
+### Multi-round con recovery
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id multi_with_recovery \
+  --asset-count 50 \
+  --max-reduction-rounds 5 \
+  --recovery-policy-on-infeasible retry_with_larger_domain \
+  --max-recovery-attempts 3
+```
+
+## Export del modello residuo
 
 L'export è disabilitato per default. Per richiederlo, usare **entrambe** le
 opzioni quando si specifica un percorso esterno:
@@ -234,8 +271,40 @@ crocette.
 
 Un backend non disponibile produce failure esplicito senza fallback.
 
+## API Python
+
+L'entry point principale è `run_portfolio_experiment`:
+
+```python
+from dataclasses import replace
+
+from qreduce.experiments.portfolio import (
+    build_synthetic_portfolio_inputs,
+    run_portfolio_experiment,
+)
+
+# Single-pass (default) - usa la policy predefinita
+run = run_portfolio_experiment("run_001", asset_count=30)
+
+# Classical-only - crea policy con max_reduction_rounds=0
+inputs = build_synthetic_portfolio_inputs("_defaults", asset_count=30)
+classical_policy = replace(inputs.config.reduction, max_reduction_rounds=0)
+run = run_portfolio_experiment("baseline", reduction_policy=classical_policy)
+
+# Multi-round - modifica max_reduction_rounds e abilita recovery
+inputs = build_synthetic_portfolio_inputs("_defaults", asset_count=30)
+multi_policy = replace(
+    inputs.config.reduction,
+    max_reduction_rounds=3,
+    recovery_policy_on_infeasible="retry_with_larger_domain",
+    max_recovery_attempts=2,
+)
+run = run_portfolio_experiment("multi", reduction_policy=multi_policy)
+```
+
 ## Riferimenti
 
+- Execution: `src/qreduce/experiments/portfolio/execution.py`
 - Adapter: `src/qreduce/experiments/portfolio/adapter.py`
 - Modelli: `src/qreduce/experiments/portfolio/models.py`
 - Analisi: `src/qreduce/experiments/portfolio/analysis.py`

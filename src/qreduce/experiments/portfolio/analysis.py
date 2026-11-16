@@ -10,8 +10,21 @@ from qreduce.experiments.artifacts import (
     ExperimentRunArtifacts,
     load_experiment_run,
 )
+from qreduce.experiments.portfolio.execution import UNIFIED_EXPERIMENT_ID
 from qreduce.experiments.portfolio.inputs import SYNTHETIC_PORTFOLIO_EXPERIMENT_ID
 from qreduce.mwis import ReductionGraph
+
+# Accept both legacy and unified experiment IDs for single-pass compatible analysis
+_SINGLE_PASS_COMPATIBLE_IDS = frozenset({
+    SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,  # legacy: synthetic-portfolio-single-pass
+    UNIFIED_EXPERIMENT_ID,  # new: synthetic-portfolio
+})
+
+# Accept both legacy and unified experiment IDs for multi-round compatible analysis
+_MULTI_ROUND_COMPATIBLE_IDS = frozenset({
+    "synthetic-portfolio-multi-round",  # legacy
+    UNIFIED_EXPERIMENT_ID,  # new: synthetic-portfolio
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,13 +37,6 @@ class SyntheticPortfolioAnalysis:
     correlation: tuple[tuple[float, ...], ...]
     correlation_threshold: float
     retained_item_ids: tuple[str, ...] | None
-
-    @property
-    def single_pass_result(self) -> Mapping[str, object]:
-        """Return the persisted round, or the legacy top-level single-pass result."""
-        if self.artifacts.round_results:
-            return self.artifacts.round_results[0]
-        return self.artifacts.result
 
     def node_rows(self) -> list[dict[str, object]]:
         """Return graph nodes in declared order for tables and plots."""
@@ -65,9 +71,14 @@ class SyntheticPortfolioAnalysis:
 def load_synthetic_portfolio_analysis(
     run_directory: str | Path,
 ) -> SyntheticPortfolioAnalysis:
-    """Load and validate presentation data for the synthetic portfolio experiment."""
+    """Load and validate presentation data for the synthetic portfolio experiment.
+
+    Accepts runs from both legacy (synthetic-portfolio-single-pass) and unified
+    (synthetic-portfolio) experiment IDs.
+    """
     artifacts = load_experiment_run(run_directory)
-    if artifacts.manifest["experiment_id"] != SYNTHETIC_PORTFOLIO_EXPERIMENT_ID:
+    experiment_id = artifacts.manifest["experiment_id"]
+    if experiment_id not in _SINGLE_PASS_COMPATIBLE_IDS:
         raise ExperimentArtifactError(
             "Artifact directory does not contain the synthetic portfolio experiment."
         )
@@ -224,10 +235,37 @@ def _finite_float(value: object, field: str) -> float:
 
 
 def load_multi_round_correlation_data(run_directory: str | Path):
-    """Load input correlations and, when available, the persisted first-round graph."""
+    """Load input correlations and, when available, the persisted first-round graph.
+
+    Accepts runs from both legacy (synthetic-portfolio-multi-round) and unified
+    (synthetic-portfolio) experiment IDs. For unified experiments, only multi-round
+    runs (max_reduction_rounds > 1) are accepted.
+
+    Args:
+        run_directory: Path to the experiment run directory.
+
+    Returns:
+        Tuple of (asset_ids, correlation_matrix, graph_or_none).
+
+    Raises:
+        ExperimentArtifactError: If the artifact is not a multi-round portfolio
+            experiment, or if a unified run has max_reduction_rounds <= 1.
+    """
     artifacts = load_experiment_run(run_directory)
-    if artifacts.manifest["experiment_id"] != "synthetic-portfolio-multi-round":
+    experiment_id = artifacts.manifest["experiment_id"]
+    if experiment_id not in _MULTI_ROUND_COMPATIBLE_IDS:
         raise ExperimentArtifactError("Artifact directory is not a multi-round portfolio experiment.")
+
+    # For unified experiment ID, verify this is actually a multi-round configuration
+    if experiment_id == UNIFIED_EXPERIMENT_ID:
+        max_rounds = artifacts.config.get("reduction", {}).get("max_reduction_rounds", 1)
+        if max_rounds <= 1:
+            raise ExperimentArtifactError(
+                f"This loader requires a multi-round configuration (max_reduction_rounds > 1), "
+                f"but the loaded run has max_reduction_rounds={max_rounds}. "
+                f"Use load_synthetic_portfolio_analysis for single-pass runs."
+            )
+
     problem = _require_mapping(artifacts.problem, "problem.json")
     asset_ids = _string_tuple(problem.get("asset_ids"), "problem.asset_ids")
     covariance = _numeric_matrix(problem.get("covariance"), len(asset_ids), "problem.covariance")

@@ -3,8 +3,8 @@
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from qreduce.experiments.portfolio import (
-    MeanVariancePortfolioAdapter,
+from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
+from qreduce.experiments.portfolio.models import (
     PortfolioGraphPolicy,
     PortfolioProblem,
 )
@@ -23,6 +23,43 @@ if TYPE_CHECKING:
 
 SYNTHETIC_PORTFOLIO_EXPERIMENT_ID = "synthetic-portfolio-single-pass"
 DEFAULT_PORTFOLIO_OUTPUT_ROOT = "outputs/portfolio"
+
+
+def default_reduction_policy(asset_count: int = 30) -> ReductionPolicy:
+    """Create the default reduction policy for portfolio experiments.
+
+    This is a lightweight factory that does not generate portfolio data.
+    Use this when you only need the policy defaults without building
+    the full experiment inputs.
+
+    Args:
+        asset_count: Number of assets, used to scale candidate_domain_max_items.
+            Must be >= 6. Default is 30.
+
+    Returns:
+        ReductionPolicy with default parameters for portfolio experiments.
+
+    Raises:
+        ValueError: If asset_count < 6.
+    """
+    if asset_count < 6:
+        raise ValueError("asset_count must be at least 6 for meaningful experiments.")
+
+    # Scale candidate_domain_max_items proportionally to asset_count
+    # For 30 assets: max_items = 18 (60%)
+    # Minimum is 3 to allow meaningful reduction
+    candidate_domain_max_items = max(3, (asset_count * 3) // 5)
+
+    return ReductionPolicy(
+        max_reduction_rounds=1,
+        candidate_domain_min_items=1,
+        candidate_domain_max_items=candidate_domain_max_items,
+        num_source_mis_candidates=1,
+        min_reduction_ratio=0.1,
+        target_binary_variables=3,
+        max_end_to_end_runtime_seconds=60.0,
+    )
+
 
 def default_graph_policy(
     edge_mode: str = "near_duplicate",
@@ -117,22 +154,12 @@ def build_synthetic_portfolio_inputs(
     portfolio_data = generate_portfolio_data(generation_policy)
     problem = portfolio_data.to_problem()
 
-    # Scale candidate_domain_max_items proportionally to asset_count
-    # For 30 assets: max_items = 18 (60%)
-    # Minimum is 3 to allow meaningful reduction
-    candidate_domain_max_items = max(3, (asset_count * 3) // 5)
+    # Use the shared lightweight factory for reduction policy defaults
+    reduction = default_reduction_policy(asset_count)
 
     config = ResolvedRunConfig(
         schema_version="1.0",
-        reduction=ReductionPolicy(
-            max_reduction_rounds=1,
-            candidate_domain_min_items=1,
-            candidate_domain_max_items=candidate_domain_max_items,
-            num_source_mis_candidates=1,
-            min_reduction_ratio=0.1,
-            target_binary_variables=3,
-            max_end_to_end_runtime_seconds=60.0,
-        ),
+        reduction=reduction,
         lambda_edge=2.0,
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,

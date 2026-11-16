@@ -32,8 +32,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.random import PCG64, Generator
 
-from qreduce.experiments.portfolio import PortfolioProblem
-from qreduce.experiments.portfolio.models import _GENERATED_COVARIANCE
+from qreduce.experiments.portfolio.models import _GENERATED_COVARIANCE, PortfolioProblem
 
 if TYPE_CHECKING:
     from qreduce.experiments.portfolio.models import (

@@ -1,6 +1,5 @@
-"""Tests for the synthetic portfolio experiment runner and filesystem analysis data."""
+"""Tests for the unified synthetic portfolio experiment runner and filesystem analysis data."""
 
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,15 +8,16 @@ from qreduce.experiments import (
     ExperimentArtifactError,
 )
 from qreduce.experiments.portfolio.analysis import load_synthetic_portfolio_analysis
+from qreduce.experiments.portfolio.execution import (
+    UNIFIED_EXPERIMENT_ID,
+    run_portfolio_experiment,
+)
 from qreduce.experiments.portfolio.generator import default_generation_policy
 from qreduce.experiments.portfolio.inputs import (
     build_synthetic_portfolio_inputs,
     default_graph_policy,
 )
-from qreduce.experiments.portfolio.single_pass import (
-    SYNTHETIC_PORTFOLIO_EXPERIMENT_ID,
-    run_synthetic_portfolio_experiment,
-)
+from qreduce.models import ReductionPolicy
 from qreduce.status import RunStatus
 
 
@@ -98,7 +98,7 @@ def test_synthetic_portfolio_analysis_uses_persisted_artifacts(monkeypatch, tmp_
 
     # Use 10 assets for faster test, correlation_only for predictable edges
     graph_policy = default_graph_policy("correlation_only", correlation_threshold=0.5)
-    run = run_synthetic_portfolio_experiment(
+    run = run_portfolio_experiment(
         "run-001",
         output_root=tmp_path,
         asset_count=10,
@@ -106,11 +106,11 @@ def test_synthetic_portfolio_analysis_uses_persisted_artifacts(monkeypatch, tmp_
     )
     analysis = load_synthetic_portfolio_analysis(run.run_directory)
 
-    assert analysis.single_pass_result == analysis.artifacts.round_results[0]
-    legacy_artifacts = replace(analysis.artifacts, round_results=())
-    assert replace(analysis, artifacts=legacy_artifacts).single_pass_result == legacy_artifacts.result
+    # Verify explicit access to round results (single_pass_result was removed)
+    round_result = analysis.artifacts.round_results[0] if analysis.artifacts.round_results else analysis.artifacts.result
+    assert round_result is not None
 
-    assert run.experiment_id == SYNTHETIC_PORTFOLIO_EXPERIMENT_ID
+    assert run.experiment_id == UNIFIED_EXPERIMENT_ID
     assert run.result.run_result.run_status is RunStatus.FAILED  # SCIP missing
     assert analysis.asset_ids == analysis.graph.node_ids
     assert len(analysis.asset_ids) == 10
@@ -130,11 +130,11 @@ def test_synthetic_portfolio_analysis_rejects_a_different_experiment(monkeypatch
         raise ModuleNotFoundError(module_name)
 
     monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
-    run = run_synthetic_portfolio_experiment("run-001", output_root=tmp_path, asset_count=10)
+    run = run_portfolio_experiment("run-001", output_root=tmp_path, asset_count=10)
     manifest_path = run.run_directory / "run_manifest.json"
     manifest_path.write_text(
         manifest_path.read_text(encoding="utf-8").replace(
-            SYNTHETIC_PORTFOLIO_EXPERIMENT_ID, "other"
+            UNIFIED_EXPERIMENT_ID, "other"
         ),
         encoding="utf-8",
     )
@@ -151,7 +151,7 @@ def test_synthetic_portfolio_analysis_parametric_asset_count(monkeypatch, tmp_pa
 
     monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
 
-    run = run_synthetic_portfolio_experiment(
+    run = run_portfolio_experiment(
         "run-12",
         output_root=tmp_path,
         asset_count=12,
@@ -164,3 +164,53 @@ def test_synthetic_portfolio_analysis_parametric_asset_count(monkeypatch, tmp_pa
     assert analysis.asset_ids == analysis.graph.node_ids
     # Default near_duplicate threshold
     assert analysis.correlation_threshold == pytest.approx(0.90)
+
+
+def test_unified_api_with_reduction_policy(monkeypatch, tmp_path: Path) -> None:
+    """Test that reduction_policy parameter controls execution mode."""
+
+    def missing_scip(module_name: str):
+        raise ModuleNotFoundError(module_name)
+
+    monkeypatch.setattr("qreduce.solving.residual.scip_backend._import_module", missing_scip)
+
+    # Classical-only baseline
+    classical_policy = ReductionPolicy(
+        max_reduction_rounds=0,
+        candidate_domain_min_items=1,
+        candidate_domain_max_items=10,
+        num_source_mis_candidates=1,
+        min_reduction_ratio=0.1,
+        target_binary_variables=0,
+        max_end_to_end_runtime_seconds=60.0,
+    )
+    run = run_portfolio_experiment(
+        "classical",
+        output_root=tmp_path,
+        asset_count=10,
+        reduction_policy=classical_policy,
+    )
+    from qreduce.experiments import load_experiment_run
+    artifacts = load_experiment_run(run.run_directory)
+    assert artifacts.is_classical_only
+    assert artifacts.config["reduction"]["max_reduction_rounds"] == 0
+
+    # Multi-round
+    multi_policy = ReductionPolicy(
+        max_reduction_rounds=3,
+        candidate_domain_min_items=1,
+        candidate_domain_max_items=10,
+        num_source_mis_candidates=1,
+        min_reduction_ratio=0.1,
+        target_binary_variables=3,
+        max_end_to_end_runtime_seconds=60.0,
+    )
+    run = run_portfolio_experiment(
+        "multi",
+        output_root=tmp_path,
+        asset_count=10,
+        reduction_policy=multi_policy,
+    )
+    artifacts = load_experiment_run(run.run_directory)
+    assert not artifacts.is_classical_only
+    assert artifacts.config["reduction"]["max_reduction_rounds"] == 3
