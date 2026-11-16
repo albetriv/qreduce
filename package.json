@@ -1,0 +1,28 @@
+{
+  "name": "qreduce",
+  "version": "1.0.0",
+  "description": "QReduce riduce il dominio combinatorio di grandi problemi di ottimizzazione mista prima del solve classico del problema residuo.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/albetriv/qreduce.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/albetriv/qreduce/issues"
+  },
+  "homepage": "https://github.com/albetriv/qreduce#readme",
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

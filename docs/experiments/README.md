@@ -100,3 +100,45 @@ L'architettura comune è descritta in
 
 Ogni guida descrive: comandi CLI, parametri specifici, convenzioni dei run ID,
 posizione dei notebook, interpretazione dei risultati.
+
+## Configuratori HTML
+
+La directory [`uix/`](../../uix/) contiene configuratori HTML per generare
+comandi CLI interattivamente. Le pagine sono statiche, apribili direttamente
+da filesystem senza server.
+
+| Configuratore                           | Famiglia          |
+|-----------------------------------------|-------------------|
+| [experiment_portfolio.html](../../uix/experiment_portfolio.html) | portfolio |
+| [experiment_facility_location.html](../../uix/experiment_facility_location.html) | facility_location |
+
+Il catalogo [`uix/index.html`](../../uix/index.html) elenca tutti i
+configuratori disponibili.
+
+I configuratori:
+- generano comandi CLI con sintassi Bash/Zsh;
+- supportano formato inline (una riga) e multilinea;
+- includono solo i flag con valori diversi dai default;
+- non verificano la disponibilità dei solver o l'esistenza dei file.
+
+### Test dei configuratori
+
+I test in `tests/test_uix_js_execution.py` eseguono il JavaScript effettivo
+dei configuratori tramite Node.js e jsdom, verificando che i comandi generati
+siano accettati dai parser Python.
+
+**Setup opzionale per i test JavaScript:**
+
+```bash
+npm install   # installa jsdom come dev dependency
+```
+
+I test saltano automaticamente se Node.js o jsdom non sono disponibili.
+La suite principale (`pytest tests/`) funziona anche senza Node.js; i test
+JavaScript sono verifiche aggiuntive sulla coerenza UI/CLI.
+
+**Cosa verificano i test:**
+- Validazione: campi numerici, intervalli, interi vs decimali
+- Transizioni di modalità: da riduzione a baseline e viceversa
+- Comandi parsabili: i comandi generati sono accettati da argparse
+- Equivalenza formati: inline e multilinea producono gli stessi argomenti

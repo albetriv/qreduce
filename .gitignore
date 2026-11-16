@@ -21,3 +21,7 @@ outputs/*
 
 # User-acquired OR-Library files remain external; do not delete local copies.
 /data/benchmarks/or_library/capacitated_facility_location/*.txt
+
+# Node.js (for UIX tests)
+node_modules/
+package-lock.json

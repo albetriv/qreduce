@@ -42,6 +42,19 @@ poetry run python -m qreduce.experiments.portfolio --help
 | `--max-reduction-rounds 1` | Single-pass (default)            |
 | `--max-reduction-rounds N` | Multi-round (N > 1)              |
 
+### Configuratore HTML
+
+Il configuratore [`uix/experiment_portfolio.html`](../../uix/experiment_portfolio.html)
+genera comandi CLI interattivamente. È una pagina statica apribile direttamente
+da filesystem; seleziona i parametri e copia il comando nel terminale.
+
+Formati disponibili:
+- **Una riga**: comando inline per copia diretta
+- **Multilinea**: comando formattato con continuazioni Bash/Zsh
+
+Il configuratore include solo i flag con valori diversi dai default e non
+verifica la disponibilità dei solver.
+
 ### Classical-only baseline (senza riduzione)
 
 ```bash

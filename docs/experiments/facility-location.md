@@ -35,6 +35,13 @@ byte locali, non certifica autenticità o diritti di redistribuzione.
 
 ## Esecuzione
 
+Il configuratore [`uix/experiment_facility_location.html`](../../uix/experiment_facility_location.html)
+genera comandi CLI interattivamente. È una pagina statica apribile direttamente
+da filesystem; seleziona i parametri e copia il comando nel terminale.
+
+Il percorso dell'istanza è un argomento posizionale obbligatorio e si riferisce
+al filesystem locale, non a un upload nel browser.
+
 ### Baseline (senza riduzione)
 
 ```bash

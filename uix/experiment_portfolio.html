@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Configuratore per esperimenti portfolio QReduce.">
+  <title>QReduce | Portfolio</title>
+  <link rel="stylesheet" href="assets/common.css">
+</head>
+<body>
+  <main class="shell">
+    <a href="index.html" class="back-link">Torna al catalogo</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">QR</div>
+        <div>
+          <p class="eyebrow">Portfolio experiment</p>
+          <h1>Configuratore Portfolio</h1>
+          <p class="muted" style="margin:0">Configura un esperimento portfolio sintetico e genera il comando CLI.</p>
+        </div>
+      </div>
+      <span class="badge" id="validationBadge">Configurazione valida</span>
+    </header>
+
+    <div class="layout">
+      <section class="panel main-panel" aria-label="Configurazione esperimento">
+        <nav class="tabs" aria-label="Sezioni di configurazione">
+          <button class="tab active" data-tab="experiment">01 · Esperimento</button>
+          <button class="tab" data-tab="reduction">02 · Riduzione</button>
+          <button class="tab" data-tab="solver">03 · Solver</button>
+          <button class="tab" data-tab="export">04 · Export</button>
+        </nav>
+
+        <form id="configForm" novalidate>
+          <!-- Tab 1: Experiment -->
+          <section class="tab-content active" id="experiment">
+            <div class="section-head">
+              <div>
+                <h2>Identità e portfolio sintetico</h2>
+                <p>Parametri di run, generazione deterministica dei dati e costruzione del grafo di conflitto.</p>
+              </div>
+              <span class="pill">--run-id, --asset-count, ...</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="runId">ID del run <span class="param">--run-id</span></label>
+                <input id="runId" value="ui_portfolio_001" required pattern="\S+">
+                <p class="help">Deve essere unico nella directory di output.</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="outputRoot">Directory artifact <span class="param">--output-root</span></label>
+                <input id="outputRoot" value="outputs/portfolio">
+                <p class="help">Default: outputs/portfolio</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="assetCount">Numero di asset <span class="param">--asset-count</span></label>
+                <input id="assetCount" type="number" value="30" min="6" step="1" required>
+                <p class="help">Minimo: 6. Default: 30.</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="generationSeed">Seed generazione <span class="param">--generation-seed</span></label>
+                <input id="generationSeed" type="number" value="42" step="1">
+                <p class="help">Default: 42</p>
+              </div>
+              <div class="field">
+                <label for="observationCount">Osservazioni storiche <span class="param">--observation-count</span></label>
+                <input id="observationCount" type="number" placeholder="Default: 10 × asset_count">
+                <p class="help">Se omesso: max(100, 10 × asset_count)</p>
+                <p class="error"></p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Policy del grafo</h3>
+              <div class="form-grid three">
+                <div class="field">
+                  <label for="edgeMode">Semantica degli archi <span class="param">--graph-edge-mode</span></label>
+                  <select id="edgeMode">
+                    <option value="near_duplicate">near_duplicate (default)</option>
+                    <option value="correlation_only">correlation_only</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="correlationThreshold">Soglia correlazione <span class="param">--correlation-threshold</span></label>
+                  <input id="correlationThreshold" type="number" value="0.90" min="0" max="1" step="0.01">
+                  <p class="help">Default: 0.90</p>
+                  <p class="error"></p>
+                </div>
+                <div class="field near-duplicate">
+                  <label for="returnDifference">Max diff. rendimento <span class="param">--near-duplicate-max-relative-return-difference</span></label>
+                  <input id="returnDifference" type="number" value="0.10" min="0" step="0.01">
+                  <p class="help">Default: 0.10</p>
+                </div>
+                <div class="field near-duplicate">
+                  <label for="varianceDifference">Max diff. varianza <span class="param">--near-duplicate-max-relative-variance-difference</span></label>
+                  <input id="varianceDifference" type="number" value="0.10" min="0" step="0.01">
+                  <p class="help">Default: 0.10</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 2: Reduction -->
+          <section class="tab-content" id="reduction">
+            <div class="section-head">
+              <div>
+                <h2>Policy di riduzione</h2>
+                <p>Modalità di esecuzione e parametri del dominio candidato.</p>
+              </div>
+              <span class="pill">--max-reduction-rounds, ...</span>
+            </div>
+
+            <div class="notice">
+              <strong>Modalità di esecuzione:</strong>
+              <code>--max-reduction-rounds 0</code> = baseline classica (senza riduzione),
+              <code>1</code> = single-pass (default),
+              <code>&gt;1</code> = multi-round.
+            </div>
+
+            <div class="form-grid three">
+              <div class="field">
+                <label for="maxRounds">Round massimi <span class="param">--max-reduction-rounds</span></label>
+                <input id="maxRounds" type="number" min="0" step="1" value="1">
+                <p class="help">0 = baseline, 1 = single-pass, &gt;1 = multi-round</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
+                <input id="minItems" type="number" min="0" step="1" placeholder="Default: 1">
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
+                <input id="maxItems" type="number" min="0" step="1" placeholder="Default: 60% asset">
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="targetBinary">Variabili binarie target <span class="param">--target-binary-variables</span></label>
+                <input id="targetBinary" type="number" min="0" step="1" placeholder="Default: 3">
+              </div>
+              <div class="field">
+                <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
+                <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" placeholder="Default: 0.1">
+              </div>
+              <div class="field">
+                <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
+                <input id="endToEndBudget" type="number" min="0.001" step="1" placeholder="Default: 60">
+                <p class="error"></p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Recovery</h3>
+              <div class="form-grid three">
+                <div class="field">
+                  <label for="domainRecovery">Dominio troppo piccolo <span class="param">--recovery-policy-on-domain-too-small</span></label>
+                  <select id="domainRecovery">
+                    <option value="fail">fail (default)</option>
+                    <option value="retry_with_larger_domain">retry_with_larger_domain</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="infeasibleRecovery">Residuo infeasible <span class="param">--recovery-policy-on-infeasible</span></label>
+                  <select id="infeasibleRecovery">
+                    <option value="fail">fail (default)</option>
+                    <option value="retry_with_larger_domain">retry_with_larger_domain</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="recoveryAttempts">Tentativi recovery <span class="param">--max-recovery-attempts</span></label>
+                  <input id="recoveryAttempts" type="number" min="0" step="1" placeholder="Default: 0">
+                  <p class="error"></p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 3: Solver -->
+          <section class="tab-content" id="solver">
+            <div class="section-head">
+              <div>
+                <h2>Solver</h2>
+                <p>Backend per MWIS e solve classico del residuo.</p>
+              </div>
+              <span class="pill">--mis-solver-id, --classical-solver-id</span>
+            </div>
+
+            <div class="form-grid three">
+              <div class="field">
+                <label for="misSolver">Backend MIS <span class="param">--mis-solver-id</span></label>
+                <select id="misSolver">
+                  <option value="local_greedy">local_greedy (default)</option>
+                  <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="classicalSolver">Backend classico <span class="param">--classical-solver-id</span></label>
+                <select id="classicalSolver">
+                  <option value="scip">scip (default)</option>
+                  <option value="cplex">cplex</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Parametri D-Wave</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Attivi solo con <code>--mis-solver-id dwave_simulated_annealing</code>.
+              </p>
+              <div class="form-grid">
+                <div class="field dwave-only">
+                  <label for="numReads">num_reads <span class="param">--mis-num-reads</span></label>
+                  <input id="numReads" type="number" min="1" step="1" placeholder="Opzionale">
+                </div>
+                <div class="field dwave-only">
+                  <label for="numSweeps">num_sweeps <span class="param">--mis-num-sweeps</span></label>
+                  <input id="numSweeps" type="number" min="1" step="1" placeholder="Opzionale">
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 4: Export -->
+          <section class="tab-content" id="export">
+            <div class="section-head">
+              <div>
+                <h2>Export modello</h2>
+                <p>Opzioni per esportare il modello residuo in formato LP o MPS.</p>
+              </div>
+              <span class="pill">--model-export, --model-export-path</span>
+            </div>
+
+            <div class="card">
+              <div class="switch-row">
+                <div>
+                  <strong>Esporta modello residuo</strong>
+                  <p>Abilita l'export del modello in formato .lp o .mps.</p>
+                </div>
+                <label class="switch">
+                  <input id="modelExport" type="checkbox">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="field" style="margin-top:15px">
+                <label for="modelExportPath">Percorso export <span class="param">--model-export-path</span></label>
+                <input id="modelExportPath" disabled placeholder="Opzionale: /percorso/modello.lp">
+                <p class="help">Se omesso, il file viene scritto nella directory del run.</p>
+                <p class="error"></p>
+              </div>
+            </div>
+
+            <div class="notice warning" style="margin-top: 20px;">
+              <strong>Nota:</strong> L'export esterno richiede <strong>entrambe</strong> le opzioni:
+              <code>--model-export --model-export-path /percorso/modello.lp</code>.
+              Solo <code>--model-export</code> produce un file interno alla directory del run.
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <!-- Sidebar -->
+      <aside class="panel summary" aria-label="Riepilogo configurazione">
+        <div class="summary-header">
+          <div>
+            <p class="eyebrow">Run pronto</p>
+            <h2 id="summaryRunId">ui_portfolio_001</h2>
+            <p class="muted" style="font-size:.78rem;margin:0">Portfolio sintetico</p>
+          </div>
+          <span class="pill" id="summaryMode">single pass</span>
+        </div>
+
+        <div class="validation-status" id="validationStatus" role="status" aria-live="polite">
+          <span class="validation-icon" id="validationIcon">✓</span>
+          <div>
+            <strong id="validationTitle">Configurazione verificata</strong>
+            <p id="validationText">Puoi copiare il comando CLI.</p>
+          </div>
+        </div>
+
+        <ul class="summary-list">
+          <li><span>Asset</span><strong id="summaryAssets">30</strong></li>
+          <li><span>Riduzione</span><strong id="summaryReduction">1 round</strong></li>
+          <li><span>Backend MIS</span><strong id="summaryMis">local_greedy</strong></li>
+          <li><span>Backend classico</span><strong id="summaryClassical">scip</strong></li>
+        </ul>
+
+        <div class="format-selector">
+          <button type="button" data-format="inline" class="active">Una riga</button>
+          <button type="button" data-format="multiline">Multilinea</button>
+        </div>
+
+        <div class="actions">
+          <button class="button primary" type="button" id="copyCommand">Copia comando CLI</button>
+          <button class="button ghost" type="button" id="resetDefaults">Ripristina default</button>
+        </div>
+
+        <div class="output">
+          <label for="cliPreview">Comando generato</label>
+          <pre id="cliPreview"></pre>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/common.js"></script>
+  <script src="assets/portfolio.js"></script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Configuratore per esperimenti facility location QReduce.">
+  <title>QReduce | Facility Location</title>
+  <link rel="stylesheet" href="assets/common.css">
+</head>
+<body>
+  <main class="shell">
+    <a href="index.html" class="back-link">Torna al catalogo</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">QR</div>
+        <div>
+          <p class="eyebrow">Facility location experiment</p>
+          <h1>Configuratore Facility Location</h1>
+          <p class="muted" style="margin:0">Configura un esperimento facility location e genera il comando CLI.</p>
+        </div>
+      </div>
+      <span class="badge" id="validationBadge">Configurazione valida</span>
+    </header>
+
+    <div class="notice warning">
+      <strong>Stato sperimentale:</strong> Questa famiglia di esperimenti è sperimentale ed esclusa dal wheel.
+      Richiede file di istanza OR-Library sul filesystem locale.
+    </div>
+
+    <div class="layout">
+      <section class="panel main-panel" aria-label="Configurazione esperimento">
+        <nav class="tabs" aria-label="Sezioni di configurazione">
+          <button class="tab active" data-tab="experiment">01 · Esperimento</button>
+          <button class="tab" data-tab="reduction">02 · Riduzione</button>
+          <button class="tab" data-tab="solvers">03 · Solver</button>
+          <button class="tab" data-tab="graph">04 · Graph Policy</button>
+        </nav>
+
+        <form id="configForm" novalidate>
+          <!-- Tab 1: Experiment -->
+          <section class="tab-content active" id="experiment">
+            <div class="section-head">
+              <div>
+                <h2>Istanza e identità</h2>
+                <p>Percorso del file istanza OR-Library e parametri del run.</p>
+              </div>
+              <span class="pill">instance, --run-id, ...</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="field full">
+                <label for="instancePath">Percorso istanza <span class="param">instance (posizionale)</span></label>
+                <input id="instancePath" value="data/benchmarks/or_library/capacitated_facility_location/cap41.txt" required>
+                <p class="help">Argomento posizionale. Percorso relativo alla directory di esecuzione.</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="runId">ID del run <span class="param">--run-id</span></label>
+                <input id="runId" value="cap41_001" required pattern="\S+">
+                <p class="help">Deve essere unico nella directory di output.</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="outputRoot">Directory artifact <span class="param">--output-root</span></label>
+                <input id="outputRoot" value="outputs/facility_location">
+                <p class="help">Default: outputs/facility_location</p>
+              </div>
+            </div>
+
+            <div class="notice" style="margin-top: 20px;">
+              <strong>Nota:</strong> Il percorso dell'istanza si riferisce al filesystem locale e alla directory
+              di lavoro della shell di esecuzione, non a un upload nel browser. Le istanze OR-Library devono
+              essere acquisite localmente.
+            </div>
+          </section>
+
+          <!-- Tab 2: Reduction -->
+          <section class="tab-content" id="reduction">
+            <div class="section-head">
+              <div>
+                <h2>Policy di riduzione</h2>
+                <p>Modalità di esecuzione e parametri del dominio candidato.</p>
+              </div>
+              <span class="pill">--rounds, --cap, ...</span>
+            </div>
+
+            <div class="notice">
+              <strong>Modalità di esecuzione:</strong>
+              <code>--rounds 0</code> = baseline (default, senza riduzione),
+              <code>1</code> = single-pass,
+              <code>&gt;1</code> = multi-round.
+            </div>
+
+            <div class="form-grid three">
+              <div class="field">
+                <label for="rounds">Round di riduzione <span class="param">--rounds</span></label>
+                <input id="rounds" type="number" min="0" step="1" value="0">
+                <p class="help">0 = baseline, 1 = single-pass, &gt;1 = multi-round</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
+                <label for="cap">Max item dominio <span class="param">--cap</span></label>
+                <input id="cap" type="number" min="1" step="1" placeholder="Default: #sedi">
+                <p class="help">Numero massimo di facility nel dominio candidato.</p>
+              </div>
+              <div class="field">
+                <label for="budget">Budget (s) <span class="param">--budget</span></label>
+                <input id="budget" type="number" min="0.001" step="1" value="60">
+                <p class="help">Time limit in secondi. Default: 60</p>
+              </div>
+              <div class="field">
+                <label for="seed">Seed <span class="param">--seed</span></label>
+                <input id="seed" type="number" step="1" value="7">
+                <p class="help">Default: 7</p>
+              </div>
+              <div class="field">
+                <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
+                <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" value="0.1">
+                <p class="help">Default: 0.1</p>
+              </div>
+              <div class="field">
+                <label for="recoveryAttempts">Tentativi recovery <span class="param">--recovery-attempts</span></label>
+                <input id="recoveryAttempts" type="number" min="0" step="1" value="0">
+                <p class="help">Attiva retry_with_larger_domain se &gt; 0</p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+              <div class="switch-row">
+                <div>
+                  <strong>Proteggi tutte le sedi</strong>
+                  <p>Flag --protect-all per verifiche baseline. Impedisce il fixing di qualsiasi sede.</p>
+                </div>
+                <label class="switch">
+                  <input id="protectAll" type="checkbox">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 3: Solver -->
+          <section class="tab-content" id="solvers">
+            <div class="section-head">
+              <div>
+                <h2>Solver</h2>
+                <p>Backend per MWIS e solve classico del residuo.</p>
+              </div>
+              <span class="pill">--solver, --mis-solver</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="solver">Backend classico <span class="param">--solver</span></label>
+                <select id="solver">
+                  <option value="scip">scip (default)</option>
+                  <option value="cplex">cplex</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="misSolver">Backend MIS <span class="param">--mis-solver</span></label>
+                <select id="misSolver">
+                  <option value="local_greedy">local_greedy (default)</option>
+                  <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+              <div class="switch-row">
+                <div>
+                  <strong>Esporta modello residuo</strong>
+                  <p>Abilita l'export del modello nella directory del run.</p>
+                </div>
+                <label class="switch">
+                  <input id="modelExport" type="checkbox">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 4: Graph Policy -->
+          <section class="tab-content" id="graph">
+            <div class="section-head">
+              <div>
+                <h2>Graph Policy</h2>
+                <p>Parametri per la costruzione del grafo di ridondanza tra facility.</p>
+              </div>
+              <span class="pill">--alpha, --epsilon, ...</span>
+            </div>
+
+            <div class="form-grid three">
+              <div class="field">
+                <label for="alpha">Alpha <span class="param">--alpha</span></label>
+                <input id="alpha" type="number" min="0" max="1" step="0.01" value="0.5">
+                <p class="help">Peso capacità nello score. Default: 0.5</p>
+              </div>
+              <div class="field">
+                <label for="epsilon">Epsilon <span class="param">--epsilon</span></label>
+                <input id="epsilon" type="number" min="0" step="0.001" value="0.01">
+                <p class="help">Floor dello score. Default: 0.01</p>
+              </div>
+              <div class="field">
+                <label for="profileFraction">Profile fraction <span class="param">--profile-fraction</span></label>
+                <input id="profileFraction" type="number" min="0" max="1" step="0.01" value="0.5">
+                <p class="help">Quota profilo per overlap. Default: 0.5</p>
+              </div>
+              <div class="field">
+                <label for="overlapThreshold">Overlap threshold <span class="param">--overlap-threshold</span></label>
+                <input id="overlapThreshold" type="number" min="0" max="1" step="0.01" value="0.5">
+                <p class="help">Soglia overlap pesato per arco. Default: 0.5</p>
+              </div>
+              <div class="field">
+                <label for="capacityDifference">Capacity difference <span class="param">--capacity-difference</span></label>
+                <input id="capacityDifference" type="number" min="0" step="0.01" value="0.25">
+                <p class="help">Max differenza relativa capacità. Default: 0.25</p>
+              </div>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <!-- Sidebar -->
+      <aside class="panel summary" aria-label="Riepilogo configurazione">
+        <div class="summary-header">
+          <div>
+            <p class="eyebrow">Run pronto</p>
+            <h2 id="summaryRunId">cap41_001</h2>
+            <p class="muted" style="font-size:.78rem;margin:0">Facility location</p>
+          </div>
+          <span class="pill" id="summaryMode">baseline</span>
+        </div>
+
+        <div class="validation-status" id="validationStatus" role="status" aria-live="polite">
+          <span class="validation-icon" id="validationIcon">✓</span>
+          <div>
+            <strong id="validationTitle">Configurazione verificata</strong>
+            <p id="validationText">Puoi copiare il comando CLI.</p>
+          </div>
+        </div>
+
+        <ul class="summary-list">
+          <li><span>Istanza</span><strong id="summaryInstance">cap41.txt</strong></li>
+          <li><span>Riduzione</span><strong id="summaryReduction">0 rounds</strong></li>
+          <li><span>Backend classico</span><strong id="summarySolver">scip</strong></li>
+          <li><span>Budget</span><strong id="summaryBudget">60 s</strong></li>
+        </ul>
+
+        <div class="format-selector">
+          <button type="button" data-format="inline" class="active">Una riga</button>
+          <button type="button" data-format="multiline">Multilinea</button>
+        </div>
+
+        <div class="actions">
+          <button class="button primary" type="button" id="copyCommand">Copia comando CLI</button>
+          <button class="button ghost" type="button" id="resetDefaults">Ripristina default</button>
+        </div>
+
+        <div class="output">
+          <label for="cliPreview">Comando generato</label>
+          <pre id="cliPreview"></pre>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/common.js"></script>
+  <script src="assets/facility_location.js"></script>
+</body>
+</html>

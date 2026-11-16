@@ -124,6 +124,13 @@ Un run con esito `failed` viene comunque salvato come risultato analizzabile.
 Comandi, parametri e notebook specifici sono descritti nelle guide delle
 famiglie in [`docs/experiments/`](./docs/experiments/).
 
+### Configuratori HTML
+
+La directory [`uix/`](./uix/) contiene configuratori HTML per generare comandi
+CLI. Le pagine sono statiche, apribili direttamente da filesystem senza server.
+Il catalogo [`uix/index.html`](./uix/index.html) elenca i configuratori
+disponibili.
+
 ## Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:
