@@ -119,6 +119,7 @@ I configuratori:
 - generano comandi CLI con sintassi Bash/Zsh;
 - supportano formato inline (una riga) e multilinea;
 - includono solo i flag con valori diversi dai default;
+- mostrano icone informative (ⓘ) con descrizioni dei parametri;
 - non verificano la disponibilità dei solver o l'esistenza dei file.
 
 ### Test dei configuratori

@@ -49,23 +49,27 @@
             </div>
 
             <div class="form-grid">
+              <!-- PARAM_DESC: Percorso del file istanza OR-Library in formato capacitated facility location. Argomento posizionale obbligatorio. Il percorso è relativo alla directory di esecuzione della shell, non al browser. Le istanze devono essere acquisite e posizionate localmente. -->
               <div class="field full">
                 <label for="instancePath">Percorso istanza <span class="param">instance (posizionale)</span></label>
                 <input id="instancePath" value="data/benchmarks/or_library/capacitated_facility_location/cap41.txt" required>
                 <p class="help">Argomento posizionale. Percorso relativo alla directory di esecuzione.</p>
                 <p class="error"></p>
               </div>
+              <!-- PARAM_DESC: Identificatore univoco del run. Usato come nome della sottodirectory nella directory di output. Deve essere unico per evitare sovrascritture. -->
               <div class="field">
                 <label for="runId">ID del run <span class="param">--run-id</span></label>
                 <input id="runId" value="cap41_001" required pattern="\S+">
                 <p class="help">Deve essere unico nella directory di output.</p>
                 <p class="error"></p>
               </div>
+              <!-- PARAM_DESC: Directory radice per gli artifact dell'esperimento. Ogni run crea una sottodirectory con il run-id. Default: outputs/facility_location. -->
               <div class="field">
                 <label for="outputRoot">Directory artifact <span class="param">--output-root</span></label>
                 <input id="outputRoot" value="outputs/facility_location">
                 <p class="help">Default: outputs/facility_location</p>
               </div>
+              <!-- PARAM_DESC: Percorso del file YAML di configurazione logging. Ordine di precedenza: 1) questo parametro, 2) variabile d'ambiente QREDUCE_LOG_CONFIG, 3) default del repository (config/logging.yaml) se disponibile. Se nessuna sorgente è configurata, il logging resta silenzioso. -->
               <div class="field">
                 <label for="logConfig">Configurazione logging <span class="param">--log-config</span></label>
                 <input id="logConfig" placeholder="config/logging.yaml">
@@ -98,32 +102,38 @@
             </div>
 
             <div class="form-grid three">
+              <!-- PARAM_DESC: Numero di round di riduzione MWIS. 0 = baseline (solo solver classico, nessuna riduzione, default). 1 = single-pass (un round di riduzione). >1 = multi-round (iterazione fino al successo o esaurimento tentativi). -->
               <div class="field">
                 <label for="rounds">Round di riduzione <span class="param">--rounds</span></label>
                 <input id="rounds" type="number" min="0" step="1" value="0">
                 <p class="help">0 = baseline, 1 = single-pass, &gt;1 = multi-round</p>
                 <p class="error"></p>
               </div>
+              <!-- PARAM_DESC: Numero massimo di facility nel dominio candidato dopo la riduzione. Limita superiormente la dimensione del dominio ridotto. Default: numero totale di sedi nell'istanza. -->
               <div class="field">
                 <label for="cap">Max item dominio <span class="param">--cap</span></label>
                 <input id="cap" type="number" min="1" step="1" placeholder="Default: #sedi">
                 <p class="help">Numero massimo di facility nel dominio candidato.</p>
               </div>
+              <!-- PARAM_DESC: Time limit in secondi per l'intera esecuzione, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Default: 60 secondi. -->
               <div class="field">
                 <label for="budget">Budget (s) <span class="param">--budget</span></label>
                 <input id="budget" type="number" min="0.001" step="1" value="60">
                 <p class="help">Time limit in secondi. Default: 60</p>
               </div>
+              <!-- PARAM_DESC: Seed per la generazione di numeri casuali. Usato per riproducibilità dell'esperimento, influenza il solver MIS e il solver classico. Default: 7. -->
               <div class="field">
                 <label for="seed">Seed <span class="param">--seed</span></label>
                 <input id="seed" type="number" step="1" value="7">
                 <p class="help">Default: 7</p>
               </div>
+              <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Default: 0.1 (10%). -->
               <div class="field">
                 <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
                 <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" value="0.1">
                 <p class="help">Default: 0.1</p>
               </div>
+              <!-- PARAM_DESC: Numero di tentativi di recovery con retry_with_larger_domain. Se > 0, attiva automaticamente le policy di recovery su domain_too_small e infeasible. 0 = nessun recovery (le policy restano su fail). Richiede rounds >= 1 per essere attivo. -->
               <div class="field">
                 <label for="recoveryAttempts">Tentativi recovery <span class="param">--recovery-attempts</span></label>
                 <input id="recoveryAttempts" type="number" min="0" step="1" value="0">
@@ -132,6 +142,7 @@
             </div>
 
             <div class="card" style="margin-top: 20px;">
+              <!-- PARAM_DESC: Protegge tutte le sedi dal fixing durante la riduzione. Utile per verifiche baseline: nessuna sede viene esclusa, il grafo viene comunque costruito ma non produce riduzioni effettive. -->
               <div class="switch-row">
                 <div>
                   <strong>Proteggi tutte le sedi</strong>
@@ -156,6 +167,7 @@
             </div>
 
             <div class="form-grid">
+              <!-- PARAM_DESC: Backend per risolvere il problema residuo dopo la riduzione (o l'intero problema in baseline). scip: solver open-source. cplex: solver commerciale IBM (richiede licenza). Usato sempre, sia in baseline che con riduzione. -->
               <div class="field">
                 <label for="solver">Backend classico <span class="param">--solver</span></label>
                 <select id="solver">
@@ -163,6 +175,7 @@
                   <option value="cplex">cplex</option>
                 </select>
               </div>
+              <!-- PARAM_DESC: Backend per risolvere il problema MWIS (Maximum Weight Independent Set). local_greedy: algoritmo greedy locale, veloce ma approssimato. dwave_simulated_annealing: simulated annealing D-Wave, più lento ma potenzialmente migliore. Usato solo con riduzione (rounds > 0). -->
               <div class="field">
                 <label for="misSolver">Backend MIS <span class="param">--mis-solver</span></label>
                 <select id="misSolver">
@@ -173,6 +186,7 @@
             </div>
 
             <div class="card" style="margin-top: 20px;">
+              <!-- PARAM_DESC: Abilita l'esportazione del modello residuo (dopo la riduzione) o del modello completo (in baseline) nella directory del run. Utile per debug, analisi offline o risoluzione con altri solver. Il file viene scritto automaticamente nella directory del run. -->
               <div class="switch-row">
                 <div>
                   <strong>Esporta modello residuo</strong>
@@ -197,26 +211,31 @@
             </div>
 
             <div class="form-grid three">
+              <!-- PARAM_DESC: Peso della capacità nel calcolo dello score di ogni facility. Range: 0-1. Valori più alti privilegiano le facility con alta capacità. Lo score bilancia capacità utile (alpha) e costo proxy (1-alpha). Default: 0.5. -->
               <div class="field">
                 <label for="alpha">Alpha <span class="param">--alpha</span></label>
                 <input id="alpha" type="number" min="0" max="1" step="0.01" value="0.5">
                 <p class="help">Peso capacità nello score. Default: 0.5</p>
               </div>
+              <!-- PARAM_DESC: Floor minimo dello score di ogni facility. Evita che facility con score basso abbiano peso nullo nel MWIS. Range: (0, 1]. Valori più alti uniformano i pesi tra facility. Default: 0.01. -->
               <div class="field">
                 <label for="epsilon">Epsilon <span class="param">--epsilon</span></label>
                 <input id="epsilon" type="number" min="0" step="0.001" value="0.01">
                 <p class="help">Floor dello score. Default: 0.01</p>
               </div>
+              <!-- PARAM_DESC: Quota di domanda totale usata per costruire il profilo clienti di ogni facility. Il profilo include i clienti più economici fino a coprire questa frazione della domanda. Range: (0, 1]. Default: 0.5 (50% della domanda). -->
               <div class="field">
                 <label for="profileFraction">Profile fraction <span class="param">--profile-fraction</span></label>
                 <input id="profileFraction" type="number" min="0" max="1" step="0.01" value="0.5">
                 <p class="help">Quota profilo per overlap. Default: 0.5</p>
               </div>
+              <!-- PARAM_DESC: Soglia minima di overlap pesato tra profili clienti per creare un arco nel grafo. Due facility sono connesse se condividono abbastanza clienti. Range: 0-1. Valori più alti producono grafi più sparsi. Default: 0.5. -->
               <div class="field">
                 <label for="overlapThreshold">Overlap threshold <span class="param">--overlap-threshold</span></label>
                 <input id="overlapThreshold" type="number" min="0" max="1" step="0.01" value="0.5">
                 <p class="help">Soglia overlap pesato per arco. Default: 0.5</p>
               </div>
+              <!-- PARAM_DESC: Massima differenza relativa di capacità per creare un arco. Due facility sono connesse solo se hanno capacità simili (differenza <= soglia). Range: 0-1. Valori più bassi sono più restrittivi. Default: 0.25 (25%). -->
               <div class="field">
                 <label for="capacityDifference">Capacity difference <span class="param">--capacity-difference</span></label>
                 <input id="capacityDifference" type="number" min="0" step="0.01" value="0.25">

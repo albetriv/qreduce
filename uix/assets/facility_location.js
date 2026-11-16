@@ -377,6 +377,7 @@
 
     C.setupTabs();
     C.setupFormatSelector(update);
+    C.initTooltips();
 
     C.$("copyCommand").addEventListener("click", function () {
       C.copy(generateCommand(), "Comando CLI copiato negli appunti.");

@@ -202,6 +202,10 @@ CLI. Le pagine sono statiche, apribili direttamente da filesystem senza server.
 Il catalogo [`uix/index.html`](./uix/index.html) elenca i configuratori
 disponibili.
 
+Ogni parametro ha un'icona informativa (ⓘ) che mostra una descrizione al
+passaggio del mouse o con focus/tocco. Le descrizioni documentano scopo,
+effetto e condizioni d'uso di ciascun parametro.
+
 ## Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:

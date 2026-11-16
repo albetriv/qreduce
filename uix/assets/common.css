@@ -699,3 +699,130 @@ details[open] .advanced-summary {
     align-self: flex-start;
   }
 }
+
+/* Info icon and tooltip system */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid #4a6a8a;
+  border-radius: 50%;
+  background: #0d1f33;
+  color: #72b6ff;
+  font-size: 10px;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+  user-select: none;
+  vertical-align: middle;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.info-icon:hover,
+.info-icon:focus {
+  background: #183550;
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.info-icon:focus-visible {
+  box-shadow: 0 0 0 2px rgba(66, 211, 177, 0.3);
+}
+
+/* Tooltip container - positioned after label as sibling */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+/* Tooltip wrapper when placed after label in .field */
+.field > .tooltip-wrapper {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-left: 0;
+}
+
+/* Ensure field has relative positioning for absolute wrapper */
+.field {
+  position: relative;
+}
+
+/* Tooltip content - uses fixed positioning set by JS to escape overflow:hidden */
+.tooltip {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: 340px;
+  padding: 12px 14px;
+  border: 1px solid #3a5a7a;
+  border-radius: 10px;
+  background: #0d2240;
+  color: #e0ecf8;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: normal;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.18s, visibility 0.18s;
+  pointer-events: none;
+}
+
+/* Tooltip arrow (pointing down, tooltip above) - hidden when using fixed positioning */
+.tooltip::after,
+.tooltip::before {
+  content: "";
+  position: absolute;
+  border: 6px solid transparent;
+  display: none; /* Hidden because fixed positioning makes arrows unreliable */
+}
+
+/* Show tooltip when active (managed by JS) */
+.tooltip.tooltip-active {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Position classes for JS to use (informational, actual positioning done inline) */
+.tooltip.tooltip-left,
+.tooltip.tooltip-right,
+.tooltip.tooltip-below {
+  /* Classes used by JS to track state, positioning done via inline styles */
+}
+
+/* Switch-row tooltip positioning */
+.switch-row .tooltip-wrapper {
+  position: absolute;
+  right: 60px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.switch-row {
+  position: relative;
+}
+
+/* Responsive tooltip adjustments */
+@media (max-width: 680px) {
+  .tooltip {
+    min-width: 180px;
+    max-width: 260px;
+    font-size: 0.75rem;
+    padding: 10px 12px;
+  }
+
+  .field > .tooltip-wrapper {
+    position: static;
+    display: inline;
+  }
+}
