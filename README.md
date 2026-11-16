@@ -102,6 +102,77 @@ Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non
 disponibile produce un failure esplicito. I parametri provider-specifici sono
 documentati nelle docstring dei backend.
 
+## Logging
+
+QReduce usa il modulo `logging` standard di Python con configurazione YAML
+esterna.
+
+### Uso come libreria
+
+All'import QReduce aggiunge solo un `NullHandler` al logger `qreduce`, senza
+configurare destinazioni o livelli. L'applicazione ospite mantiene il controllo
+della propria configurazione logging.
+
+Per integrare i log di QReduce nella propria applicazione, configurare il logger
+`qreduce` e i suoi figli secondo le proprie esigenze, senza chiamare
+`configure_logging()`.
+
+### Configurazione nelle CLI degli esperimenti
+
+Le CLI degli esperimenti chiamano `configure_logging()`, che applica
+`dictConfig()` all'intero processo. Questa funzione è destinata agli entry
+point che controllano la configurazione del processo.
+
+**Attenzione**: `configure_logging()` può chiudere o riconfigurare handler
+precedentemente impostati dall'applicazione ospite. Non usarla se si vuole
+integrare QReduce in un'applicazione con logging già configurato.
+
+Le tre sorgenti per la configurazione, in ordine di precedenza:
+
+1. Opzione `--log-config <path>` (esplicita)
+2. Variabile d'ambiente `QREDUCE_LOG_CONFIG`
+3. File predefinito `config/logging.yaml` del repository
+
+Un percorso esplicito inesistente o malformato produce un errore all'avvio.
+Senza configurazione il logging resta silenzioso (solo `NullHandler`).
+
+Il file predefinito del repository non è disponibile quando QReduce è installato
+come pacchetto esterno; in quel caso usare `--log-config` o la variabile
+d'ambiente.
+
+### Percorsi e destinazioni
+
+Il file YAML predefinito configura:
+- Console su `stderr` a livello `INFO`
+- File con rotazione in `logs/qreduce.log` a livello `DEBUG`
+
+I percorsi relativi nel YAML (es. `filename: "../logs/qreduce.log"`) sono
+risolti rispetto alla directory del file YAML, non rispetto alla directory di
+lavoro. Le directory di destinazione vengono create automaticamente.
+
+I log sono tenuti separati dagli artifact degli esperimenti per preservare la
+diagnostica anche in caso di errori di pubblicazione.
+
+La rotazione su file condiviso da più processi concorrenti non è supportata;
+per quel caso usare file separati per processo o un writer centralizzato.
+
+### Contesto e campi
+
+Gli eventi di logging possono includere campi contestuali:
+- `run_id`: identificatore del run corrente
+- `round_index`: indice del round di riduzione
+- `stage`: fase della pipeline (graph_construction, mwis_execution, ...)
+- `solver_id`: identificatore del solver attivo
+
+Il filtro `ContextDefaultsFilter` inietta valori predefiniti (`-`) per i campi
+non impostati, evitando errori di formattazione.
+
+### Sicurezza
+
+Il file YAML è caricato con `yaml.safe_load()`, ma `dictConfig()` può
+istanziare oggetti indicati nella configurazione. Caricare solo file YAML
+da sorgenti fidate.
+
 ## Esperimenti interni
 
 Gli esperimenti sono organizzati per famiglia di problemi:

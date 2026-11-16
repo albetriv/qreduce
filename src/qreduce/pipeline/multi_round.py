@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from time import perf_counter
 
@@ -10,6 +11,7 @@ from qreduce.domains import (
     FixingManifest,
     ReducibleProblemAdapter,
 )
+from qreduce.logging_context import logging_context
 from qreduce.models import ResolvedRunConfig, RoundResult, RunResult
 from qreduce.pipeline.classical_execution import execute_classical_solver
 from qreduce.pipeline.context import compute_input_hash, validate_logical_counts
@@ -36,6 +38,8 @@ from qreduce.status import (
     RunStatus,
     TerminalReason,
 )
+
+logger = logging.getLogger(__name__)
 
 _RECOVERY_ATTEMPT_METRICS = frozenset({
     "candidate_domain_size", "classical_runtime_seconds",
@@ -73,6 +77,7 @@ def _run_reduction_rounds(
         try:
             original_item_ids = tuple(adapter.identify_reducible_items(problem))
         except Exception as error:  # noqa: BLE001
+            logger.error("Failed to identify reducible items: %s", error)
             return _failed_pipeline_result(
                 config, PipelineStage.GRAPH, TerminalReason.ADAPTER_FAILURE,
                 f"identify_reducible_items: {error}", started_at, input_hash=input_hash,
@@ -88,104 +93,141 @@ def _run_reduction_rounds(
     original_problem = problem  # Keep reference for cumulative post-check
 
     for round_index in range(max_rounds):
-        # Check time budget
-        elapsed = perf_counter() - started_at
-        remaining_budget = reduction.max_end_to_end_runtime_seconds - elapsed
-        if remaining_budget <= 0:
-            return _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
-                started_at, input_hash, original_problem, adapter,
+        with logging_context(round_index=round_index, stage="reduction_round"):
+            # Check time budget
+            elapsed = perf_counter() - started_at
+            remaining_budget = reduction.max_end_to_end_runtime_seconds - elapsed
+            if remaining_budget <= 0:
+                logger.warning(
+                    "Time budget exhausted at round %d after %.2fs",
+                    round_index, elapsed,
+                )
+                return _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
+                    started_at, input_hash, original_problem, adapter,
+                )
+
+            logger.info(
+                "Starting reduction round %d/%d remaining_budget=%.1fs",
+                round_index + 1, max_rounds, remaining_budget,
             )
 
-        # The local timer includes all recovery attempts; the global timer is
-        # still passed to every backend for end-to-end budget enforcement.
-        round_started_at = perf_counter()
-        round_result, manifest, recovery_attempts = _run_round_with_recovery(
-            current_problem, original_problem, adapter, config, round_index,
-            current_item_ids, original_item_ids, round_manifests,
-            mis_solver_registry, classical_solver_registry, started_at,
-            _model_export_write_path=_model_export_write_path,
-        )
-        round_metrics = dict(round_result.metrics)
-        round_metrics["round_runtime_seconds"] = perf_counter() - round_started_at
-        if manifest is not None:
-            input_size = len(manifest.retained_item_ids) + len(manifest.excluded_item_ids)
-            if input_size:
-                round_metrics["round_reduction_ratio"] = len(manifest.excluded_item_ids) / input_size
-        round_result = replace(round_result, metrics=round_metrics)
+            # The local timer includes all recovery attempts; the global timer is
+            # still passed to every backend for end-to-end budget enforcement.
+            round_started_at = perf_counter()
+            round_result, manifest, recovery_attempts = _run_round_with_recovery(
+                current_problem, original_problem, adapter, config, round_index,
+                current_item_ids, original_item_ids, round_manifests,
+                mis_solver_registry, classical_solver_registry, started_at,
+                _model_export_write_path=_model_export_write_path,
+            )
+            round_metrics = dict(round_result.metrics)
+            round_runtime = perf_counter() - round_started_at
+            round_metrics["round_runtime_seconds"] = round_runtime
+            if manifest is not None:
+                input_size = len(manifest.retained_item_ids) + len(manifest.excluded_item_ids)
+                if input_size:
+                    round_metrics["round_reduction_ratio"] = len(manifest.excluded_item_ids) / input_size
+            round_result = replace(round_result, metrics=round_metrics)
 
-        round_results.append(round_result)
-        all_recovery_attempts.extend(recovery_attempts)
+            round_results.append(round_result)
+            all_recovery_attempts.extend(recovery_attempts)
 
-        # Check if round produced a valid manifest
-        if manifest is None:
-            # Round failed without producing a manifest - check if recoverable
-            terminal = round_result.run_result.terminal_reason
-            if _is_recoverable_failure(terminal, reduction) and round_index < max_rounds - 1:
-                # This failure type could continue to next round in some designs,
-                # but without a manifest we cannot proceed
-                pass
-            return _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, terminal, started_at, input_hash,
-                original_problem, adapter,
+            # Log recovery attempts
+            if recovery_attempts:
+                logger.info(
+                    "Round %d completed with %d recovery attempts",
+                    round_index, len(recovery_attempts),
+                )
+
+            # Check if round produced a valid manifest
+            if manifest is None:
+                # Round failed without producing a manifest - check if recoverable
+                terminal = round_result.run_result.terminal_reason
+                logger.warning(
+                    "Round %d failed without manifest terminal_reason=%s",
+                    round_index, terminal.value if terminal else "unknown",
+                )
+                if _is_recoverable_failure(terminal, reduction) and round_index < max_rounds - 1:
+                    # This failure type could continue to next round in some designs,
+                    # but without a manifest we cannot proceed
+                    pass
+                return _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, terminal, started_at, input_hash,
+                    original_problem, adapter,
+                )
+
+            round_manifests.append(manifest)
+            if not original_item_ids:
+                original_item_ids = tuple(
+                    dict.fromkeys((*manifest.retained_item_ids, *manifest.excluded_item_ids))
+                )
+
+            logger.debug(
+                "Round %d manifest: retained=%d excluded=%d runtime=%.2fs",
+                round_index, len(manifest.retained_item_ids),
+                len(manifest.excluded_item_ids), round_runtime,
             )
 
-        round_manifests.append(manifest)
-        if not original_item_ids:
-            original_item_ids = tuple(
-                dict.fromkeys((*manifest.retained_item_ids, *manifest.excluded_item_ids))
-            )
+            # Check if we achieved success
+            if round_result.run_result.run_status in (RunStatus.SUCCESS, RunStatus.PARTIAL_SUCCESS):
+                logger.info(
+                    "Round %d achieved %s",
+                    round_index, round_result.run_result.run_status.value,
+                )
+                return _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, None, started_at, input_hash,
+                    original_problem, adapter,
+                )
 
-        # Check if we achieved success
-        if round_result.run_result.run_status in (RunStatus.SUCCESS, RunStatus.PARTIAL_SUCCESS):
-            return _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, None, started_at, input_hash,
-                original_problem, adapter,
+            # Check stopping criteria for continuing
+            stop_reason = _check_stopping_criteria(
+                round_result, round_index, max_rounds, reduction, current_item_ids,
             )
+            if stop_reason is not None:
+                terminal = stop_reason if isinstance(stop_reason, TerminalReason) else None
+                if terminal:
+                    logger.info("Stopping at round %d: %s", round_index, terminal.value)
+                return _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, terminal, started_at, input_hash,
+                    original_problem, adapter,
+                )
 
-        # Check stopping criteria for continuing
-        stop_reason = _check_stopping_criteria(
-            round_result, round_index, max_rounds, reduction, current_item_ids,
-        )
-        if stop_reason is not None:
-            terminal = stop_reason if isinstance(stop_reason, TerminalReason) else None
-            return _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, terminal, started_at, input_hash,
-                original_problem, adapter,
-            )
+            # Prepare next round with restricted problem
+            current_item_ids = manifest.retained_item_ids
+            if not current_item_ids:
+                logger.warning("Round %d: empty candidate domain", round_index)
+                return _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
+                    started_at, input_hash, original_problem, adapter,
+                )
 
-        # Prepare next round with restricted problem
-        current_item_ids = manifest.retained_item_ids
-        if not current_item_ids:
-            return _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
-                started_at, input_hash, original_problem, adapter,
-            )
-
-        try:
-            current_problem = adapter.restrict_problem(
-                current_problem, current_item_ids, manifest
-            )
-        except Exception as error:  # noqa: BLE001
-            result = _build_pipeline_result(
-                config, round_results, round_manifests, all_recovery_attempts,
-                original_item_ids, TerminalReason.ADAPTER_FAILURE, started_at,
-                input_hash, original_problem, adapter,
-            )
-            return replace(result, run_result=replace(
-                result.run_result, run_status=RunStatus.FAILED,
-                stage=PipelineStage.RESTRICTION,
-                terminal_reason=TerminalReason.ADAPTER_FAILURE,
-                adoption_status=AdoptionStatus.NOT_ADOPTED,
-                diagnostic_message=f"restrict_problem: {error}",
-            ))
+            try:
+                current_problem = adapter.restrict_problem(
+                    current_problem, current_item_ids, manifest
+                )
+            except Exception as error:  # noqa: BLE001
+                logger.error("Round %d: restrict_problem failed: %s", round_index, error)
+                result = _build_pipeline_result(
+                    config, round_results, round_manifests, all_recovery_attempts,
+                    original_item_ids, TerminalReason.ADAPTER_FAILURE, started_at,
+                    input_hash, original_problem, adapter,
+                )
+                return replace(result, run_result=replace(
+                    result.run_result, run_status=RunStatus.FAILED,
+                    stage=PipelineStage.RESTRICTION,
+                    terminal_reason=TerminalReason.ADAPTER_FAILURE,
+                    adoption_status=AdoptionStatus.NOT_ADOPTED,
+                    diagnostic_message=f"restrict_problem: {error}",
+                ))
 
     # Reached max rounds
+    logger.info("Reached maximum reduction rounds (%d)", max_rounds)
     return _build_pipeline_result(
         config, round_results, round_manifests, all_recovery_attempts,
         original_item_ids, TerminalReason.REDUCTION_ROUND_LIMIT_REACHED,
@@ -300,6 +342,10 @@ def _run_round_with_recovery(
 
         if new_expanded == previous_retained:
             # Cannot expand further
+            logger.info(
+                "Recovery exhausted: cannot expand domain further attempt=%d domain_size=%d",
+                attempt, len(previous_retained),
+            )
             recovery_attempts.append(RecoveryAttempt(
                 attempt_index=attempt,
                 trigger_reason=terminal,  # type: ignore[arg-type]
@@ -310,6 +356,11 @@ def _run_round_with_recovery(
             return result, manifest, recovery_attempts
 
         # Record recovery attempt
+        logger.info(
+            "Recovery attempt %d: trigger=%s previous_size=%d expanded_size=%d",
+            attempt, terminal.value if terminal else "unknown",
+            len(previous_retained), len(new_expanded),
+        )
         recovery_attempts.append(RecoveryAttempt(
             attempt_index=attempt,
             trigger_reason=terminal,  # type: ignore[arg-type]
@@ -346,90 +397,99 @@ def _run_with_expanded_domain(
     This is the core of recovery: we bypass MIS and directly use the
     expanded domain to build fixing manifest, restrict problem, and solve.
     """
-    # Validate expanded domain
-    try:
-        validation = adapter.validate_candidate_domain(current_problem, expanded_retained)
-        if not validation.is_valid:
+    with logging_context(round_index=round_index, stage="recovery_expanded"):
+        logger.debug(
+            "Running with expanded domain round=%d expanded_size=%d",
+            round_index, len(expanded_retained),
+        )
+        # Validate expanded domain
+        try:
+            validation = adapter.validate_candidate_domain(current_problem, expanded_retained)
+            if not validation.is_valid:
+                logger.warning("Expanded domain invalid: %s", validation.failure_reasons)
+                return _failed_round(
+                    config, PipelineStage.CANDIDATE_DOMAIN,
+                    TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
+                    f"Expanded domain invalid: {validation.failure_reasons}",
+                    round_index, started_at, retained_item_ids=expanded_retained,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.warning("validate_candidate_domain failed: %s", error)
             return _failed_round(
                 config, PipelineStage.CANDIDATE_DOMAIN,
-                TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
-                f"Expanded domain invalid: {validation.failure_reasons}",
+                TerminalReason.ADAPTER_FAILURE,
+                f"validate_candidate_domain: {error}",
                 round_index, started_at, retained_item_ids=expanded_retained,
             )
-    except Exception as error:  # noqa: BLE001
-        return _failed_round(
-            config, PipelineStage.CANDIDATE_DOMAIN,
-            TerminalReason.ADAPTER_FAILURE,
-            f"validate_candidate_domain: {error}",
-            round_index, started_at, retained_item_ids=expanded_retained,
-        )
 
-    # Build fixing manifest for expanded domain
-    try:
-        fixing_manifest = adapter.build_fixing_manifest(current_problem, expanded_retained)
-        fixing_manifest = replace(
-            fixing_manifest,
-            round_index=round_index,
-            provenance={**dict(fixing_manifest.provenance), "recovery_expanded": True},
-        )
-    except Exception as error:  # noqa: BLE001
-        return _failed_round(
-            config, PipelineStage.RESTRICTION,
-            TerminalReason.ADAPTER_FAILURE,
-            f"build_fixing_manifest: {error}",
-            round_index, started_at, retained_item_ids=expanded_retained,
-        )
+        # Build fixing manifest for expanded domain
+        try:
+            fixing_manifest = adapter.build_fixing_manifest(current_problem, expanded_retained)
+            fixing_manifest = replace(
+                fixing_manifest,
+                round_index=round_index,
+                provenance={**dict(fixing_manifest.provenance), "recovery_expanded": True},
+            )
+        except Exception as error:  # noqa: BLE001
+            logger.warning("build_fixing_manifest failed: %s", error)
+            return _failed_round(
+                config, PipelineStage.RESTRICTION,
+                TerminalReason.ADAPTER_FAILURE,
+                f"build_fixing_manifest: {error}",
+                round_index, started_at, retained_item_ids=expanded_retained,
+            )
 
-    # Restrict problem with expanded domain
-    try:
-        reduced_problem = adapter.restrict_problem(
-            current_problem, expanded_retained, fixing_manifest
-        )
-    except Exception as error:  # noqa: BLE001
-        return _failed_round(
-            config, PipelineStage.RESTRICTION,
-            TerminalReason.ADAPTER_FAILURE,
-            f"restrict_problem: {error}",
-            round_index, started_at,
-            retained_item_ids=expanded_retained,
-            fixing_manifest=fixing_manifest,
-        )
+        # Restrict problem with expanded domain
+        try:
+            reduced_problem = adapter.restrict_problem(
+                current_problem, expanded_retained, fixing_manifest
+            )
+        except Exception as error:  # noqa: BLE001
+            logger.warning("restrict_problem failed: %s", error)
+            return _failed_round(
+                config, PipelineStage.RESTRICTION,
+                TerminalReason.ADAPTER_FAILURE,
+                f"restrict_problem: {error}",
+                round_index, started_at,
+                retained_item_ids=expanded_retained,
+                fixing_manifest=fixing_manifest,
+            )
 
-    try:
-        residual_counts = validate_logical_counts(adapter.describe_logical_variables(reduced_problem))
-    except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
-        return _failed_round(
-            config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
-            str(error), round_index, started_at, retained_item_ids=expanded_retained,
-            fixing_manifest=fixing_manifest,
-        )
+        try:
+            residual_counts = validate_logical_counts(adapter.describe_logical_variables(reduced_problem))
+        except Exception as error:  # noqa: BLE001 - Adapter failures are normalized.
+            return _failed_round(
+                config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
+                str(error), round_index, started_at, retained_item_ids=expanded_retained,
+                fixing_manifest=fixing_manifest,
+            )
 
-    # Now run the classical solve
-    # We need to import and use the classical solve infrastructure
-    result = _run_classical_and_postcheck(
-        current_problem, original_problem, reduced_problem, adapter, config,
-        round_index, expanded_retained, fixing_manifest, previous_manifests,
-        classical_registry, started_at,
-        _model_export_write_path=_model_export_write_path,
-    )
-    metrics = dict(result.metrics)
-    metrics["candidate_domain_size"] = len(expanded_retained)
-    if result.classical_result is not None:
-        classical = result.classical_result
-        metrics.update({
-            "classical_runtime_seconds": classical.runtime_seconds,
-            "classical_solver_claimed_feasible": classical.solver_claimed_feasible,
-            "objective_value": classical.objective_value,
-            "best_bound": classical.best_bound,
-            "solver_gap": classical.gap,
-        })
-    if result.postcheck_result is not None:
-        metrics["postcheck_feasible"] = result.postcheck_result.postcheck_feasible
-        metrics["postcheck_failure_reasons"] = result.postcheck_result.failure_reasons
-        if result.postcheck_result.objective_recomputed is not None:
-            metrics["objective_recomputed"] = result.postcheck_result.objective_recomputed
-    result = replace(result, residual_variable_counts=residual_counts, metrics=metrics)
-    return _evaluate_round_domain_metrics(current_problem, adapter, result)
+        # Now run the classical solve
+        # We need to import and use the classical solve infrastructure
+        result = _run_classical_and_postcheck(
+            current_problem, original_problem, reduced_problem, adapter, config,
+            round_index, expanded_retained, fixing_manifest, previous_manifests,
+            classical_registry, started_at,
+            _model_export_write_path=_model_export_write_path,
+        )
+        metrics = dict(result.metrics)
+        metrics["candidate_domain_size"] = len(expanded_retained)
+        if result.classical_result is not None:
+            classical = result.classical_result
+            metrics.update({
+                "classical_runtime_seconds": classical.runtime_seconds,
+                "classical_solver_claimed_feasible": classical.solver_claimed_feasible,
+                "objective_value": classical.objective_value,
+                "best_bound": classical.best_bound,
+                "solver_gap": classical.gap,
+            })
+        if result.postcheck_result is not None:
+            metrics["postcheck_feasible"] = result.postcheck_result.postcheck_feasible
+            metrics["postcheck_failure_reasons"] = result.postcheck_result.failure_reasons
+            if result.postcheck_result.objective_recomputed is not None:
+                metrics["objective_recomputed"] = result.postcheck_result.objective_recomputed
+        result = replace(result, residual_variable_counts=residual_counts, metrics=metrics)
+        return _evaluate_round_domain_metrics(current_problem, adapter, result)
 
 
 def _run_classical_and_postcheck(

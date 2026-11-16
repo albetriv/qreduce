@@ -83,6 +83,7 @@ La pipeline si arresta al primo successo o successo parziale.
 | `instance`             | Percorso file istanza OR-Library             | obblig. |
 | `--run-id`             | Identificatore unico del run                 | obblig. |
 | `--output-root`        | Directory base per artifact                  | outputs/facility_location |
+| `--log-config`         | Percorso file YAML di configurazione logging | config/logging.yaml |
 | `--rounds`             | Numero massimo di round di riduzione         | 0       |
 | `--solver`             | Backend classico: `scip` o `cplex`           | scip    |
 | `--mis-solver`         | Backend MIS                                  | local_greedy |

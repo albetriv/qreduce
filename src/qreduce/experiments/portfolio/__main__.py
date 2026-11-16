@@ -22,6 +22,11 @@ from qreduce.experiments.portfolio.inputs import (
     default_graph_policy,
     default_reduction_policy,
 )
+from qreduce.logging_config import (
+    LoggingConfigError,
+    configure_logging,
+    get_default_config_path,
+)
 from qreduce.models import ReductionPolicy
 
 # Valid recovery policy values from the configuration validator
@@ -56,6 +61,15 @@ Examples:
         "--run-id",
         required=True,
         help="Unique run identifier used under the experiment output directory.",
+    )
+
+    # Logging configuration
+    parser.add_argument(
+        "--log-config",
+        metavar="PATH",
+        help="Path to YAML logging configuration file. "
+        "Overrides QREDUCE_LOG_CONFIG environment variable. "
+        "If not specified and env var is unset, uses repository default if available.",
     )
 
     # Output and export
@@ -277,6 +291,24 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
     _validate_args(parser, args)
+
+    # Configure logging
+    # Precedence: 1) --log-config, 2) QREDUCE_LOG_CONFIG env var, 3) repository default
+    try:
+        if args.log_config:
+            # Explicit CLI argument takes precedence
+            configure_logging(args.log_config)
+        else:
+            # Let configure_logging handle env var and default
+            config_path = configure_logging()
+            if config_path is None:
+                # No env var set; try repository default
+                default_path = get_default_config_path()
+                if default_path:
+                    configure_logging(default_path)
+    except (FileNotFoundError, LoggingConfigError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     # Build generation policy
     generation_policy = default_generation_policy(

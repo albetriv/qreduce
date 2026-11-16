@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -19,6 +20,7 @@ from qreduce.domains import (
     ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
+from qreduce.logging_context import logging_context
 from qreduce.models import ResolvedRunConfig, RunResult
 from qreduce.mwis import CanonicalMWISProblem, build_mwis_qubo, qubo_to_ising
 from qreduce.mwis.energy import qubo_energy
@@ -48,6 +50,8 @@ from qreduce.solving.residual import (
     UnknownClassicalSolverError,
     builtin_classical_solver_registry,
 )
+
+logger = logging.getLogger(__name__)
 from qreduce.status import (
     AdoptionStatus,
     ClassicalSolverStatus,
@@ -274,21 +278,25 @@ def _execute_reduction_round(
             TerminalReason.INVALID_CONFIGURATION,
             str(error),
         )
-    try:
-        graph = adapter.build_conflict_graph(problem)
-        qubo = build_mwis_qubo(
-            graph,
-            _resolved_lambda_edge(config),
-            allow_noncertifying_penalty=config.allow_noncertifying_penalty,
-        )
-        canonical_problem = CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
-    except Exception as error:  # noqa: BLE001 - Domain errors become normalized outcomes.
-        return _failed(
-            config,
-            PipelineStage.GRAPH,
-            TerminalReason.GRAPH_CONSTRUCTION_FAILED,
-            str(error),
-        )
+    with logging_context(stage="graph_construction"):
+        logger.debug("Building conflict graph")
+        try:
+            graph = adapter.build_conflict_graph(problem)
+            qubo = build_mwis_qubo(
+                graph,
+                _resolved_lambda_edge(config),
+                allow_noncertifying_penalty=config.allow_noncertifying_penalty,
+            )
+            canonical_problem = CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
+            logger.debug("Graph built: nodes=%d edges=%d", len(graph.node_ids), len(graph.edges))
+        except Exception as error:  # noqa: BLE001 - Domain errors become normalized outcomes.
+            logger.warning("Graph construction failed: %s", error)
+            return _failed(
+                config,
+                PipelineStage.GRAPH,
+                TerminalReason.GRAPH_CONSTRUCTION_FAILED,
+                str(error),
+            )
 
     try:
         capabilities = mis_solver.capabilities()
@@ -356,28 +364,32 @@ def _execute_reduction_round(
             config, PipelineStage.MIS, mis_compilation_result=compilation
         )
     assert execution_timeout.timeout_seconds is not None
-    try:
-        execution = mis_solver.solve(
-        compilation.compiled_job,
-        MISBackendRequest(
-            run_id=config.run_identity.run_id,
-            round_index=_round_index,
-            compiled_job_id=compilation.compiled_job.compiled_job_id,
-            node_order=graph.node_ids,
-            random_seed=config.mis_execution.random_seed,
-            requested_solution_count=config.mis_execution.requested_solution_count,
-            residual_time_budget_seconds=execution_timeout.timeout_seconds,
-            execution_parameters=config.mis_execution.provider_parameters,
-        ),
-        )
-        if not isinstance(execution, MISBackendResult):
-            raise TypeError("MIS backend must return MISBackendResult.")
-    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
-        return _failed(
-            config, PipelineStage.MIS, TerminalReason.MIS_EXECUTION_FAILED, str(error),
-            mis_compilation_result=compilation,
-            metrics=_run_metrics(started_at, mis_compilation_result=compilation),
-        )
+    with logging_context(stage="mwis_execution", solver_id=config.mis_solver_id):
+        logger.info("Starting MWIS execution solver_id=%s timeout=%.1fs", config.mis_solver_id, execution_timeout.timeout_seconds)
+        try:
+            execution = mis_solver.solve(
+            compilation.compiled_job,
+            MISBackendRequest(
+                run_id=config.run_identity.run_id,
+                round_index=_round_index,
+                compiled_job_id=compilation.compiled_job.compiled_job_id,
+                node_order=graph.node_ids,
+                random_seed=config.mis_execution.random_seed,
+                requested_solution_count=config.mis_execution.requested_solution_count,
+                residual_time_budget_seconds=execution_timeout.timeout_seconds,
+                execution_parameters=config.mis_execution.provider_parameters,
+            ),
+            )
+            if not isinstance(execution, MISBackendResult):
+                raise TypeError("MIS backend must return MISBackendResult.")
+            logger.debug("MWIS execution completed status=%s samples=%d", execution.completion_status.value, len(execution.samples) if execution.samples else 0)
+        except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+            logger.warning("MWIS execution failed: %s", error)
+            return _failed(
+                config, PipelineStage.MIS, TerminalReason.MIS_EXECUTION_FAILED, str(error),
+                mis_compilation_result=compilation,
+                metrics=_run_metrics(started_at, mis_compilation_result=compilation),
+            )
     if execution.completion_status not in {
         MISCompletionStatus.COMPLETED,
         MISCompletionStatus.TIME_LIMITED,
@@ -774,39 +786,43 @@ def _execute_reduction_round(
                 retained_item_ids,
             ),
         )
-    try:
-        classical_result = execute_classical_solver(
-        classical_solver,
-        reduced_problem,
-        ClassicalSolveRequest(
-            run_id=config.run_identity.run_id,
-            round_index=_round_index,
-            time_limit_seconds=config.classical_solve.time_limit_seconds,
-            remaining_end_to_end_seconds=remaining_budget,
-            mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
-            random_seed=config.classical_solve.random_seed,
-            threads=config.classical_solve.threads,
-            model_export_enabled=config.classical_solve.model_export_enabled,
-            model_export_path=(
-                _model_export_write_path or config.classical_solve.model_export_path
+    with logging_context(stage="classical_solve", solver_id=config.classical_solve.classical_solver_id):
+        logger.info("Starting classical solve solver_id=%s", config.classical_solve.classical_solver_id)
+        try:
+            classical_result = execute_classical_solver(
+            classical_solver,
+            reduced_problem,
+            ClassicalSolveRequest(
+                run_id=config.run_identity.run_id,
+                round_index=_round_index,
+                time_limit_seconds=config.classical_solve.time_limit_seconds,
+                remaining_end_to_end_seconds=remaining_budget,
+                mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
+                random_seed=config.classical_solve.random_seed,
+                threads=config.classical_solve.threads,
+                model_export_enabled=config.classical_solve.model_export_enabled,
+                model_export_path=(
+                    _model_export_write_path or config.classical_solve.model_export_path
+                ),
+                requested_solver_id=config.classical_solve.classical_solver_id,
             ),
-            requested_solver_id=config.classical_solve.classical_solver_id,
-        ),
-        staging_path=_model_export_write_path,
-        logical_path=config.classical_solve.model_export_path,
-        )
-    except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
-        return _failed(
-            config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
-            str(error), retained_item_ids, fixing_manifest=fixing_manifest,
-            selected_mis_samples=selected_samples, candidate_records=candidate_records,
-            candidate_domain_item_records=candidate_domain_item_records,
-            protection_declaration=protection_declaration,
-            mis_compilation_result=compilation, mis_execution_result=execution,
-            metrics=_candidate_metrics(started_at, execution, compilation,
-                                       deduplicated.samples, valid_samples,
-                                       selected_samples, retained_item_ids),
-        )
+            staging_path=_model_export_write_path,
+            logical_path=config.classical_solve.model_export_path,
+            )
+            logger.debug("Classical solve completed feasible=%s objective=%s", classical_result.solver_claimed_feasible, classical_result.objective_value)
+        except Exception as error:  # noqa: BLE001 - Extension failures must be normalized.
+            logger.warning("Classical solver failed: %s", error)
+            return _failed(
+                config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
+                str(error), retained_item_ids, fixing_manifest=fixing_manifest,
+                selected_mis_samples=selected_samples, candidate_records=candidate_records,
+                candidate_domain_item_records=candidate_domain_item_records,
+                protection_declaration=protection_declaration,
+                mis_compilation_result=compilation, mis_execution_result=execution,
+                metrics=_candidate_metrics(started_at, execution, compilation,
+                                           deduplicated.samples, valid_samples,
+                                           selected_samples, retained_item_ids),
+            )
     if not classical_result.solver_claimed_feasible:
         return _failed(
             config,
@@ -833,31 +849,35 @@ def _execute_reduction_round(
                 classical_result,
             ),
         )
-    try:
-        postcheck = adapter.validate_final_solution(
-            problem,
-            dict(classical_result.variable_values),
-            fixing_manifest,
-            config.classical_solve,
-            solver_objective_value=classical_result.objective_value,
-        )
-        if not isinstance(postcheck, FinalSolutionValidationResult):
-            raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
-    except Exception as error:  # noqa: BLE001 - Adapter failures must be normalized.
-        return _failed(
-            config, PipelineStage.POSTCHECK, TerminalReason.ADAPTER_FAILURE,
-            f"The adapter failed during post-check: {error}",
-            retained_item_ids, classical_result,
-            fixing_manifest=fixing_manifest, selected_mis_samples=selected_samples,
-            candidate_records=candidate_records,
-            candidate_domain_item_records=candidate_domain_item_records,
-            protection_declaration=protection_declaration,
-            mis_compilation_result=compilation, mis_execution_result=execution,
-            metrics=_candidate_metrics(
-                started_at, execution, compilation, deduplicated.samples,
-                valid_samples, selected_samples, retained_item_ids, classical_result,
-            ),
-        )
+    with logging_context(stage="postcheck"):
+        logger.debug("Starting post-check validation")
+        try:
+            postcheck = adapter.validate_final_solution(
+                problem,
+                dict(classical_result.variable_values),
+                fixing_manifest,
+                config.classical_solve,
+                solver_objective_value=classical_result.objective_value,
+            )
+            if not isinstance(postcheck, FinalSolutionValidationResult):
+                raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
+            logger.debug("Post-check completed feasible=%s", postcheck.postcheck_feasible)
+        except Exception as error:  # noqa: BLE001 - Adapter failures must be normalized.
+            logger.warning("Post-check adapter failed: %s", error)
+            return _failed(
+                config, PipelineStage.POSTCHECK, TerminalReason.ADAPTER_FAILURE,
+                f"The adapter failed during post-check: {error}",
+                retained_item_ids, classical_result,
+                fixing_manifest=fixing_manifest, selected_mis_samples=selected_samples,
+                candidate_records=candidate_records,
+                candidate_domain_item_records=candidate_domain_item_records,
+                protection_declaration=protection_declaration,
+                mis_compilation_result=compilation, mis_execution_result=execution,
+                metrics=_candidate_metrics(
+                    started_at, execution, compilation, deduplicated.samples,
+                    valid_samples, selected_samples, retained_item_ids, classical_result,
+                ),
+            )
     if not postcheck.postcheck_feasible:
         return RoundExecutionResult(
             run_result=RunResult(

@@ -1,0 +1,63 @@
+# QReduce logging configuration.
+#
+# This file configures Python's logging module for QReduce experiments.
+# Relative paths are resolved relative to this file's directory.
+#
+# Usage:
+#   - CLI: --log-config config/logging.yaml
+#   - Environment: QREDUCE_LOG_CONFIG=config/logging.yaml
+#
+# Security note: This file is loaded by trusted CLI entry points.
+# Do not load arbitrary YAML configurations from untrusted sources.
+
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  standard:
+    format: "%(asctime)s %(levelname)-8s %(name)s | %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S%z"
+  context:
+    # Extended format with optional context fields (run_id, round_index, stage, solver_id).
+    # Fields are injected by ContextDefaultsFilter when the filter is applied.
+    format: "%(asctime)s %(levelname)-8s %(name)s [%(run_id)s:%(round_index)s:%(stage)s:%(solver_id)s] | %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S%z"
+
+filters:
+  context_defaults:
+    # Adds default values for context fields when not present.
+    # Prevents KeyError in formatters using context fields.
+    "()": qreduce.logging_context.ContextDefaultsFilter
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: standard
+    filters: [context_defaults]
+    stream: ext://sys.stderr
+
+  file:
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: context
+    filters: [context_defaults]
+    filename: "../logs/qreduce.log"
+    maxBytes: 10485760  # 10 MiB
+    backupCount: 5
+    encoding: utf-8
+
+loggers:
+  qreduce:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  qreduce.pipeline:
+    level: DEBUG
+
+  qreduce.solving:
+    level: INFO
+
+  qreduce.experiments:
+    level: DEBUG

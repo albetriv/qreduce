@@ -13,6 +13,7 @@
   var defaults = {
     runId: "ui_portfolio_001",
     outputRoot: "outputs/portfolio",
+    logConfig: "",
     assetCount: "30",
     generationSeed: "42",
     observationCount: "",
@@ -291,6 +292,12 @@
     var outputRoot = C.value("outputRoot");
     if (outputRoot && outputRoot !== "outputs/portfolio") {
       args.push({ flag: "--output-root", value: outputRoot });
+    }
+
+    // Log config if specified
+    var logConfig = C.value("logConfig");
+    if (logConfig) {
+      args.push({ flag: "--log-config", value: logConfig });
     }
 
     // Asset count (always include since it's important)

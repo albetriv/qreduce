@@ -107,6 +107,7 @@ espone i seguenti gruppi di opzioni:
 |--------------------------|--------------------------------------------------|-----------------------|
 | `--run-id`               | Identificatore unico del run (obbligatorio)      |                       |
 | `--output-root`          | Directory radice degli artifact                  | `outputs/portfolio`   |
+| `--log-config`           | Percorso file YAML di configurazione logging     | `config/logging.yaml` |
 | `--model-export`         | Esporta il modello residuo                       | disabilitato          |
 | `--model-export-path`    | Percorso per export esterno                      |                       |
 

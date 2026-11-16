@@ -1,5 +1,6 @@
 """Unified pipeline orchestration for QReduce reduction and classical solve."""
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from time import perf_counter
@@ -19,6 +20,7 @@ from qreduce.domains import (
     ProtectionDeclaration,
     ReducibleProblemAdapter,
 )
+from qreduce.logging_context import logging_context
 from qreduce.models import ResolvedRunConfig, RunResult
 from qreduce.pipeline.classical_execution import (
     evaluate_domain_metrics,
@@ -45,6 +47,8 @@ from qreduce.status import (
     RunStatus,
     TerminalReason,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,33 +191,76 @@ def run_pipeline(
     path). The backend writes to _model_export_write_path; the runner is responsible
     for moving the file to the final path after successful completion.
     """
-    started_at = perf_counter()
-
-    # Validate configuration
-    validation = validate_resolved_run_config(config)
-    if not validation.is_valid:
-        return _failed_pipeline(
-            config, PipelineStage.VALIDATION, validation.terminal_reason,
-            _issues_message(validation), started_at,
-        )
-
+    run_id = config.run_identity.run_id
     max_rounds = config.reduction.max_reduction_rounds
 
-    if max_rounds == 0:
-        return _run_classical_only(
-            problem, adapter, config,
-            classical_solver_registry=classical_solver_registry,
-            started_at=started_at,
-            _model_export_write_path=_model_export_write_path,
+    with logging_context(run_id=run_id, stage="pipeline_start"):
+        logger.info(
+            "Starting pipeline run_id=%s max_rounds=%d classical_solver=%s mis_solver=%s",
+            run_id, max_rounds,
+            config.classical_solve.classical_solver_id,
+            config.mis_solver_id,
         )
-    else:
-        return _run_reduction_pipeline(
-            problem, adapter, config,
-            mis_solver_registry=mis_solver_registry,
-            classical_solver_registry=classical_solver_registry,
-            started_at=started_at,
-            _model_export_write_path=_model_export_write_path,
-        )
+
+        started_at = perf_counter()
+
+        # Validate configuration
+        validation = validate_resolved_run_config(config)
+        if not validation.is_valid:
+            logger.warning(
+                "Configuration validation failed: %s",
+                _issues_message(validation),
+            )
+            return _failed_pipeline(
+                config, PipelineStage.VALIDATION, validation.terminal_reason,
+                _issues_message(validation), started_at,
+            )
+
+        if max_rounds == 0:
+            logger.info("Executing classical-only baseline (no reduction)")
+            result = _run_classical_only(
+                problem, adapter, config,
+                classical_solver_registry=classical_solver_registry,
+                started_at=started_at,
+                _model_export_write_path=_model_export_write_path,
+            )
+        else:
+            logger.info("Executing reduction pipeline with up to %d rounds", max_rounds)
+            result = _run_reduction_pipeline(
+                problem, adapter, config,
+                mis_solver_registry=mis_solver_registry,
+                classical_solver_registry=classical_solver_registry,
+                started_at=started_at,
+                _model_export_write_path=_model_export_write_path,
+            )
+
+        elapsed = perf_counter() - started_at
+        _log_pipeline_result(result, elapsed)
+        return result
+
+
+def _log_pipeline_result(result: PipelineRunResult, elapsed: float) -> None:
+    """Log the final pipeline result."""
+    run_result = result.run_result
+    status = run_result.run_status.value
+
+    with logging_context(stage="pipeline_complete"):
+        if run_result.run_status == RunStatus.SUCCESS:
+            logger.info(
+                "Pipeline completed status=%s stage=%s elapsed=%.2fs rounds=%d",
+                status, run_result.stage.value, elapsed, result.reduction_round_count,
+            )
+        elif run_result.run_status == RunStatus.PARTIAL_SUCCESS:
+            logger.info(
+                "Pipeline completed with partial success status=%s stage=%s elapsed=%.2fs rounds=%d",
+                status, run_result.stage.value, elapsed, result.reduction_round_count,
+            )
+        else:
+            terminal = run_result.terminal_reason.value if run_result.terminal_reason else "unknown"
+            logger.warning(
+                "Pipeline failed status=%s stage=%s terminal_reason=%s elapsed=%.2fs",
+                status, run_result.stage.value, terminal, elapsed,
+            )
 
 
 def _run_classical_only(
@@ -333,36 +380,40 @@ def _run_classical_only(
 
     # Execute classical solve - pass restricted_problem directly (it implements ClassicalModelProvider)
     # The backend calls restricted_problem.build_classical_model() internally
-    try:
-        classical_result = execute_classical_solver(
-            classical_solver,
-            restricted_problem,
-            ClassicalSolveRequest(
-                run_id=config.run_identity.run_id,
-                round_index=0,
-                time_limit_seconds=timeout.timeout_seconds,
-                remaining_end_to_end_seconds=remaining,
-                mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
-                threads=config.classical_solve.threads,
-                random_seed=config.classical_solve.random_seed,
-                model_export_enabled=config.classical_solve.model_export_enabled,
-                model_export_path=(
-                    _model_export_write_path or config.classical_solve.model_export_path
+    with logging_context(stage="classical_solve", solver_id=config.classical_solve.classical_solver_id):
+        logger.info("Starting classical solve (baseline) solver_id=%s", config.classical_solve.classical_solver_id)
+        try:
+            classical_result = execute_classical_solver(
+                classical_solver,
+                restricted_problem,
+                ClassicalSolveRequest(
+                    run_id=config.run_identity.run_id,
+                    round_index=0,
+                    time_limit_seconds=timeout.timeout_seconds,
+                    remaining_end_to_end_seconds=remaining,
+                    mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
+                    threads=config.classical_solve.threads,
+                    random_seed=config.classical_solve.random_seed,
+                    model_export_enabled=config.classical_solve.model_export_enabled,
+                    model_export_path=(
+                        _model_export_write_path or config.classical_solve.model_export_path
+                    ),
+                    requested_solver_id=config.classical_solve.classical_solver_id,
                 ),
-                requested_solver_id=config.classical_solve.classical_solver_id,
-            ),
-            staging_path=_model_export_write_path,
-            logical_path=config.classical_solve.model_export_path,
-        )
-    except Exception as error:  # noqa: BLE001
-        return _failed_pipeline(
-            config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
-            str(error), started_at, input_hash=input_hash,
-            original_variable_counts=original_counts,
-            residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest,
-            final_retained_item_ids=original_item_ids,
-        )
+                staging_path=_model_export_write_path,
+                logical_path=config.classical_solve.model_export_path,
+            )
+            logger.debug("Classical solve completed feasible=%s objective=%s", classical_result.solver_claimed_feasible, classical_result.objective_value)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Classical solver failed: %s", error)
+            return _failed_pipeline(
+                config, PipelineStage.CLASSICAL, TerminalReason.CLASSICAL_SOLVER_FAILED,
+                str(error), started_at, input_hash=input_hash,
+                original_variable_counts=original_counts,
+                residual_variable_counts=residual_counts,
+                cumulative_fixing_manifest=empty_manifest,
+                final_retained_item_ids=original_item_ids,
+            )
 
     # Check classical result
     if not classical_result.solver_claimed_feasible:
@@ -378,25 +429,29 @@ def _run_classical_only(
         )
 
     # Post-check on original problem with empty manifest
-    try:
-        postcheck_result = adapter.validate_final_solution(
-            problem, classical_result.variable_values, empty_manifest,
-            config.classical_solve, solver_objective_value=classical_result.objective_value,
-        )
-        if not isinstance(postcheck_result, FinalSolutionValidationResult):
-            raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
-    except Exception as error:  # noqa: BLE001
-        return _make_pipeline_result(
-            config, PipelineStage.POSTCHECK, RunStatus.FAILED,
-            TerminalReason.ADAPTER_FAILURE, started_at,
-            diagnostic=f"Post-check failed: {error}",
-            input_hash=input_hash,
-            original_variable_counts=original_counts,
-            residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest,
-            final_retained_item_ids=original_item_ids,
-            classical_result=classical_result,
-        )
+    with logging_context(stage="postcheck"):
+        logger.debug("Starting post-check validation (baseline)")
+        try:
+            postcheck_result = adapter.validate_final_solution(
+                problem, classical_result.variable_values, empty_manifest,
+                config.classical_solve, solver_objective_value=classical_result.objective_value,
+            )
+            if not isinstance(postcheck_result, FinalSolutionValidationResult):
+                raise TypeError("validate_final_solution must return FinalSolutionValidationResult.")
+            logger.debug("Post-check completed feasible=%s", postcheck_result.postcheck_feasible)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Post-check failed: %s", error)
+            return _make_pipeline_result(
+                config, PipelineStage.POSTCHECK, RunStatus.FAILED,
+                TerminalReason.ADAPTER_FAILURE, started_at,
+                diagnostic=f"Post-check failed: {error}",
+                input_hash=input_hash,
+                original_variable_counts=original_counts,
+                residual_variable_counts=residual_counts,
+                cumulative_fixing_manifest=empty_manifest,
+                final_retained_item_ids=original_item_ids,
+                classical_result=classical_result,
+            )
 
     # Determine final status
     if postcheck_result.postcheck_feasible:

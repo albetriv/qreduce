@@ -57,6 +57,12 @@
                 <p class="error"></p>
               </div>
               <div class="field">
+                <label for="logConfig">Configurazione logging <span class="param">--log-config</span></label>
+                <input id="logConfig" placeholder="config/logging.yaml">
+                <p class="help">File YAML per il logging. Se omesso usa il default del repository.</p>
+                <p class="error"></p>
+              </div>
+              <div class="field">
                 <label for="assetCount">Numero di asset <span class="param">--asset-count</span></label>
                 <input id="assetCount" type="number" value="30" min="6" step="1" required>
                 <p class="help">Minimo: 6. Default: 30.</p>

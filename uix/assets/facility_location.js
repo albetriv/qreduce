@@ -14,6 +14,7 @@
     instancePath: "data/benchmarks/or_library/capacitated_facility_location/cap41.txt",
     runId: "cap41_001",
     outputRoot: "outputs/facility_location",
+    logConfig: "",
     rounds: "0",
     cap: "",
     budget: "60",
@@ -225,6 +226,12 @@
     var outputRoot = C.value("outputRoot");
     if (outputRoot && outputRoot !== "outputs/facility_location") {
       args.push({ flag: "--output-root", value: outputRoot });
+    }
+
+    // Log config if specified
+    var logConfig = C.value("logConfig");
+    if (logConfig) {
+      args.push({ flag: "--log-config", value: logConfig });
     }
 
     // Rounds if different from default (0)

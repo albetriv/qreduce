@@ -1,11 +1,17 @@
 """Command-line entry point for facility location experiments."""
 
 import argparse
+import sys
 from hashlib import sha256
 from pathlib import Path
 from time import perf_counter
 
 from qreduce.experiments.runner import run_experiment
+from qreduce.logging_config import (
+    LoggingConfigError,
+    configure_logging,
+    get_default_config_path,
+)
 from qreduce.models import (
     ClassicalSolveOptions,
     LambdaEdgePolicy,
@@ -45,6 +51,8 @@ def main():
     parser.add_argument("instance")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--output-root", default="outputs/facility_location")
+    parser.add_argument("--log-config", metavar="PATH",
+                        help="Path to YAML logging configuration file.")
     parser.add_argument("--rounds", type=int, default=0)
     parser.add_argument("--solver", default="scip")
     parser.add_argument("--mis-solver", default="local_greedy")
@@ -61,6 +69,25 @@ def main():
     parser.add_argument("--overlap-threshold", type=float, default=0.5)
     parser.add_argument("--capacity-difference", type=float, default=0.25)
     args = parser.parse_args()
+
+    # Configure logging
+    # Precedence: 1) --log-config, 2) QREDUCE_LOG_CONFIG env var, 3) repository default
+    try:
+        if args.log_config:
+            # Explicit CLI argument takes precedence
+            configure_logging(args.log_config)
+        else:
+            # Let configure_logging handle env var and default
+            config_path = configure_logging()
+            if config_path is None:
+                # No env var set; try repository default
+                default_path = get_default_config_path()
+                if default_path:
+                    configure_logging(default_path)
+    except (FileNotFoundError, LoggingConfigError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise SystemExit(1) from None
+
     policy = FacilityLocationGraphPolicy(args.alpha, args.epsilon, args.profile_fraction, args.overlap_threshold, args.capacity_difference)
     result = run(args.instance, args.run_id, output_root=args.output_root, rounds=args.rounds, solver=args.solver, mis_solver=args.mis_solver, seed=args.seed, budget=args.budget, cap=args.cap, protect_all=args.protect_all, recovery_attempts=args.recovery_attempts, min_reduction_ratio=args.min_reduction_ratio, model_export=args.model_export, policy=policy)
     print(result.run_directory)
