@@ -53,6 +53,15 @@ Examples:
       --max-reduction-rounds 3 \\
       --recovery-policy-on-infeasible retry_with_larger_domain \\
       --max-recovery-attempts 2
+
+  # With positive minimum investment and cardinality constraints
+  python -m qreduce.experiments.portfolio --run-id cardinality001 \\
+      --lower-bound 0.05 --upper-bound 0.30 \\
+      --min-selected-assets 5 --max-selected-assets 10
+
+  # Exact cardinality (select exactly 8 assets)
+  python -m qreduce.experiments.portfolio --run-id exact001 \\
+      --min-selected-assets 8 --max-selected-assets 8
 """,
     )
 
@@ -106,6 +115,31 @@ Examples:
         "--observation-count",
         type=int,
         help="Number of historical observations. Default: 10 * asset_count.",
+    )
+
+    # Investment bounds and cardinality options
+    bounds_group = parser.add_argument_group("Investment bounds and cardinality options")
+    bounds_group.add_argument(
+        "--lower-bound",
+        type=float,
+        default=0.0,
+        help="Minimum investment per selected asset (conditional on delta=1). Default: 0.0.",
+    )
+    bounds_group.add_argument(
+        "--upper-bound",
+        type=float,
+        default=0.7,
+        help="Maximum investment per selected asset (conditional on delta=1). Default: 0.7.",
+    )
+    bounds_group.add_argument(
+        "--min-selected-assets",
+        type=int,
+        help="Minimum number of assets to select (cardinality constraint). Optional.",
+    )
+    bounds_group.add_argument(
+        "--max-selected-assets",
+        type=int,
+        help="Maximum number of assets to select (cardinality constraint). Optional.",
     )
 
     # Graph options
@@ -231,6 +265,28 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     if (args.mis_num_reads is not None or args.mis_num_sweeps is not None) and args.mis_solver_id != "dwave_simulated_annealing":
         parser.error("--mis-num-reads and --mis-num-sweeps require --mis-solver-id=dwave_simulated_annealing")
 
+    # Investment bounds validation
+    if args.lower_bound < 0:
+        parser.error("--lower-bound must be non-negative")
+    if args.upper_bound < args.lower_bound:
+        parser.error("--upper-bound must be at least equal to --lower-bound")
+
+    # Cardinality validation
+    if args.min_selected_assets is not None:
+        if args.min_selected_assets < 0:
+            parser.error("--min-selected-assets must be non-negative")
+        if args.min_selected_assets > args.asset_count:
+            parser.error("--min-selected-assets cannot exceed --asset-count")
+
+    if args.max_selected_assets is not None:
+        if args.max_selected_assets < 1:
+            parser.error("--max-selected-assets must be at least 1")
+        if args.max_selected_assets > args.asset_count:
+            parser.error("--max-selected-assets cannot exceed --asset-count")
+
+    if args.min_selected_assets is not None and args.max_selected_assets is not None and args.min_selected_assets > args.max_selected_assets:
+        parser.error("--min-selected-assets cannot exceed --max-selected-assets")
+
 
 def _build_reduction_policy(args: argparse.Namespace) -> ReductionPolicy | None:
     """Build reduction policy from CLI arguments, or None to use defaults.
@@ -342,6 +398,10 @@ def main() -> int:
         mis_num_sweeps=args.mis_num_sweeps,
         model_export_enabled=args.model_export,
         model_export_path=args.model_export_path,
+        lower_bound=args.lower_bound,
+        upper_bound=args.upper_bound,
+        min_selected_assets=args.min_selected_assets,
+        max_selected_assets=args.max_selected_assets,
     )
 
     print(run.run_directory)

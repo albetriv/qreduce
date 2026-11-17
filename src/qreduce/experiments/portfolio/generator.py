@@ -51,9 +51,12 @@ class GeneratedPortfolioData:
     upper_bounds: dict[str, float]
     retention_scores: dict[str, float]
     risk_aversion: float
+    # Optional cardinality constraints
+    min_selected_assets: int | None = None
+    max_selected_assets: int | None = None
     # Provenance for auditability
-    generation_policy_id: str
-    generation_policy_version: str
+    generation_policy_id: str = ""
+    generation_policy_version: str = ""
     _generated_covariance: object = field(default=None, repr=False, compare=False)
 
     def to_problem(self) -> PortfolioProblem:
@@ -66,6 +69,8 @@ class GeneratedPortfolioData:
             upper_bounds=self.upper_bounds,
             retention_scores=self.retention_scores,
             risk_aversion=self.risk_aversion,
+            min_selected_assets=self.min_selected_assets,
+            max_selected_assets=self.max_selected_assets,
             _covariance_origin=(
                 _GENERATED_COVARIANCE if self.covariance is self._generated_covariance else None
             ),
@@ -78,6 +83,8 @@ def generate_portfolio_data(
     risk_aversion: float = 1.0,
     lower_bound: float = 0.0,
     upper_bound: float = 0.7,
+    min_selected_assets: int | None = None,
+    max_selected_assets: int | None = None,
 ) -> GeneratedPortfolioData:
     """Generate deterministic synthetic portfolio data from a factorial model.
 
@@ -95,23 +102,49 @@ def generate_portfolio_data(
     Args:
         policy: Generation policy with all model parameters
         risk_aversion: Risk aversion coefficient for the optimization problem
-        lower_bound: Lower bound for all asset allocations
-        upper_bound: Upper bound for all asset allocations
+        lower_bound: Lower bound for all asset allocations (minimum investment per selected asset)
+        upper_bound: Upper bound for all asset allocations (maximum investment per selected asset)
+        min_selected_assets: Optional minimum number of assets to select (cardinality constraint)
+        max_selected_assets: Optional maximum number of assets to select (cardinality constraint)
 
     Returns:
         GeneratedPortfolioData with all problem inputs and provenance
 
     Raises:
         ValueError: If generated data fails validation checks
+        TypeError: If cardinality parameters have wrong types
     """
     if not math.isfinite(risk_aversion) or risk_aversion <= 0:
         raise ValueError("risk_aversion must be finite and positive.")
     if not math.isfinite(lower_bound) or lower_bound < 0:
         raise ValueError("lower_bound must be finite and non-negative.")
-    if not math.isfinite(upper_bound) or upper_bound <= lower_bound:
-        raise ValueError("upper_bound must be finite and greater than lower_bound.")
+    if not math.isfinite(upper_bound) or upper_bound < lower_bound:
+        raise ValueError("upper_bound must be finite and at least equal to lower_bound.")
 
     n_assets = policy.asset_count
+
+    # Validate cardinality constraints
+    if min_selected_assets is not None:
+        if isinstance(min_selected_assets, bool) or not isinstance(min_selected_assets, int):
+            raise TypeError("min_selected_assets must be an integer or None.")
+        if min_selected_assets < 0:
+            raise ValueError("min_selected_assets must be non-negative.")
+        if min_selected_assets > n_assets:
+            raise ValueError(f"min_selected_assets ({min_selected_assets}) cannot exceed asset count ({n_assets}).")
+
+    if max_selected_assets is not None:
+        if isinstance(max_selected_assets, bool) or not isinstance(max_selected_assets, int):
+            raise TypeError("max_selected_assets must be an integer or None.")
+        if max_selected_assets < 1:
+            raise ValueError("max_selected_assets must be at least 1.")
+        if max_selected_assets > n_assets:
+            raise ValueError(f"max_selected_assets ({max_selected_assets}) cannot exceed asset count ({n_assets}).")
+
+    if min_selected_assets is not None and max_selected_assets is not None and min_selected_assets > max_selected_assets:
+        raise ValueError(
+            f"min_selected_assets ({min_selected_assets}) cannot exceed max_selected_assets ({max_selected_assets})."
+        )
+
     n_obs = policy.observation_count
     n_clusters = policy.cluster_count
 
@@ -206,6 +239,8 @@ def generate_portfolio_data(
         upper_bounds=upper_bounds,
         retention_scores=retention_scores,
         risk_aversion=risk_aversion,
+        min_selected_assets=min_selected_assets,
+        max_selected_assets=max_selected_assets,
         generation_policy_id=policy.policy_id,
         generation_policy_version=policy.policy_version,
         _generated_covariance=covariance,

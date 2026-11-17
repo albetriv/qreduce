@@ -18,7 +18,18 @@ def validate_portfolio_solution(
     tolerances: ClassicalSolveOptions,
     solver_objective_value: float | None = None,
 ) -> FinalSolutionValidationResult:
-    """Recompute feasibility and objective without trusting solver status alone."""
+    """Recompute feasibility and objective without trusting solver status alone.
+
+    Validates:
+    - Variable presence and finiteness
+    - Binary integrality of delta variables
+    - Non-negativity of x variables
+    - Linking constraints (lower_bound * delta <= x <= upper_bound * delta)
+    - Budget constraint (sum_i x_i = 1)
+    - Cardinality constraints (min_selected_assets <= sum_i delta_i <= max_selected_assets)
+    - Fixing compliance
+    - Objective recomputation
+    """
     mapping = PortfolioVariableMapping.for_problem(problem)
     values = dict(variable_values)
     reasons: list[str] = []
@@ -26,6 +37,7 @@ def validate_portfolio_solution(
     integrality_compliance = True
     original_constraint_compliance = True
     x_values: dict[str, float] = {}
+    delta_values: dict[str, float] = {}
     for asset_id in problem.asset_ids:
         delta_name = mapping.delta_variable_by_asset[asset_id]
         x_name = mapping.x_variable_by_asset[asset_id]
@@ -38,6 +50,7 @@ def validate_portfolio_solution(
             original_constraint_compliance = False
             continue
         x_values[asset_id] = x_value
+        delta_values[asset_id] = delta_value
         if min(abs(delta_value), abs(delta_value - 1.0)) > tolerances.integrality_tolerance:
             integrality_compliance = False
             reasons.append(f"binary_integrality_violation:{asset_id}")
@@ -65,6 +78,25 @@ def validate_portfolio_solution(
         objective_recomputed = _mean_variance_objective(problem, x_values)
     else:
         objective_recomputed = None
+
+    # Validate cardinality constraints
+    if len(delta_values) == len(problem.asset_ids):
+        # Count selected assets (delta ~= 1)
+        selected_count = sum(
+            1 for delta in delta_values.values()
+            if abs(delta - 1.0) <= tolerances.integrality_tolerance
+        )
+        if problem.min_selected_assets is not None and selected_count < problem.min_selected_assets:
+            original_constraint_compliance = False
+            reasons.append(
+                f"min_cardinality_violation:selected={selected_count},required>={problem.min_selected_assets}"
+            )
+        if problem.max_selected_assets is not None and selected_count > problem.max_selected_assets:
+            original_constraint_compliance = False
+            reasons.append(
+                f"max_cardinality_violation:selected={selected_count},required<={problem.max_selected_assets}"
+            )
+
     solver_objective_compliance: bool | None = None
     if solver_objective_value is not None:
         if objective_recomputed is None or not math.isfinite(solver_objective_value):

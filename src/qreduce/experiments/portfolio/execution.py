@@ -46,6 +46,10 @@ def run_portfolio_experiment(
     mis_num_sweeps: int | None = None,
     model_export_enabled: bool = False,
     model_export_path: str | None = None,
+    lower_bound: float = 0.0,
+    upper_bound: float = 0.7,
+    min_selected_assets: int | None = None,
+    max_selected_assets: int | None = None,
 ) -> ExperimentRun:
     """Run and persist a synthetic portfolio experiment.
 
@@ -75,13 +79,17 @@ def run_portfolio_experiment(
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         model_export_enabled: Whether to export the residual model.
         model_export_path: Optional path for model export.
+        lower_bound: Minimum investment per selected asset. Default 0.0.
+        upper_bound: Maximum investment per selected asset. Default 0.7.
+        min_selected_assets: Optional minimum number of assets to select (cardinality).
+        max_selected_assets: Optional maximum number of assets to select (cardinality).
 
     Returns:
         ExperimentRun with the run directory and result.
 
     Raises:
         ValueError: If asset_count < 6, or if D-Wave parameters are used with
-            a non-D-Wave solver.
+            a non-D-Wave solver, or if cardinality/bound constraints are invalid.
     """
     # Validate asset_count early
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
@@ -100,6 +108,10 @@ def run_portfolio_experiment(
         classical_solver_id=classical_solver_id,
         mis_num_reads=mis_num_reads,
         mis_num_sweeps=mis_num_sweeps,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        min_selected_assets=min_selected_assets,
+        max_selected_assets=max_selected_assets,
     )
 
     # Apply reduction policy if provided, otherwise keep the default from inputs

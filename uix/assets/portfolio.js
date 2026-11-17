@@ -21,6 +21,10 @@
     correlationThreshold: "0.90",
     returnDifference: "0.10",
     varianceDifference: "0.10",
+    lowerBound: "0.0",
+    upperBound: "0.7",
+    minSelectedAssets: "",
+    maxSelectedAssets: "",
     maxRounds: "1",
     minItems: "",
     maxItems: "",
@@ -154,6 +158,50 @@
           "Inserisci un numero >= 0."
         );
       }
+    }
+
+    // Investment bounds validation
+    var lowerBound = C.number("lowerBound");
+    var upperBound = C.number("upperBound");
+    require(
+      "lowerBound",
+      isFiniteNumber(lowerBound) && lowerBound >= 0,
+      "Inserisci un numero >= 0."
+    );
+    require(
+      "upperBound",
+      isFiniteNumber(upperBound) && upperBound > 0,
+      "Inserisci un numero > 0."
+    );
+    if (isFiniteNumber(lowerBound) && isFiniteNumber(upperBound) && upperBound < lowerBound) {
+      require("upperBound", false, "Deve essere >= investimento minimo.");
+    }
+
+    // Cardinality validation
+    var minSelected = C.number("minSelectedAssets");
+    var maxSelected = C.number("maxSelectedAssets");
+    if (minSelected !== null) {
+      require(
+        "minSelectedAssets",
+        isFiniteNumber(minSelected) && Number.isInteger(minSelected) && minSelected >= 0,
+        "Inserisci un intero >= 0."
+      );
+      if (assetCount !== null && minSelected > assetCount) {
+        require("minSelectedAssets", false, "Non può superare il numero di asset.");
+      }
+    }
+    if (maxSelected !== null) {
+      require(
+        "maxSelectedAssets",
+        isFiniteNumber(maxSelected) && Number.isInteger(maxSelected) && maxSelected >= 1,
+        "Inserisci un intero >= 1."
+      );
+      if (assetCount !== null && maxSelected > assetCount) {
+        require("maxSelectedAssets", false, "Non può superare il numero di asset.");
+      }
+    }
+    if (minSelected !== null && maxSelected !== null && minSelected > maxSelected) {
+      require("maxSelectedAssets", false, "Deve essere >= min asset selezionati.");
     }
 
     // Max rounds must be non-negative integer
@@ -336,6 +384,26 @@
       if (varianceDiff !== null && varianceDiff !== 0.1) {
         args.push({ flag: "--near-duplicate-max-relative-variance-difference", value: varianceDiff });
       }
+    }
+
+    // Investment bounds (only if different from defaults)
+    var lowerBound = C.number("lowerBound");
+    if (lowerBound !== null && lowerBound !== 0.0) {
+      args.push({ flag: "--lower-bound", value: lowerBound });
+    }
+    var upperBound = C.number("upperBound");
+    if (upperBound !== null && upperBound !== 0.7) {
+      args.push({ flag: "--upper-bound", value: upperBound });
+    }
+
+    // Cardinality constraints (optional, always include if set)
+    var minSelected = C.number("minSelectedAssets");
+    if (minSelected !== null) {
+      args.push({ flag: "--min-selected-assets", value: minSelected });
+    }
+    var maxSelected = C.number("maxSelectedAssets");
+    if (maxSelected !== null) {
+      args.push({ flag: "--max-selected-assets", value: maxSelected });
     }
 
     // Reduction policy - max-reduction-rounds is key

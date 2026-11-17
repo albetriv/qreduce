@@ -10,8 +10,10 @@ The execution mode is controlled by the `reduction_policy` parameter:
 
 from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
 from qreduce.experiments.portfolio.analysis import (
+    PortfolioSolutionAnalysis,
     SyntheticPortfolioAnalysis,
     load_multi_round_correlation_data,
+    load_portfolio_solution_analysis,
     load_synthetic_portfolio_analysis,
 )
 from qreduce.experiments.portfolio.execution import (
@@ -43,6 +45,7 @@ __all__ = [
     "PortfolioGraphPolicy",
     "PortfolioProblem",
     "PortfolioResidualProblem",
+    "PortfolioSolutionAnalysis",
     "PortfolioVariableMapping",
     "SyntheticPortfolioAnalysis",
     "SyntheticPortfolioGenerationPolicy",
@@ -52,6 +55,7 @@ __all__ = [
     "default_graph_policy",
     "default_reduction_policy",
     "load_multi_round_correlation_data",
+    "load_portfolio_solution_analysis",
     "load_synthetic_portfolio_analysis",
     "run_portfolio_experiment",
 ]

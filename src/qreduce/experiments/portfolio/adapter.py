@@ -152,7 +152,18 @@ class MeanVariancePortfolioAdapter:
         problem: PortfolioProblem | PortfolioResidualProblem,
         retained_item_ids: tuple[str, ...],
     ) -> DomainValidationResult:
-        """Check that retained assets can satisfy the unit budget constraint."""
+        """Check that retained assets can satisfy budget and cardinality constraints.
+
+        Validates:
+        - No duplicate or unknown item IDs
+        - Retained items' upper bounds can satisfy the unit budget (considering max cardinality)
+        - Retained item count satisfies minimum cardinality constraint
+        - Retained items' lower bounds don't make minimum cardinality infeasible
+
+        The key insight is:
+        - max_selected_assets limits capacity: use top-k upper bounds
+        - min_selected_assets requires minimum investment: use bottom-k lower bounds
+        """
         retained = tuple(retained_item_ids)
         if len(set(retained)) != len(retained):
             return DomainValidationResult(False, None, failure_reasons=("duplicate_retained_item_id",))
@@ -161,15 +172,63 @@ class MeanVariancePortfolioAdapter:
         if unknown_items:
             return DomainValidationResult(False, None, failure_reasons=("unknown_retained_item_id",))
         if isinstance(problem, PortfolioResidualProblem):
-            problem = problem.original_problem
-        retained_upper_bound = sum(problem.upper_bounds[asset_id] for asset_id in retained)
-        minimum_required_items = _minimum_items_for_budget(problem)
-        if retained_upper_bound < 1 - problem.covariance_symmetry_tolerance:
+            original_problem = problem.original_problem
+        else:
+            original_problem = problem
+
+        tolerance = original_problem.covariance_symmetry_tolerance
+        n_retained = len(retained)
+
+        # Compute minimum items needed based on problem constraints
+        minimum_required_items = _minimum_items_for_budget_with_cardinality(
+            original_problem, retained
+        )
+
+        # Check minimum cardinality constraint: domain must have enough items
+        if original_problem.min_selected_assets is not None and n_retained < original_problem.min_selected_assets:
             return DomainValidationResult(
                 False,
                 minimum_required_items,
-                failure_reasons=("retained_items_cannot_satisfy_unit_budget",),
+                failure_reasons=(
+                    f"retained_items_below_min_cardinality:retained={n_retained},required>={original_problem.min_selected_assets}",
+                ),
             )
+
+        # Check capacity: can we reach budget=1 with the available upper bounds?
+        # If max_selected_assets is set, we can only use that many assets
+        sorted_uppers = sorted(
+            (original_problem.upper_bounds[a] for a in retained), reverse=True
+        )
+        if original_problem.max_selected_assets is not None:
+            effective_max = min(original_problem.max_selected_assets, n_retained)
+        else:
+            effective_max = n_retained
+        achievable_capacity = sum(sorted_uppers[:effective_max])
+        if achievable_capacity < 1 - tolerance:
+            return DomainValidationResult(
+                False,
+                minimum_required_items,
+                failure_reasons=(
+                    f"retained_items_cannot_satisfy_unit_budget:capacity={achievable_capacity:.6g},max_selectable={effective_max}",
+                ),
+            )
+
+        # Check if minimum cardinality is feasible with lower bounds
+        # We need to select at least min_selected_assets; the sum of their lower bounds must be <= 1
+        if original_problem.min_selected_assets is not None and original_problem.min_selected_assets > 0:
+            sorted_lowers = sorted(original_problem.lower_bounds[a] for a in retained)
+            min_k = original_problem.min_selected_assets
+            # Sum of the min_k smallest lower bounds (the cheapest selection)
+            min_selection_cost = sum(sorted_lowers[:min_k])
+            if min_selection_cost > 1 + tolerance:
+                return DomainValidationResult(
+                    False,
+                    minimum_required_items,
+                    failure_reasons=(
+                        f"min_cardinality_infeasible:min_selection_cost={min_selection_cost:.6g},required_assets={min_k}",
+                    ),
+                )
+
         return DomainValidationResult(True, minimum_required_items)
 
     def build_fixing_manifest(self, problem: PortfolioProblem | PortfolioResidualProblem, retained_item_ids: tuple[str, ...]) -> FixingManifest:
@@ -288,3 +347,33 @@ def _minimum_items_for_budget(problem: PortfolioProblem) -> int:
         if cumulative_upper_bound >= 1 - problem.covariance_symmetry_tolerance:
             return item_count
     return len(problem.asset_ids)
+
+
+def _minimum_items_for_budget_with_cardinality(
+    problem: PortfolioProblem,
+    retained_ids: tuple[str, ...],
+) -> int:
+    """Compute minimum items needed considering cardinality constraints.
+
+    Returns the maximum of:
+    - Items needed to reach budget (based on upper bounds)
+    - min_selected_assets constraint (if set)
+    """
+    tolerance = problem.covariance_symmetry_tolerance
+
+    # Compute minimum based on upper bounds of retained assets
+    sorted_uppers = sorted(
+        (problem.upper_bounds[a] for a in retained_ids), reverse=True
+    )
+    cumulative = 0.0
+    min_for_budget = len(retained_ids)
+    for i, ub in enumerate(sorted_uppers, start=1):
+        cumulative += ub
+        if cumulative >= 1 - tolerance:
+            min_for_budget = i
+            break
+
+    # Consider min_selected_assets constraint
+    if problem.min_selected_assets is not None:
+        return max(min_for_budget, problem.min_selected_assets)
+    return min_for_budget

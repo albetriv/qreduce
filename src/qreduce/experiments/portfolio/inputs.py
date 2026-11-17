@@ -110,6 +110,10 @@ def build_synthetic_portfolio_inputs(
     classical_solver_id: str = "scip",
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
+    lower_bound: float = 0.0,
+    upper_bound: float = 0.7,
+    min_selected_assets: int | None = None,
+    max_selected_assets: int | None = None,
 ) -> SyntheticPortfolioInputs:
     """Build deterministic inputs with explicit optional solver selections.
 
@@ -123,6 +127,10 @@ def build_synthetic_portfolio_inputs(
         classical_solver_id: Classical solver to use.
         mis_num_reads: Optional D-Wave num_reads parameter.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+        lower_bound: Minimum investment per selected asset. Default 0.0.
+        upper_bound: Maximum investment per selected asset. Default 0.7.
+        min_selected_assets: Optional minimum number of assets to select (cardinality).
+        max_selected_assets: Optional maximum number of assets to select (cardinality).
 
     Returns:
         SyntheticPortfolioInputs with problem, adapter, and configuration.
@@ -151,7 +159,13 @@ def build_synthetic_portfolio_inputs(
     if graph_policy is None:
         graph_policy = default_graph_policy()
 
-    portfolio_data = generate_portfolio_data(generation_policy)
+    portfolio_data = generate_portfolio_data(
+        generation_policy,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        min_selected_assets=min_selected_assets,
+        max_selected_assets=max_selected_assets,
+    )
     problem = portfolio_data.to_problem()
 
     # Use the shared lightweight factory for reduction policy defaults

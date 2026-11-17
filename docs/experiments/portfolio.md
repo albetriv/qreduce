@@ -119,6 +119,56 @@ espone i seguenti gruppi di opzioni:
 | `--generation-seed`      | Seed per la generazione                          | 42                    |
 | `--observation-count`    | Numero di osservazioni storiche                  | 10 × asset_count      |
 
+### Opzioni limiti di investimento e cardinalità
+
+Queste opzioni controllano i vincoli sul portfolio finale:
+
+| Opzione                  | Descrizione                                      | Default               |
+|--------------------------|--------------------------------------------------|-----------------------|
+| `--lower-bound`          | Investimento minimo per asset selezionato        | 0.0                   |
+| `--upper-bound`          | Investimento massimo per asset selezionato       | 0.7                   |
+| `--min-selected-assets`  | Numero minimo di asset da selezionare            | nessun vincolo        |
+| `--max-selected-assets`  | Numero massimo di asset da selezionare           | nessun vincolo        |
+
+**Semantica dei limiti:**
+
+- I limiti sono condizionali alla selezione: `lower_bound * delta <= x <= upper_bound * delta`
+- Con `lower_bound > 0`, un asset selezionato (δ=1) ha sempre investimento positivo
+- Con `lower_bound = 0`, una binaria può essere attiva anche con peso nullo
+- `lower_bound = upper_bound` rappresenta investimento fisso per asset selezionato
+
+**Semantica della cardinalità:**
+
+- `min_selected_assets`: aggiunge vincolo `sum_i delta_i >= min`
+- `max_selected_assets`: aggiunge vincolo `sum_i delta_i <= max`
+- Per cardinalità esatta, impostare min = max
+- Il dominio candidato (riduzione) è distinto dalla cardinalità finale: 40 candidati
+  possono alimentare un portfolio di 10 asset selezionati
+
+**Esempio con cardinalità e soglie positive:**
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id cardinality_test \
+  --asset-count 100 \
+  --lower-bound 0.05 \
+  --upper-bound 0.25 \
+  --min-selected-assets 5 \
+  --max-selected-assets 15
+```
+
+**Esempio con cardinalità esatta e investimento fisso:**
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id exact_cardinality \
+  --asset-count 50 \
+  --lower-bound 0.10 \
+  --upper-bound 0.10 \
+  --min-selected-assets 10 \
+  --max-selected-assets 10
+```
+
 ### Opzioni del grafo
 
 | Opzione                                        | Descrizione                     | Default         |

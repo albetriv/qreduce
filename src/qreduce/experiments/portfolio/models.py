@@ -153,6 +153,20 @@ class PortfolioProblem:
 
     The absolute diagonal shift is 1e-8; the Cholesky boundary is strict
     and subject to floating-point rounding. The input matrix is not modified.
+
+    Cardinality constraints (min_selected_assets, max_selected_assets) are optional.
+    When set, they constrain the number of assets with delta_i = 1:
+        min_selected_assets <= sum_i delta_i <= max_selected_assets
+
+    Lower/upper bounds define conditional investment limits per asset:
+        lower_bound_i * delta_i <= x_i <= upper_bound_i * delta_i
+
+    The validation no longer requires the sum of ALL lower bounds to be <= 1,
+    since not all assets must be selected. Instead, it validates that:
+    - Each lower_bound <= upper_bound
+    - Budget feasibility with cardinality constraints when provided
+    - Upper bounds can support the minimum cardinality
+    - Lower bounds don't make maximum cardinality infeasible
     """
 
     asset_ids: tuple[str, ...]
@@ -162,6 +176,8 @@ class PortfolioProblem:
     upper_bounds: Mapping[str, float]
     retention_scores: Mapping[str, float]
     risk_aversion: float
+    min_selected_assets: int | None = None
+    max_selected_assets: int | None = None
     covariance_symmetry_tolerance: float = 1e-12
     _covariance_origin: InitVar[object] = None
 
@@ -200,10 +216,57 @@ class PortfolioProblem:
         upper_bounds = self.upper_bounds
         if any(lower_bounds[asset_id] > upper_bounds[asset_id] for asset_id in asset_ids):
             raise ValueError("Each lower bound must not exceed its upper bound.")
-        if sum(lower_bounds.values()) > 1 + self.covariance_symmetry_tolerance:
-            raise ValueError("Lower bounds make the unit budget infeasible.")
-        if sum(upper_bounds.values()) < 1 - self.covariance_symmetry_tolerance:
-            raise ValueError("Upper bounds cannot satisfy the unit budget.")
+
+        # Validate cardinality constraints
+        n_assets = len(asset_ids)
+        min_selected = self.min_selected_assets
+        max_selected = self.max_selected_assets
+
+        if min_selected is not None:
+            if isinstance(min_selected, bool) or not isinstance(min_selected, int):
+                raise TypeError("min_selected_assets must be an integer or None.")
+            if min_selected < 0:
+                raise ValueError("min_selected_assets must be non-negative.")
+            if min_selected > n_assets:
+                raise ValueError(f"min_selected_assets ({min_selected}) cannot exceed asset count ({n_assets}).")
+
+        if max_selected is not None:
+            if isinstance(max_selected, bool) or not isinstance(max_selected, int):
+                raise TypeError("max_selected_assets must be an integer or None.")
+            if max_selected < 1:
+                raise ValueError("max_selected_assets must be at least 1.")
+            if max_selected > n_assets:
+                raise ValueError(f"max_selected_assets ({max_selected}) cannot exceed asset count ({n_assets}).")
+
+        if min_selected is not None and max_selected is not None and min_selected > max_selected:
+            raise ValueError(
+                f"min_selected_assets ({min_selected}) cannot exceed max_selected_assets ({max_selected})."
+            )
+
+        # Validate budget feasibility with cardinality constraints
+        # Sort upper bounds descending for capacity checks
+        sorted_uppers = sorted(upper_bounds.values(), reverse=True)
+        sorted_lowers = sorted(lower_bounds.values())
+
+        tolerance = self.covariance_symmetry_tolerance
+
+        # If max_selected is set, check that the k largest upper bounds can reach budget=1
+        effective_max = max_selected if max_selected is not None else n_assets
+        if sum(sorted_uppers[:effective_max]) < 1 - tolerance:
+            raise ValueError(
+                f"Upper bounds of top {effective_max} assets sum to {sum(sorted_uppers[:effective_max]):.6g}, "
+                f"which cannot satisfy the unit budget."
+            )
+
+        # If min_selected is set, check that selecting min_selected assets is feasible
+        # The k smallest lower bounds must not exceed the budget
+        effective_min = min_selected if min_selected is not None else 1
+        if effective_min > 0 and sum(sorted_lowers[:effective_min]) > 1 + tolerance:
+            raise ValueError(
+                f"Lower bounds of {effective_min} smallest assets sum to {sum(sorted_lowers[:effective_min]):.6g}, "
+                f"making minimum cardinality infeasible."
+            )
+
         object.__setattr__(self, "asset_ids", asset_ids)
         object.__setattr__(self, "covariance", covariance)
 
@@ -285,7 +348,13 @@ class PortfolioResidualProblem:
 
     @property
     def constraint_count(self) -> int:
-        return 1 + 2 * len(self.original_problem.asset_ids) + 2 * len(self.fixing_manifest.entries)
+        base_count = 1 + 2 * len(self.original_problem.asset_ids) + 2 * len(self.fixing_manifest.entries)
+        cardinality_count = 0
+        if self.original_problem.min_selected_assets is not None:
+            cardinality_count += 1
+        if self.original_problem.max_selected_assets is not None:
+            cardinality_count += 1
+        return base_count + cardinality_count
 
     def build_classical_model(self) -> ClassicalOptimizationModel:
         """Compile the portfolio residual problem without importing a solver binding."""
@@ -346,6 +415,25 @@ class PortfolioResidualProblem:
                     value,
                 )
                 for variable_name, value in entry.variable_values.items()
+            )
+        # Add cardinality constraints if configured
+        if problem.min_selected_assets is not None:
+            constraints.append(
+                LinearConstraint(
+                    "min_cardinality",
+                    {mapping.delta_variable_by_asset[asset_id]: 1.0 for asset_id in asset_ids},
+                    LinearConstraintSense.GREATER_EQUAL,
+                    float(problem.min_selected_assets),
+                )
+            )
+        if problem.max_selected_assets is not None:
+            constraints.append(
+                LinearConstraint(
+                    "max_cardinality",
+                    {mapping.delta_variable_by_asset[asset_id]: 1.0 for asset_id in asset_ids},
+                    LinearConstraintSense.LESS_EQUAL,
+                    float(problem.max_selected_assets),
+                )
             )
         quadratic_terms = tuple(
             QuadraticObjectiveTerm(

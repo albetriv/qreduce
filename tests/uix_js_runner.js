@@ -108,12 +108,31 @@ function main() {
       });
     }
 
+    // Execute reset if requested (click the reset button)
+    if (fieldValues._action === "reset") {
+      const resetButton = document.getElementById("resetDefaults");
+      if (resetButton) {
+        resetButton.click();
+      }
+    }
+
     // Trigger change event to update validation and preview
     const form = document.getElementById("configForm");
     if (form) {
       form.dispatchEvent(new window.Event("input", { bubbles: true }));
       form.dispatchEvent(new window.Event("change", { bubbles: true }));
     }
+
+    // Collect field values for verification (used by reset tests)
+    const currentValues = {};
+    ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
+     "runId", "assetCount", "generationSeed", "maxRounds", "edgeMode",
+     "correlationThreshold", "misSolver", "classicalSolver"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        currentValues[id] = el.type === "checkbox" ? el.checked : el.value;
+      }
+    });
 
     // Get validation state
     const errors = {};
@@ -143,6 +162,7 @@ function main() {
       isValid,
       errors,
       command,
+      currentValues,
     };
 
     console.log(JSON.stringify(result));

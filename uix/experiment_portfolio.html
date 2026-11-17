@@ -119,6 +119,44 @@
                 </div>
               </div>
             </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Limiti di investimento e cardinalità</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Definiscono la soglia minima/massima per asset selezionato (condizionale a δ=1) e il numero di asset da selezionare.
+                La <strong>cardinalità</strong> (min/max asset selezionati) è distinta dal <strong>dominio candidato</strong> (max item nella riduzione).
+              </p>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Investimento minimo per asset selezionato. Quando un asset ha delta=1, il suo peso x deve essere almeno questo valore. Con lower_bound > 0, un asset selezionato ha sempre investimento positivo. Default: 0.0. -->
+                <div class="field">
+                  <label for="lowerBound">Investimento minimo <span class="param">--lower-bound</span></label>
+                  <input id="lowerBound" type="number" value="0.0" min="0" step="0.01">
+                  <p class="help">Default: 0.0 (nessun minimo)</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Investimento massimo per asset selezionato. Quando un asset ha delta=1, il suo peso x non può superare questo valore. Limita la concentrazione del portfolio. Default: 0.7. -->
+                <div class="field">
+                  <label for="upperBound">Investimento massimo <span class="param">--upper-bound</span></label>
+                  <input id="upperBound" type="number" value="0.7" min="0" step="0.01">
+                  <p class="help">Default: 0.7</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Numero minimo di asset da selezionare nel portfolio finale. Il vincolo sum_i delta_i >= min_selected_assets viene aggiunto al modello. Se omesso, nessun vincolo minimo di cardinalità. -->
+                <div class="field">
+                  <label for="minSelectedAssets">Min asset selezionati <span class="param">--min-selected-assets</span></label>
+                  <input id="minSelectedAssets" type="number" min="0" step="1" placeholder="Opzionale">
+                  <p class="help">Cardinalità minima (opzionale)</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Numero massimo di asset da selezionare nel portfolio finale. Il vincolo sum_i delta_i <= max_selected_assets viene aggiunto al modello. Se omesso, nessun vincolo massimo di cardinalità. Per cardinalità esatta, impostare min = max. -->
+                <div class="field">
+                  <label for="maxSelectedAssets">Max asset selezionati <span class="param">--max-selected-assets</span></label>
+                  <input id="maxSelectedAssets" type="number" min="1" step="1" placeholder="Opzionale">
+                  <p class="help">Cardinalità massima (opzionale)</p>
+                  <p class="error"></p>
+                </div>
+              </div>
+            </div>
           </section>
 
           <!-- Tab 2: Reduction -->
