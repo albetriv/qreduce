@@ -826,3 +826,255 @@ details[open] .advanced-summary {
     display: inline;
   }
 }
+
+
+/* ===== Math Formulation Panel ===== */
+.math-panel {
+  margin-top: 24px;
+  padding: 0;
+}
+
+.math-panel-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 22px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--line);
+  background: rgba(4, 13, 25, 0.28);
+  list-style: none;
+}
+
+.math-panel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.math-panel-summary::before {
+  content: "▸";
+  position: absolute;
+  right: 22px;
+  top: 18px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+details[open] > .math-panel-summary::before {
+  transform: rotate(90deg);
+}
+
+.math-panel-summary {
+  position: relative;
+}
+
+.math-panel-title {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.math-panel-subtitle {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.math-content {
+  padding: 22px;
+}
+
+.math-section {
+  margin-bottom: 28px;
+}
+
+.math-section:last-child {
+  margin-bottom: 0;
+}
+
+.math-section h3 {
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--accent);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(66, 211, 177, 0.2);
+}
+
+.math-description {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+
+/* Math blocks and formulas */
+.math-block {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(5, 18, 33, 0.5);
+  border: 1px solid rgba(40, 65, 93, 0.6);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.math-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.math-formula {
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--text);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* MathJax containers */
+.math-formula mjx-container {
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+/* Fallback text styling */
+.math-fallback {
+  display: none;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  color: #bce9de;
+}
+
+/* Show fallback when MathJax fails */
+.mathjax-failed .math-latex {
+  display: none;
+}
+
+.mathjax-failed .math-fallback {
+  display: block;
+}
+
+/* Values section */
+.math-values {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: rgba(15, 45, 70, 0.3);
+  border-radius: 10px;
+}
+
+.math-values h4 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.math-values-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.math-values-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  border-bottom: 1px solid rgba(40, 65, 93, 0.3);
+}
+
+.math-values-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.math-var {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.math-values-list strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Legend */
+.math-legend {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.math-legend-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.math-legend-item dt {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.math-legend-item dd {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.math-legend-item dd em {
+  color: var(--text);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Notes */
+.math-note {
+  margin-top: 16px;
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  color: #bcd9fa;
+  background: rgba(39, 101, 169, 0.12);
+  border-left: 3px solid var(--blue);
+  border-radius: 0 8px 8px 0;
+  line-height: 1.55;
+}
+
+.math-note strong {
+  color: #dbe9fa;
+}
+
+/* Responsive adjustments */
+@media (max-width: 680px) {
+  .math-content {
+    padding: 16px;
+  }
+
+  .math-block {
+    padding: 10px 12px;
+  }
+
+  .math-formula {
+    font-size: 0.88rem;
+  }
+
+  .math-legend-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .math-legend-item dt {
+    min-width: auto;
+  }
+}

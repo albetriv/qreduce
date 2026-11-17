@@ -206,6 +206,10 @@ Ogni parametro ha un'icona informativa (ⓘ) che mostra una descrizione al
 passaggio del mouse o con focus/tocco. Le descrizioni documentano scopo,
 effetto e condizioni d'uso di ciascun parametro.
 
+I configuratori includono un pannello espandibile con la formulazione
+matematica del problema configurato, renderizzata con MathJax quando
+disponibile.
+
 ## Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:
