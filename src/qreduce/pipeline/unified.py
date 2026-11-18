@@ -366,8 +366,13 @@ def _run_classical_only(
 
     # Check time budget
     reduction = config.reduction
-    remaining = reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
-    timeout = effective_timeout(config.classical_solve.time_limit_seconds, remaining)
+    configured_budget = reduction.max_end_to_end_runtime_seconds
+    remaining = configured_budget - (perf_counter() - started_at) if configured_budget > 0 else 0.0
+    timeout = effective_timeout(
+        config.classical_solve.time_limit_seconds,
+        remaining,
+        configured_budget,
+    )
     if not timeout.validation.is_valid:
         return _failed_pipeline(
             config, PipelineStage.CLASSICAL, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
@@ -377,6 +382,11 @@ def _run_classical_only(
             cumulative_fixing_manifest=empty_manifest,
             final_retained_item_ids=original_item_ids,
         )
+
+    # Determine time_limit_seconds for the request
+    # If unlimited (both limits=0), pass 0 to signal no limit
+    # Otherwise pass the computed effective timeout
+    request_time_limit = 0.0 if timeout.is_unlimited else (timeout.timeout_seconds or 0.0)
 
     # Execute classical solve - pass restricted_problem directly (it implements ClassicalModelProvider)
     # The backend calls restricted_problem.build_classical_model() internally
@@ -389,7 +399,7 @@ def _run_classical_only(
                 ClassicalSolveRequest(
                     run_id=config.run_identity.run_id,
                     round_index=0,
-                    time_limit_seconds=timeout.timeout_seconds,
+                    time_limit_seconds=request_time_limit,
                     remaining_end_to_end_seconds=remaining,
                     mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
                     threads=config.classical_solve.threads,
@@ -399,6 +409,7 @@ def _run_classical_only(
                         _model_export_write_path or config.classical_solve.model_export_path
                     ),
                     requested_solver_id=config.classical_solve.classical_solver_id,
+                    configured_end_to_end_budget_seconds=configured_budget,
                 ),
                 staging_path=_model_export_write_path,
                 logical_path=config.classical_solve.model_export_path,

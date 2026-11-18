@@ -196,10 +196,23 @@ poetry run python -m qreduce.experiments.portfolio \
 | `--candidate-domain-max-items`         | Massimo item nel dominio candidato    | 60% di asset_count    |
 | `--target-binary-variables`            | Target variabili binarie              | 3                     |
 | `--min-reduction-ratio`                | Rapporto minimo di riduzione          | 0.1                   |
-| `--max-end-to-end-runtime-seconds`     | Timeout totale                        | 60.0                  |
+| `--max-end-to-end-runtime-seconds`     | Timeout totale pipeline               | 60.0                  |
+| `--classical-time-limit-seconds`       | Timeout per invocazione solver        | 60.0                  |
 | `--recovery-policy-on-domain-too-small`| `fail`, `retry_with_larger_domain`    | `fail`                |
 | `--recovery-policy-on-infeasible`      | `fail`, `retry_with_larger_domain`    | `fail`                |
 | `--max-recovery-attempts`              | Massimo tentativi di recovery         | 0                     |
+
+**Semantica dei timeout:**
+
+- `--max-end-to-end-runtime-seconds`: budget totale della pipeline, condiviso
+  tra tutti i round e tentativi di recovery. Un valore di `0` significa
+  nessun limite di tempo end-to-end.
+- `--classical-time-limit-seconds`: limite per ogni singola invocazione del
+  solver classico (si resetta ad ogni solve). Un valore di `0` significa
+  che il solver prosegue fino al completamento o all'esaurimento del budget
+  end-to-end.
+
+Entrambi i parametri rifiutano valori negativi, NaN, infinito e booleani.
 
 ## Esempi
 

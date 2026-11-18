@@ -233,8 +233,8 @@ def test_cli_recovery_policy_passes_real_validator(monkeypatch, tmp_path):
     assert result.is_valid, f"Validation failed: {[i.message for i in result.issues]}"
 
 
-def test_cli_zero_budget_is_rejected_by_validator(monkeypatch, tmp_path):
-    """A zero runtime budget passed via CLI is rejected by the configuration validator."""
+def test_cli_zero_budget_is_accepted_as_unlimited(monkeypatch, tmp_path):
+    """A zero runtime budget passed via CLI is accepted as unlimited (no time limit)."""
     from qreduce.config import validate_resolved_run_config
     from qreduce.experiments.portfolio import __main__ as cli_module
     from qreduce.experiments.portfolio.inputs import build_synthetic_portfolio_inputs
@@ -265,6 +265,5 @@ def test_cli_zero_budget_is_rejected_by_validator(monkeypatch, tmp_path):
     from dataclasses import replace
     config = replace(inputs.config, reduction=policy)
     result = validate_resolved_run_config(config)
-    # Zero budget should be rejected
-    budget_issues = [i for i in result.issues if "runtime" in i.field.lower() or "budget" in i.message.lower()]
-    assert budget_issues, "Zero budget should be rejected by validator"
+    # Zero budget should now be accepted (means unlimited)
+    assert result.is_valid, f"Zero budget should be accepted as unlimited: {result.issues}"

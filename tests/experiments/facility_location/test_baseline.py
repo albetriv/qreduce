@@ -62,7 +62,7 @@ def test_cap41_scip_baseline():
     if not path.exists():
         pytest.skip("cap41 dataset not available locally")
     problem = load_or_library(path)
-    request = ClassicalSolveRequest("cap41-test", 0, 60, 60, None, 0, 1, False, requested_solver_id="scip")
+    request = ClassicalSolveRequest("cap41-test", 0, 60, 60, 60.0, None, 0, 1, False, requested_solver_id="scip")
     result = ScipClassicalBackend().solve(FacilityLocationResidualProblem(problem), request)
     assert result.is_optimal, result.diagnostic_message
     assert result.objective_value == pytest.approx(1040444.375, abs=0.01)

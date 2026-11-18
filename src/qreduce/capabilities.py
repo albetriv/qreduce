@@ -87,9 +87,10 @@ def validate_backend_compatibility(
         _add_issue(issues, "random_seed", "A random seed was requested but is unsupported.")
     if execution.requested_solution_count > 1 and not capabilities.supports_solution_count:
         _add_issue(issues, "requested_solution_count", "Multiple requested solutions are unsupported.")
-    if execution.execution_time_limit_seconds is not None and not capabilities.supports_execution_time_limit:
+    # 0 means "no limit requested", so only require capability support for positive values
+    if execution.execution_time_limit_seconds is not None and execution.execution_time_limit_seconds > 0 and not capabilities.supports_execution_time_limit:
         _add_issue(issues, "execution_time_limit_seconds", "Execution time limits are unsupported.")
-    if execution.compilation_time_limit_seconds is not None and not capabilities.supports_compilation_time_limit:
+    if execution.compilation_time_limit_seconds is not None and execution.compilation_time_limit_seconds > 0 and not capabilities.supports_compilation_time_limit:
         _add_issue(issues, "compilation_time_limit_seconds", "Compilation time limits are unsupported.")
     unsupported_parameter_names = sorted(
         set(execution.provider_parameters) - set(capabilities.supported_parameter_names)

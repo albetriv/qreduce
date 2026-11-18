@@ -117,3 +117,68 @@ def test_capability_serialization_retains_the_required_credentials_flag() -> Non
     )
 
     assert capabilities.to_dict()["required_credentials"] is True
+
+
+# Tests for unlimited budget support (budget=0 semantics)
+
+def test_mis_backend_request_accepts_zero_budget() -> None:
+    """MISBackendRequest accepts 0 as unlimited budget."""
+    request = MISBackendRequest(
+        run_id="run-001",
+        round_index=0,
+        compiled_job_id="job-001",
+        node_order=("a",),
+        random_seed=7,
+        requested_solution_count=1,
+        residual_time_budget_seconds=0.0,  # 0 = unlimited
+    )
+
+    assert request.residual_time_budget_seconds == 0.0
+
+
+def test_mis_backend_request_rejects_negative_budget() -> None:
+    """MISBackendRequest rejects negative budget values."""
+    from qreduce.mwis.validation import MWISValidationError
+
+    with pytest.raises(MWISValidationError, match="Timeout must be"):
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id="job-001",
+            node_order=("a",),
+            random_seed=7,
+            requested_solution_count=1,
+            residual_time_budget_seconds=-1.0,
+        )
+
+
+def test_mis_backend_request_rejects_nan_budget() -> None:
+    """MISBackendRequest rejects NaN budget values."""
+    from qreduce.mwis.validation import MWISValidationError
+
+    with pytest.raises(MWISValidationError, match="Timeout must be"):
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id="job-001",
+            node_order=("a",),
+            random_seed=7,
+            requested_solution_count=1,
+            residual_time_budget_seconds=float("nan"),
+        )
+
+
+def test_mis_backend_request_rejects_infinity_budget() -> None:
+    """MISBackendRequest rejects infinite budget values."""
+    from qreduce.mwis.validation import MWISValidationError
+
+    with pytest.raises(MWISValidationError, match="Timeout must be"):
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id="job-001",
+            node_order=("a",),
+            random_seed=7,
+            requested_solution_count=1,
+            residual_time_budget_seconds=float("inf"),
+        )

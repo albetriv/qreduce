@@ -150,3 +150,52 @@ def test_local_backend_returns_time_limited_compilation_when_budget_expires(monk
     assert result.compiled_job is None
     assert result.completion_status is MISCompletionStatus.TIME_LIMITED
     assert result.terminal_reason is TerminalReason.MIS_EXECUTION_TIME_BUDGET_EXHAUSTED
+
+
+# Tests for unlimited budget support (budget=0 semantics)
+
+
+def test_local_backend_compiles_successfully_with_unlimited_budget() -> None:
+    """Local backend accepts budget=0 (unlimited) for compilation."""
+    backend = LocalGreedyMISBackend()
+    problem = make_problem()
+    request = MISCompilationRequest(
+        run_id="run-001",
+        round_index=0,
+        node_order=problem.graph.node_ids,
+        residual_time_budget_seconds=0.0,  # 0 = unlimited
+        requested_provider_id="local",
+        requested_backend_id="greedy_mis",
+        requested_backend_family=BackendFamily.CLASSICAL_HEURISTIC,
+        requested_execution_mode=ExecutionMode.LOCAL,
+        required_problem_form=ProblemForm.MIS_GRAPH,
+    )
+
+    compilation = backend.compile(problem, request)
+
+    assert compilation.compiled_job is not None
+    assert compilation.completion_status is MISCompletionStatus.COMPLETED
+
+
+def test_local_backend_solves_successfully_with_unlimited_budget() -> None:
+    """Local backend accepts budget=0 (unlimited) for execution."""
+    backend = LocalGreedyMISBackend()
+    problem = make_problem()
+    compilation = backend.compile(problem, make_compilation_request(problem))
+    assert compilation.compiled_job is not None
+
+    result = backend.solve(
+        compilation.compiled_job,
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id=compilation.compiled_job.compiled_job_id,
+            node_order=problem.graph.node_ids,
+            random_seed=7,
+            requested_solution_count=3,
+            residual_time_budget_seconds=0.0,  # 0 = unlimited
+        ),
+    )
+
+    assert result.completion_status is MISCompletionStatus.COMPLETED
+    assert len(result.samples) == 3

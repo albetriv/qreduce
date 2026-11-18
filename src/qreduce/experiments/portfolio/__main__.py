@@ -13,6 +13,7 @@ import argparse
 import sys
 from dataclasses import replace
 
+from qreduce.config import validate_timeout_value
 from qreduce.experiments.portfolio.execution import (
     DEFAULT_PORTFOLIO_OUTPUT_ROOT,
     run_portfolio_experiment,
@@ -184,6 +185,13 @@ Examples:
         help="Classical solver ID. Default: scip.",
     )
     solver_group.add_argument(
+        "--classical-time-limit-seconds",
+        type=float,
+        help="Maximum time per classical solve invocation in seconds. "
+        "A value of 0 means no per-solve limit (solver runs until completion "
+        "or end-to-end budget exhaustion). Default: 60.0.",
+    )
+    solver_group.add_argument(
         "--mis-num-reads",
         type=int,
         help="D-Wave simulated-annealing num_reads parameter.",
@@ -229,7 +237,8 @@ Examples:
     reduction_group.add_argument(
         "--max-end-to-end-runtime-seconds",
         type=float,
-        help="Maximum end-to-end runtime in seconds. Default: 60.0.",
+        help="Maximum end-to-end runtime in seconds. A value of 0 means no "
+        "global time limit. Default: 60.0.",
     )
     reduction_group.add_argument(
         "--recovery-policy-on-domain-too-small",
@@ -264,6 +273,17 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     # D-Wave parameters require D-Wave solver
     if (args.mis_num_reads is not None or args.mis_num_sweeps is not None) and args.mis_solver_id != "dwave_simulated_annealing":
         parser.error("--mis-num-reads and --mis-num-sweeps require --mis-solver-id=dwave_simulated_annealing")
+
+    # Time limit validation - reject booleans, NaN, infinity
+    if args.classical_time_limit_seconds is not None:
+        error = validate_timeout_value(args.classical_time_limit_seconds, "--classical-time-limit-seconds")
+        if error:
+            parser.error(error)
+
+    if args.max_end_to_end_runtime_seconds is not None:
+        error = validate_timeout_value(args.max_end_to_end_runtime_seconds, "--max-end-to-end-runtime-seconds")
+        if error:
+            parser.error(error)
 
     # Investment bounds validation
     if args.lower_bound < 0:
@@ -394,6 +414,7 @@ def main() -> int:
         reduction_policy=reduction_policy,
         mis_solver_id=args.mis_solver_id,
         classical_solver_id=args.classical_solver_id,
+        classical_time_limit_seconds=args.classical_time_limit_seconds,
         mis_num_reads=args.mis_num_reads,
         mis_num_sweeps=args.mis_num_sweeps,
         model_export_enabled=args.model_export,

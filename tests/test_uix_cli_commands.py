@@ -154,6 +154,29 @@ class TestPortfolioCLICommands:
         assert args.near_duplicate_max_relative_return_difference == 0.05
         assert args.near_duplicate_max_relative_variance_difference == 0.08
 
+    def test_unlimited_timeout_zero(self, parser: argparse.ArgumentParser) -> None:
+        """Test that timeout=0 (unlimited) is accepted."""
+        cmd = "--run-id unlimited001 --classical-time-limit-seconds 0"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.classical_time_limit_seconds == 0.0
+
+    def test_unlimited_budget_zero(self, parser: argparse.ArgumentParser) -> None:
+        """Test that budget=0 (unlimited) is accepted."""
+        cmd = "--run-id unlimited002 --max-end-to-end-runtime-seconds 0"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.max_end_to_end_runtime_seconds == 0.0
+
+    def test_both_unlimited_zero(self, parser: argparse.ArgumentParser) -> None:
+        """Test that both timeout=0 and budget=0 are accepted together."""
+        cmd = (
+            "--run-id unlimited003 "
+            "--classical-time-limit-seconds 0 "
+            "--max-end-to-end-runtime-seconds 0"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.classical_time_limit_seconds == 0.0
+        assert args.max_end_to_end_runtime_seconds == 0.0
+
     def test_full_command_inline(self, parser: argparse.ArgumentParser) -> None:
         """Test a full command as generated in inline format."""
         cmd = (

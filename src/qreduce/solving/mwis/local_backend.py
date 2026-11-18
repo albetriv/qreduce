@@ -64,7 +64,8 @@ class LocalGreedyMISBackend:
                 diagnostic_message="; ".join(issue.message for issue in validation.issues),
             )
         runtime_seconds = perf_counter() - started_at
-        if runtime_seconds >= request.residual_time_budget_seconds:
+        # 0 means unlimited - only check budget if positive
+        if request.residual_time_budget_seconds > 0 and runtime_seconds >= request.residual_time_budget_seconds:
             return MISCompilationResult(
                 compiled_job=None,
                 requested_provider_id=request.requested_provider_id,
@@ -115,7 +116,8 @@ class LocalGreedyMISBackend:
         random_generator = random.Random(request.random_seed)
         samples: list[RawMISSample] = []
         for attempt_index in range(request.requested_solution_count):
-            if perf_counter() - started_at >= request.residual_time_budget_seconds:
+            # 0 means unlimited - only check budget if positive
+            if request.residual_time_budget_seconds > 0 and perf_counter() - started_at >= request.residual_time_budget_seconds:
                 return self._result(
                     compiled_job,
                     request,

@@ -94,23 +94,30 @@ def _run_reduction_rounds(
 
     for round_index in range(max_rounds):
         with logging_context(round_index=round_index, stage="reduction_round"):
-            # Check time budget
+            # Check time budget (only if a finite budget is configured)
+            configured_budget = reduction.max_end_to_end_runtime_seconds
             elapsed = perf_counter() - started_at
-            remaining_budget = reduction.max_end_to_end_runtime_seconds - elapsed
-            if remaining_budget <= 0:
-                logger.warning(
-                    "Time budget exhausted at round %d after %.2fs",
-                    round_index, elapsed,
-                )
-                return _build_pipeline_result(
-                    config, round_results, round_manifests, all_recovery_attempts,
-                    original_item_ids, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
-                    started_at, input_hash, original_problem, adapter,
-                )
+
+            # Budget of 0 means unlimited - never exhausted
+            if configured_budget > 0:
+                remaining_budget = configured_budget - elapsed
+                if remaining_budget <= 0:
+                    logger.warning(
+                        "Time budget exhausted at round %d after %.2fs",
+                        round_index, elapsed,
+                    )
+                    return _build_pipeline_result(
+                        config, round_results, round_manifests, all_recovery_attempts,
+                        original_item_ids, TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
+                        started_at, input_hash, original_problem, adapter,
+                    )
+            else:
+                remaining_budget = 0.0  # Unlimited
 
             logger.info(
-                "Starting reduction round %d/%d remaining_budget=%.1fs",
-                round_index + 1, max_rounds, remaining_budget,
+                "Starting reduction round %d/%d %s",
+                round_index + 1, max_rounds,
+                f"remaining_budget={remaining_budget:.1f}s" if configured_budget > 0 else "budget=unlimited",
             )
 
             # The local timer includes all recovery attempts; the global timer is
@@ -532,8 +539,13 @@ def _run_classical_and_postcheck(
         )
 
     # Check time budget
-    remaining = reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
-    timeout = effective_timeout(config.classical_solve.time_limit_seconds, remaining)
+    configured_budget = reduction.max_end_to_end_runtime_seconds
+    remaining = configured_budget - (perf_counter() - started_at) if configured_budget > 0 else 0.0
+    timeout = effective_timeout(
+        config.classical_solve.time_limit_seconds,
+        remaining,
+        configured_budget,
+    )
     if not timeout.validation.is_valid:
         return _failed_round(
             config, PipelineStage.CLASSICAL,
@@ -544,6 +556,11 @@ def _run_classical_and_postcheck(
             fixing_manifest=fixing_manifest,
         )
 
+    # Determine time_limit_seconds for the request
+    # If unlimited (both limits=0), pass 0 to signal no limit
+    # Otherwise pass the computed effective timeout
+    request_time_limit = 0.0 if timeout.is_unlimited else (timeout.timeout_seconds or 0.0)
+
     # Execute classical solve - pass reduced_problem directly (it implements ClassicalModelProvider)
     # The backend calls reduced_problem.build_classical_model() internally
     try:
@@ -553,7 +570,7 @@ def _run_classical_and_postcheck(
             ClassicalSolveRequest(
                 run_id=config.run_identity.run_id,
                 round_index=round_index,
-                time_limit_seconds=timeout.timeout_seconds,
+                time_limit_seconds=request_time_limit,
                 remaining_end_to_end_seconds=remaining,
                 mip_gap_tolerance=config.classical_solve.mip_gap_tolerance,
                 threads=config.classical_solve.threads,
@@ -563,6 +580,7 @@ def _run_classical_and_postcheck(
                     _model_export_write_path or config.classical_solve.model_export_path
                 ),
                 requested_solver_id=config.classical_solve.classical_solver_id,
+                configured_end_to_end_budget_seconds=configured_budget,
             ),
             staging_path=_model_export_write_path,
             logical_path=config.classical_solve.model_export_path,

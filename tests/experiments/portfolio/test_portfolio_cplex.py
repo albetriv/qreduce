@@ -9,8 +9,23 @@ from qreduce.solving.residual import ClassicalSolveRequest, CplexClassicalBacken
 from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 
-def make_request(*, remaining_budget: float = 10.0) -> ClassicalSolveRequest:
-    return ClassicalSolveRequest("run-001", 0, 10.0, remaining_budget, None, 7, 1, False, requested_solver_id="cplex")
+def make_request(
+    *,
+    remaining_budget: float = 10.0,
+    configured_budget: float = 60.0,
+) -> ClassicalSolveRequest:
+    return ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=10.0,
+        remaining_end_to_end_seconds=remaining_budget,
+        configured_end_to_end_budget_seconds=configured_budget,
+        mip_gap_tolerance=None,
+        random_seed=7,
+        threads=1,
+        model_export_enabled=False,
+        requested_solver_id="cplex",
+    )
 
 
 def make_residual_problem(problem: PortfolioProblem):
@@ -43,7 +58,11 @@ def test_nonpositive_budget_skips_even_the_lazy_cplex_import(monkeypatch, portfo
 
     monkeypatch.setattr("qreduce.solving.residual.cplex_backend._import_module", unexpected_import)
 
-    result = CplexClassicalBackend().solve(make_residual_problem(portfolio_problem), make_request(remaining_budget=0.0))
+    # Budget was configured (60.0) but is now exhausted (remaining=0.0)
+    result = CplexClassicalBackend().solve(
+        make_residual_problem(portfolio_problem),
+        make_request(remaining_budget=0.0, configured_budget=60.0),
+    )
 
     assert result.classical_solver_status is ClassicalSolverStatus.NOT_RUN
     assert result.terminal_reason is TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED

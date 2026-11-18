@@ -222,9 +222,11 @@ def test_invalid_configuration_has_normalized_reason(
 
 def test_nonpositive_budget_forbids_backend_invocation() -> None:
     """No effective timeout is provided after end-to-end budget exhaustion."""
-    timeout = effective_timeout(5.0, 0.0)
+    # Budget was configured (60.0) but is now exhausted (remaining=0.0)
+    timeout = effective_timeout(5.0, 0.0, 60.0)
 
     assert timeout.timeout_seconds is None
+    assert timeout.is_unlimited is False
     assert (
         timeout.validation.terminal_reason
         is TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED
@@ -233,10 +235,39 @@ def test_nonpositive_budget_forbids_backend_invocation() -> None:
 
 def test_effective_timeout_never_exceeds_residual_budget() -> None:
     """Backend timeout is clamped to the remaining end-to-end budget."""
-    timeout = effective_timeout(30.0, 4.5)
+    # Both finite: use minimum
+    timeout = effective_timeout(30.0, 4.5, 60.0)
 
     assert timeout.validation.is_valid is True
     assert timeout.timeout_seconds == 4.5
+    assert timeout.is_unlimited is False
+
+
+def test_effective_timeout_unlimited_when_both_zero() -> None:
+    """When both timeout and budget are 0, the result is unlimited."""
+    timeout = effective_timeout(0.0, 0.0, 0.0)
+
+    assert timeout.validation.is_valid is True
+    assert timeout.timeout_seconds is None
+    assert timeout.is_unlimited is True
+
+
+def test_effective_timeout_uses_remaining_when_timeout_unlimited() -> None:
+    """When timeout is 0 but budget is finite, use remaining budget."""
+    timeout = effective_timeout(0.0, 30.0, 60.0)
+
+    assert timeout.validation.is_valid is True
+    assert timeout.timeout_seconds == 30.0
+    assert timeout.is_unlimited is False
+
+
+def test_effective_timeout_uses_timeout_when_budget_unlimited() -> None:
+    """When budget is 0 (unlimited) but timeout is finite, use timeout."""
+    timeout = effective_timeout(10.0, 0.0, 0.0)
+
+    assert timeout.validation.is_valid is True
+    assert timeout.timeout_seconds == 10.0
+    assert timeout.is_unlimited is False
 
 
 def test_run_result_rejects_adoption_after_failed_postcheck() -> None:
@@ -251,3 +282,68 @@ def test_run_result_rejects_adoption_after_failed_postcheck() -> None:
             postcheck_status=PostcheckStatus.FAILED,
             adoption_status=AdoptionStatus.ADOPTED,
         )
+
+
+# Tests for timeout value validation
+
+def test_validate_timeout_value_accepts_valid_values() -> None:
+    """Valid timeout values pass validation."""
+    from qreduce.config import validate_timeout_value
+
+    assert validate_timeout_value(0, "budget") is None  # 0 = unlimited
+    assert validate_timeout_value(0.0, "budget") is None
+    assert validate_timeout_value(60.0, "budget") is None
+    assert validate_timeout_value(60, "budget") is None
+
+
+def test_validate_timeout_value_rejects_booleans() -> None:
+    """Boolean values are rejected even though bool is a subclass of int."""
+    from qreduce.config import validate_timeout_value
+
+    error = validate_timeout_value(True, "budget")
+    assert error is not None
+    assert "boolean" in error.lower()
+
+    error = validate_timeout_value(False, "budget")
+    assert error is not None
+    assert "boolean" in error.lower()
+
+
+def test_validate_timeout_value_rejects_nan_and_infinity() -> None:
+    """NaN and infinity are rejected."""
+    from qreduce.config import validate_timeout_value
+
+    error = validate_timeout_value(float("nan"), "budget")
+    assert error is not None
+    assert "finite" in error.lower() or "nan" in error.lower()
+
+    error = validate_timeout_value(float("inf"), "budget")
+    assert error is not None
+    assert "finite" in error.lower() or "infinity" in error.lower()
+
+    error = validate_timeout_value(float("-inf"), "budget")
+    assert error is not None
+
+
+def test_validate_timeout_value_rejects_negative_values() -> None:
+    """Negative values are rejected."""
+    from qreduce.config import validate_timeout_value
+
+    error = validate_timeout_value(-1, "budget")
+    assert error is not None
+    assert ">= 0" in error
+
+    error = validate_timeout_value(-0.001, "budget")
+    assert error is not None
+
+
+def test_validate_timeout_value_rejects_non_numeric_types() -> None:
+    """Non-numeric types are rejected."""
+    from qreduce.config import validate_timeout_value
+
+    error = validate_timeout_value("60", "budget")
+    assert error is not None
+    assert "number" in error.lower()
+
+    error = validate_timeout_value(None, "budget")
+    assert error is not None

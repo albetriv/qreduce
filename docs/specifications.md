@@ -1371,6 +1371,45 @@ objective_recomputation_relative_tolerance
 postcheck_mode
 ```
 
+### 18.1 Semantica dei timeout
+
+I parametri di timeout e budget temporale seguono una convenzione uniforme:
+
+- **Valore positivo**: limite esplicito in secondi. Il backend o la fase
+  corrispondente si interrompe al raggiungimento del limite.
+- **Valore zero (`0`)**: nessun limite. L'esecuzione prosegue fino al
+  completamento naturale o all'esaurimento di risorse esterne.
+- **Valori negativi, NaN, infinito, booleani**: rifiutati alla validazione
+  con errore esplicito.
+
+Parametri interessati:
+
+- `max_end_to_end_runtime_seconds`: budget globale della pipeline. Con `0`
+  la pipeline non ha limite di tempo end-to-end.
+- `time_limit_seconds` (classical solve): limite per ogni invocazione del
+  solver classico. Con `0` ogni solve prosegue fino al completamento o
+  all'esaurimento del budget end-to-end (se finito).
+- `execution_time_limit_seconds` (MIS): limite per l'esecuzione MIS. Con `0`
+  l'esecuzione prosegue senza limite di fase.
+- `compilation_time_limit_seconds` (MIS): limite per la compilazione MIS.
+  Con `0` la compilazione prosegue senza limite di fase.
+
+Il timeout effettivo di ogni fase e` il minimo tra il limite di fase
+configurato e il budget end-to-end residuo. Se entrambi sono `0` (illimitati),
+la fase non ha limite temporale. Se il budget end-to-end e` finito ma il
+limite di fase e` `0`, la fase usa il budget residuo come limite. Se il limite
+di fase e` finito ma il budget end-to-end e` `0`, la fase usa il limite di
+fase.
+
+Il budget "esaurito" (residuo ≤ 0 con configurazione finita) e` distinto da
+"illimitato" (configurazione = 0). Un budget esaurito interrompe la pipeline
+con `END_TO_END_TIME_BUDGET_EXHAUSTED`; un budget illimitato consente
+l'esecuzione senza vincoli temporali.
+
+I default sono 60 secondi sia per `max_end_to_end_runtime_seconds` sia per
+`time_limit_seconds` (classical). Le CLI degli esperimenti documentano i
+default nei rispettivi help.
+
 Parametri minimi di identita` del run e riproducibilita`:
 
 ```text

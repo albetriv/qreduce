@@ -18,7 +18,15 @@ from qreduce.status import (
 
 @dataclass(frozen=True, slots=True)
 class ReductionPolicy:
-    """Resolved controls for the reduction portion of a run."""
+    """Resolved controls for the reduction portion of a run.
+
+    Attributes:
+        max_end_to_end_runtime_seconds: Maximum wall-clock time for the entire
+            pipeline run, shared across all rounds and recovery attempts.
+            A value of 0 means no time limit is enforced. The budget does not
+            reset between rounds or recovery attempts. Default is 60 seconds
+            when not explicitly configured.
+    """
 
     max_reduction_rounds: int
     candidate_domain_min_items: int
@@ -71,7 +79,16 @@ class MISExecutionOptions:
 
 @dataclass(frozen=True, slots=True)
 class ClassicalSolveOptions:
-    """Resolved controls for the residual classical solve and its post-check."""
+    """Resolved controls for the residual classical solve and its post-check.
+
+    Attributes:
+        time_limit_seconds: Maximum time for each invocation of the classical
+            solver. A value of 0 means no per-solve time limit is enforced;
+            the solver runs until completion or until the end-to-end budget
+            (if configured) is exhausted. Default is 60 seconds when not
+            explicitly configured. The limit restarts for each solve; it is
+            not cumulative across rounds or recovery attempts.
+    """
 
     classical_solver_id: str
     time_limit_seconds: float

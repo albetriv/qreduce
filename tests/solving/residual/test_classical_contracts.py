@@ -8,16 +8,102 @@ from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 def test_effective_time_limit_is_clamped_to_remaining_budget() -> None:
     """The solver cannot consume more than the end-to-end budget still available."""
-    request = ClassicalSolveRequest("run-001", 0, 30.0, 5.0, None, None, None, False, requested_solver_id="test")
+    # Both finite: use minimum (5.0 < 30.0)
+    request = ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=30.0,
+        remaining_end_to_end_seconds=5.0,
+        configured_end_to_end_budget_seconds=60.0,
+        mip_gap_tolerance=None,
+        random_seed=None,
+        threads=None,
+        model_export_enabled=False,
+        requested_solver_id="test",
+    )
 
     assert request.effective_time_limit_seconds == 5.0
+    assert request.is_unlimited is False
+    assert request.is_budget_exhausted is False
 
 
 def test_no_remaining_budget_forbids_backend_invocation() -> None:
-    """A non-positive residual budget produces no effective solver time limit."""
-    request = ClassicalSolveRequest("run-001", 0, 30.0, 0.0, None, None, None, False, requested_solver_id="test")
+    """A non-positive residual budget (with configured budget) forbids invocation."""
+    # Budget was configured (60.0) but is exhausted (remaining=0.0)
+    request = ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=30.0,
+        remaining_end_to_end_seconds=0.0,
+        configured_end_to_end_budget_seconds=60.0,
+        mip_gap_tolerance=None,
+        random_seed=None,
+        threads=None,
+        model_export_enabled=False,
+        requested_solver_id="test",
+    )
 
     assert request.effective_time_limit_seconds is None
+    assert request.is_budget_exhausted is True
+    assert request.is_unlimited is False
+
+
+def test_unlimited_when_both_timeout_and_budget_are_zero() -> None:
+    """When both timeout and budget are 0, the request is unlimited."""
+    request = ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=0.0,
+        remaining_end_to_end_seconds=0.0,
+        configured_end_to_end_budget_seconds=0.0,
+        mip_gap_tolerance=None,
+        random_seed=None,
+        threads=None,
+        model_export_enabled=False,
+        requested_solver_id="test",
+    )
+
+    assert request.effective_time_limit_seconds is None
+    assert request.is_unlimited is True
+    assert request.is_budget_exhausted is False
+
+
+def test_timeout_used_when_budget_unlimited() -> None:
+    """When budget is unlimited (0) but timeout is finite, use timeout."""
+    request = ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=10.0,
+        remaining_end_to_end_seconds=0.0,
+        configured_end_to_end_budget_seconds=0.0,
+        mip_gap_tolerance=None,
+        random_seed=None,
+        threads=None,
+        model_export_enabled=False,
+        requested_solver_id="test",
+    )
+
+    assert request.effective_time_limit_seconds == 10.0
+    assert request.is_unlimited is False
+
+
+def test_remaining_budget_used_when_timeout_unlimited() -> None:
+    """When timeout is unlimited (0) but budget is finite, use remaining budget."""
+    request = ClassicalSolveRequest(
+        run_id="run-001",
+        round_index=0,
+        time_limit_seconds=0.0,
+        remaining_end_to_end_seconds=30.0,
+        configured_end_to_end_budget_seconds=60.0,
+        mip_gap_tolerance=None,
+        random_seed=None,
+        threads=None,
+        model_export_enabled=False,
+        requested_solver_id="test",
+    )
+
+    assert request.effective_time_limit_seconds == 30.0
+    assert request.is_unlimited is False
 
 
 def test_failed_classical_result_requires_a_terminal_reason() -> None:

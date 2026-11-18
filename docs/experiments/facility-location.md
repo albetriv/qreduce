@@ -88,12 +88,23 @@ La pipeline si arresta al primo successo o successo parziale.
 | `--solver`             | Backend classico: `scip` o `cplex`           | scip    |
 | `--mis-solver`         | Backend MIS                                  | local_greedy |
 | `--seed`               | Seed random                                  | 7       |
-| `--budget`             | Time limit in secondi                        | 60      |
+| `--budget`             | Budget end-to-end in secondi (0 = illimitato)| 60      |
+| `--classical-time-limit-seconds` | Timeout per invocazione solver (0 = illimitato) | 60 |
 | `--cap`                | Max items nel dominio candidato              | #sedi   |
 | `--protect-all`        | Proteggi tutte le sedi (verifica baseline)   | false   |
 | `--recovery-attempts`  | Tentativi di recovery                        | 0       |
 | `--min-reduction-ratio`| Ratio minima di riduzione                    | 0.1     |
 | `--model-export`       | Esporta modello residuo                      | false   |
+
+**Semantica dei timeout:**
+
+- `--budget`: budget totale della pipeline. Con `0` la pipeline non ha limite
+  di tempo end-to-end.
+- `--classical-time-limit-seconds`: limite per ogni singola invocazione del
+  solver classico. Con `0` il solver prosegue fino al completamento o
+  all'esaurimento del budget end-to-end.
+
+Entrambi i parametri rifiutano valori negativi, NaN, infinito e booleani.
 
 ### Opzioni graph policy
 

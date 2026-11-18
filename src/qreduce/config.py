@@ -6,6 +6,38 @@ from dataclasses import dataclass
 from qreduce.models import ResolvedRunConfig
 from qreduce.status import TerminalReason
 
+# Default timeout for classical solver invocations when not explicitly configured.
+# Used by experiment interfaces (portfolio, facility_location, web) as the default
+# value for classical_time_limit_seconds.
+DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS: float = 60.0
+
+# Default budget for end-to-end pipeline execution when not explicitly configured.
+DEFAULT_END_TO_END_BUDGET_SECONDS: float = 60.0
+
+
+def validate_timeout_value(value: object, field_name: str) -> str | None:
+    """Validate a timeout or budget value.
+
+    Accepts finite floats >= 0. Rejects booleans, NaN, infinity, negative
+    values, and non-numeric types. Returns None if valid, or an error message.
+
+    Args:
+        value: The value to validate.
+        field_name: The name of the field for error messages.
+
+    Returns:
+        None if valid, or an error message string if invalid.
+    """
+    if isinstance(value, bool):
+        return f"{field_name} must be a number, not a boolean"
+    if not isinstance(value, (int, float)):
+        return f"{field_name} must be a number, got {type(value).__name__}"
+    if not math.isfinite(value):
+        return f"{field_name} must be a finite number, not NaN or infinity"
+    if value < 0:
+        return f"{field_name} must be >= 0 (0 means unlimited)"
+    return None
+
 
 @dataclass(frozen=True, slots=True)
 class ValidationIssue:
@@ -41,10 +73,22 @@ class ValidationResult:
 
 @dataclass(frozen=True, slots=True)
 class EffectiveTimeout:
-    """Timeout clamped to a positive residual end-to-end budget."""
+    """Timeout determined from classical limit and residual budget.
+
+    Represents the actual time limit to pass to a backend, distinguishing:
+    - A finite limit (timeout_seconds > 0)
+    - No configured limit (is_unlimited=True, timeout_seconds=None)
+    - Budget exhausted (is_unlimited=False, timeout_seconds=None, validation invalid)
+
+    The backend should:
+    - Apply the limit if timeout_seconds is finite and positive
+    - Run without a time limit if is_unlimited is True
+    - Not run at all if validation is invalid (budget exhausted)
+    """
 
     timeout_seconds: float | None
     validation: ValidationResult
+    is_unlimited: bool = False
 
 
 def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
@@ -140,7 +184,7 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
             "reduction.min_reduction_ratio",
             "min_reduction_ratio cannot exceed 1.",
         )
-    _require_finite_above_zero(
+    _require_finite_nonnegative(
         issues,
         "reduction.max_end_to_end_runtime_seconds",
         reduction.max_end_to_end_runtime_seconds,
@@ -279,7 +323,7 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         execution.compilation_time_limit_seconds,
     )
 
-    _require_finite_above_zero(
+    _require_finite_nonnegative(
         issues, "classical_solve.time_limit_seconds", classical.time_limit_seconds
     )
     if classical.mip_gap_tolerance is not None:
@@ -320,45 +364,125 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
 
 
 def effective_timeout(
-    requested_timeout_seconds: float | None,
+    requested_timeout_seconds: float,
     residual_end_to_end_budget_seconds: float,
+    configured_end_to_end_budget_seconds: float,
 ) -> EffectiveTimeout:
-    """Clamp a requested timeout to the available end-to-end time budget."""
-    if (
-        not math.isfinite(residual_end_to_end_budget_seconds)
-        or residual_end_to_end_budget_seconds <= 0
-    ):
-        return EffectiveTimeout(
-            timeout_seconds=None,
-            validation=ValidationResult.invalid(
-                ValidationIssue(
-                    code="nonpositive_residual_budget",
-                    field="residual_end_to_end_budget_seconds",
-                    message="A non-positive residual budget forbids backend invocation.",
-                ),
-                terminal_reason=TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
-            ),
-        )
-    if requested_timeout_seconds is None:
-        return EffectiveTimeout(
-            residual_end_to_end_budget_seconds, ValidationResult.valid()
-        )
-    if not math.isfinite(requested_timeout_seconds) or requested_timeout_seconds <= 0:
+    """Compute the effective timeout for a backend invocation.
+
+    This function determines the actual time limit considering three inputs:
+    - The requested timeout for this specific operation (e.g., classical solver limit)
+    - The remaining end-to-end budget (configured budget minus elapsed time)
+    - The originally configured end-to-end budget (to distinguish 0=unlimited from exhausted)
+
+    Semantics of 0:
+    - requested_timeout_seconds = 0: No limit for this operation
+    - configured_end_to_end_budget_seconds = 0: No global budget limit
+
+    Return cases:
+    - Budget exhausted (remaining <= 0 with configured > 0): invalid, backend should not run
+    - Both unlimited (timeout=0 and budget=0): is_unlimited=True, no time limit
+    - Timeout unlimited, budget finite: use remaining budget
+    - Timeout finite, budget unlimited: use timeout
+    - Both finite: use minimum of timeout and remaining budget
+
+    Args:
+        requested_timeout_seconds: Per-operation limit (0 = unlimited).
+        residual_end_to_end_budget_seconds: Remaining budget (may be <= 0 if exhausted).
+        configured_end_to_end_budget_seconds: Original budget (0 = unlimited).
+
+    Returns:
+        EffectiveTimeout with the resolved limit, validity, and unlimited flag.
+    """
+    # Validate inputs - reject booleans and non-finite values
+    if isinstance(requested_timeout_seconds, bool) or not math.isfinite(requested_timeout_seconds) or requested_timeout_seconds < 0:
         return EffectiveTimeout(
             timeout_seconds=None,
             validation=ValidationResult.invalid(
                 ValidationIssue(
                     code="invalid_requested_timeout",
                     field="requested_timeout_seconds",
-                    message="Requested timeout must be finite and greater than zero.",
+                    message="Requested timeout must be a finite number >= 0.",
                 )
             ),
+            is_unlimited=False,
         )
+
+    if isinstance(configured_end_to_end_budget_seconds, bool) or not math.isfinite(configured_end_to_end_budget_seconds) or configured_end_to_end_budget_seconds < 0:
+        return EffectiveTimeout(
+            timeout_seconds=None,
+            validation=ValidationResult.invalid(
+                ValidationIssue(
+                    code="invalid_configured_budget",
+                    field="configured_end_to_end_budget_seconds",
+                    message="Configured budget must be a finite number >= 0.",
+                )
+            ),
+            is_unlimited=False,
+        )
+
+    # Residual may be negative if exhausted, but must still be finite (not NaN/inf)
+    if isinstance(residual_end_to_end_budget_seconds, bool) or not math.isfinite(residual_end_to_end_budget_seconds):
+        return EffectiveTimeout(
+            timeout_seconds=None,
+            validation=ValidationResult.invalid(
+                ValidationIssue(
+                    code="invalid_residual_budget",
+                    field="residual_end_to_end_budget_seconds",
+                    message="Residual budget must be a finite number.",
+                )
+            ),
+            is_unlimited=False,
+        )
+
+    timeout_unlimited = requested_timeout_seconds == 0
+    budget_unlimited = configured_end_to_end_budget_seconds == 0
+
+    # Case 1: Budget is configured (finite > 0) but exhausted
+    if not budget_unlimited and residual_end_to_end_budget_seconds <= 0:
+        return EffectiveTimeout(
+            timeout_seconds=None,
+            validation=ValidationResult.invalid(
+                ValidationIssue(
+                    code="budget_exhausted",
+                    field="residual_end_to_end_budget_seconds",
+                    message="The end-to-end time budget has been exhausted.",
+                ),
+                terminal_reason=TerminalReason.END_TO_END_TIME_BUDGET_EXHAUSTED,
+            ),
+            is_unlimited=False,
+        )
+
+    # Case 2: Both limits are unlimited (0)
+    if timeout_unlimited and budget_unlimited:
+        return EffectiveTimeout(
+            timeout_seconds=None,
+            validation=ValidationResult.valid(),
+            is_unlimited=True,
+        )
+
+    # Case 3: Timeout is unlimited but budget is finite
+    if timeout_unlimited:
+        # Use the full remaining budget
+        return EffectiveTimeout(
+            timeout_seconds=residual_end_to_end_budget_seconds,
+            validation=ValidationResult.valid(),
+            is_unlimited=False,
+        )
+
+    # Case 4: Budget is unlimited but timeout is finite
+    if budget_unlimited:
+        return EffectiveTimeout(
+            timeout_seconds=requested_timeout_seconds,
+            validation=ValidationResult.valid(),
+            is_unlimited=False,
+        )
+
+    # Case 5: Both are finite - use the minimum
     return EffectiveTimeout(
-        timeout_seconds=min(
-            requested_timeout_seconds, residual_end_to_end_budget_seconds
-        ),
+        timeout_seconds=min(requested_timeout_seconds, residual_end_to_end_budget_seconds),
         validation=ValidationResult.valid(),
+        is_unlimited=False,
     )
 
 
@@ -399,6 +523,23 @@ def _require_finite_at_least(
         )
 
 
+def _require_finite_nonnegative(
+    issues: list[ValidationIssue], field: str, value: float
+) -> None:
+    """Require a finite value >= 0.
+
+    Used for timeout and budget fields where 0 means 'unlimited'.
+    Rejects booleans, negative values, NaN, and infinity.
+    """
+    if isinstance(value, bool) or not math.isfinite(value) or value < 0:
+        _add_issue(
+            issues,
+            "invalid_nonnegative_value",
+            field,
+            "Value must be finite and >= 0.",
+        )
+
+
 def _require_finite_above_zero(
     issues: list[ValidationIssue], field: str, value: float
 ) -> None:
@@ -411,8 +552,13 @@ def _require_finite_above_zero(
 def _require_optional_timeout(
     issues: list[ValidationIssue], field: str, value: float | None
 ) -> None:
+    """Validate an optional timeout where 0 means unlimited.
+
+    Accepts None (not configured), 0 (unlimited), or positive finite values.
+    Rejects booleans, negative, NaN, and infinity.
+    """
     if value is not None:
-        _require_finite_above_zero(issues, field, value)
+        _require_finite_nonnegative(issues, field, value)
 
 
 _VALID_RECOVERY_POLICIES = frozenset({"fail", "retry_with_larger_domain"})

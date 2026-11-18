@@ -206,10 +206,11 @@
                 <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
                 <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" placeholder="Default: 0.1">
               </div>
-              <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Default: 60 secondi. Attivo sempre (anche in baseline). -->
+              <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. Attivo sempre (anche in baseline). -->
               <div class="field">
                 <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
-                <input id="endToEndBudget" type="number" min="0.001" step="1" placeholder="Default: 60">
+                <input id="endToEndBudget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                <p class="help">0 = nessun limite globale</p>
                 <p class="error"></p>
               </div>
             </div>
@@ -269,6 +270,13 @@
                   <option value="scip">scip (default)</option>
                   <option value="cplex">cplex</option>
                 </select>
+              </div>
+              <!-- PARAM_DESC: Timeout massimo per ogni invocazione del solver classico. Il limite si riavvia ad ogni solve; non è cumulativo tra round o recovery. Un valore di 0 significa nessun limite per solve (il solver gira fino a completamento o esaurimento del budget end-to-end). Default: 60 secondi. -->
+              <div class="field">
+                <label for="classicalTimeLimit">Timeout classico (s) <span class="param">--classical-time-limit-seconds</span></label>
+                <input id="classicalTimeLimit" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                <p class="help">0 = nessun limite per solve</p>
+                <p class="error"></p>
               </div>
             </div>
 

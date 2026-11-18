@@ -178,3 +178,88 @@ def test_pipeline_clamps_each_mis_phase_to_its_configured_timeout() -> None:
 
     assert RecordingTimeoutBackend.compile_budget_seconds == 0.5
     assert RecordingTimeoutBackend.execution_budget_seconds == 0.25
+
+
+def test_capability_gate_accepts_zero_timeout_on_backend_without_timeout_support() -> None:
+    """A timeout of 0 (unlimited) should NOT require timeout capability.
+
+    Backend without timeout support should accept:
+    - execution_time_limit_seconds = None (not specified)
+    - execution_time_limit_seconds = 0 (explicitly unlimited)
+
+    And should reject:
+    - execution_time_limit_seconds = 1.0 (positive limit)
+    """
+    CompileMustNotRunBackend.compile_called = False
+    registry = MISSolverRegistry(include_builtins=False)
+    registry.register("no_timeout_support", CompileMustNotRunBackend)
+
+    # Test with 0 (unlimited) - should pass capability gate
+    config_zero = ResolvedRunConfig(
+        schema_version="1.0",
+        reduction=ReductionPolicy(1, 0, 1, 1, 0.0, 0, 0.0),  # budget=0 (unlimited)
+        lambda_edge=2.0,
+        lambda_edge_policy=LambdaEdgePolicy("test", "1", 2.0),
+        allow_noncertifying_penalty=False,
+        mis_solver_id="no_timeout_support",
+        mis_execution=MISExecutionOptions(
+            requested_solution_count=1,
+            random_seed=7,
+            max_distinct_samples=1,
+            repair_enabled=False,
+            repair_max_iterations=0,
+            minimum_candidate_jaccard_distance=0.0,
+            exact_solver_max_variables=1,
+            execution_time_limit_seconds=0.0,  # 0 = unlimited, no capability needed
+            compilation_time_limit_seconds=0.0,  # 0 = unlimited, no capability needed
+        ),
+        classical_solve=ClassicalSolveOptions(
+            "unused", 0.0, None, None, False, 1e-6, 1e-6, 1e-6, 1e-6, PostcheckMode.STRICT,
+        ),
+        run_identity=RunIdentity("zero-timeout-test"),
+    )
+
+    result_zero = run_pipeline(object(), GraphOnlyAdapter(), config_zero, mis_solver_registry=registry)
+
+    # With 0, should pass capability gate (compile is called, which raises our assertion)
+    # The pipeline should proceed past capability validation
+    # It will fail elsewhere (compile raises), but NOT due to capability mismatch
+    assert result_zero.run_result.terminal_reason is not TerminalReason.MIS_BACKEND_CAPABILITY_MISMATCH or \
+           CompileMustNotRunBackend.compile_called is True, \
+           "Zero timeout should not require timeout capability support"
+
+
+def test_capability_gate_rejects_positive_timeout_on_backend_without_timeout_support() -> None:
+    """A positive timeout requires capability support and should be rejected."""
+    CompileMustNotRunBackend.compile_called = False
+    registry = MISSolverRegistry(include_builtins=False)
+    registry.register("no_timeout_support", CompileMustNotRunBackend)
+
+    config_positive = ResolvedRunConfig(
+        schema_version="1.0",
+        reduction=ReductionPolicy(1, 0, 1, 1, 0.0, 0, 30.0),
+        lambda_edge=2.0,
+        lambda_edge_policy=LambdaEdgePolicy("test", "1", 2.0),
+        allow_noncertifying_penalty=False,
+        mis_solver_id="no_timeout_support",
+        mis_execution=MISExecutionOptions(
+            requested_solution_count=1,
+            random_seed=7,
+            max_distinct_samples=1,
+            repair_enabled=False,
+            repair_max_iterations=0,
+            minimum_candidate_jaccard_distance=0.0,
+            exact_solver_max_variables=1,
+            execution_time_limit_seconds=1.0,  # Positive = needs capability
+        ),
+        classical_solve=ClassicalSolveOptions(
+            "unused", 1.0, None, None, False, 1e-6, 1e-6, 1e-6, 1e-6, PostcheckMode.STRICT,
+        ),
+        run_identity=RunIdentity("positive-timeout-test"),
+    )
+
+    result_positive = run_pipeline(object(), GraphOnlyAdapter(), config_positive, mis_solver_registry=registry)
+
+    # Positive timeout should fail capability gate
+    assert CompileMustNotRunBackend.compile_called is False
+    assert result_positive.run_result.terminal_reason is TerminalReason.MIS_BACKEND_CAPABILITY_MISMATCH

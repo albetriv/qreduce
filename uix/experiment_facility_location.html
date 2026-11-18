@@ -115,11 +115,17 @@
                 <input id="cap" type="number" min="1" step="1" placeholder="Default: #sedi">
                 <p class="help">Numero massimo di facility nel dominio candidato.</p>
               </div>
-              <!-- PARAM_DESC: Time limit in secondi per l'intera esecuzione, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Default: 60 secondi. -->
+              <!-- PARAM_DESC: Budget end-to-end in secondi per l'intera esecuzione, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. -->
               <div class="field">
-                <label for="budget">Budget (s) <span class="param">--budget</span></label>
-                <input id="budget" type="number" min="0.001" step="1" value="60">
-                <p class="help">Time limit in secondi. Default: 60</p>
+                <label for="budget">Budget end-to-end (s) <span class="param">--budget</span></label>
+                <input id="budget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                <p class="help">0 = nessun limite globale</p>
+              </div>
+              <!-- PARAM_DESC: Timeout massimo per ogni invocazione del solver classico. Il limite si riavvia ad ogni solve; non è cumulativo tra round o recovery. Un valore di 0 significa nessun limite per solve (il solver gira fino a completamento o esaurimento del budget end-to-end). Default: 60 secondi. -->
+              <div class="field">
+                <label for="classicalTimeLimit">Timeout classico (s) <span class="param">--classical-time-limit-seconds</span></label>
+                <input id="classicalTimeLimit" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                <p class="help">0 = nessun limite per solve</p>
               </div>
               <!-- PARAM_DESC: Seed per la generazione di numeri casuali. Usato per riproducibilità dell'esperimento, influenza il solver MIS e il solver classico. Default: 7. -->
               <div class="field">

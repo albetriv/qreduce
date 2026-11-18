@@ -31,6 +31,7 @@
     targetBinary: "",
     minReductionRatio: "",
     endToEndBudget: "",
+    classicalTimeLimit: "",
     domainRecovery: "fail",
     infeasibleRecovery: "fail",
     recoveryAttempts: "",
@@ -217,8 +218,18 @@
     if (budget !== null) {
       require(
         "endToEndBudget",
-        isFiniteNumber(budget) && budget > 0,
-        "Il budget deve essere un numero > 0."
+        isFiniteNumber(budget) && budget >= 0,
+        "Il budget deve essere un numero >= 0."
+      );
+    }
+
+    // Classical time limit is always validated
+    var classicalTimeLimit = C.number("classicalTimeLimit");
+    if (classicalTimeLimit !== null) {
+      require(
+        "classicalTimeLimit",
+        isFiniteNumber(classicalTimeLimit) && classicalTimeLimit >= 0,
+        "Il timeout deve essere un numero >= 0."
       );
     }
 
@@ -413,9 +424,17 @@
     }
 
     // Budget end-to-end is ALWAYS included if specified (applies to baseline too)
+    // Include 0 explicitly to signal unlimited
     var budget = C.number("endToEndBudget");
     if (budget !== null) {
       args.push({ flag: "--max-end-to-end-runtime-seconds", value: budget });
+    }
+
+    // Classical time limit is ALWAYS included if specified (applies to baseline too)
+    // Include 0 explicitly to signal unlimited
+    var classicalTimeLimit = C.number("classicalTimeLimit");
+    if (classicalTimeLimit !== null) {
+      args.push({ flag: "--classical-time-limit-seconds", value: classicalTimeLimit });
     }
 
     // Reduction-specific params only when reduction is active

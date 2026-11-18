@@ -17,7 +17,8 @@
     logConfig: "",
     rounds: "0",
     cap: "",
-    budget: "60",
+    budget: "",
+    classicalTimeLimit: "",
     seed: "7",
     minReductionRatio: "0.1",
     recoveryAttempts: "0",
@@ -103,13 +104,25 @@
       );
     }
 
-    // Budget must be positive finite number
+    // Budget must be non-negative finite number (0 = unlimited)
     var budget = C.number("budget");
-    require(
-      "budget",
-      isFiniteNumber(budget) && budget > 0,
-      "Il budget deve essere un numero > 0."
-    );
+    if (budget !== null) {
+      require(
+        "budget",
+        isFiniteNumber(budget) && budget >= 0,
+        "Il budget deve essere un numero >= 0."
+      );
+    }
+
+    // Classical time limit must be non-negative finite number (0 = unlimited)
+    var classicalTimeLimit = C.number("classicalTimeLimit");
+    if (classicalTimeLimit !== null) {
+      require(
+        "classicalTimeLimit",
+        isFiniteNumber(classicalTimeLimit) && classicalTimeLimit >= 0,
+        "Il timeout deve essere un numero >= 0."
+      );
+    }
 
     // Cap if provided must be positive integer
     var cap = C.number("cap");
@@ -258,10 +271,16 @@
       args.push({ flag: "--seed", value: seed });
     }
 
-    // Budget if different from default
+    // Budget if specified (include 0 explicitly to signal unlimited)
     var budget = C.number("budget");
-    if (budget !== null && budget !== 60) {
+    if (budget !== null) {
       args.push({ flag: "--budget", value: budget });
+    }
+
+    // Classical time limit if specified (include 0 explicitly to signal unlimited)
+    var classicalTimeLimit = C.number("classicalTimeLimit");
+    if (classicalTimeLimit !== null) {
+      args.push({ flag: "--classical-time-limit-seconds", value: classicalTimeLimit });
     }
 
     // Cap if specified

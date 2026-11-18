@@ -321,12 +321,15 @@ def _execute_reduction_round(
             _issues_message(capability_validation),
         )
     compilation_timeout = effective_timeout(
-        config.mis_execution.compilation_time_limit_seconds,
+        config.mis_execution.compilation_time_limit_seconds or 0.0,
         _remaining_budget_or_zero(config, started_at),
+        config.reduction.max_end_to_end_runtime_seconds,
     )
     if not compilation_timeout.validation.is_valid:
         return _budget_exhausted(config, PipelineStage.MIS)
-    assert compilation_timeout.timeout_seconds is not None
+    # Determine the effective timeout: None with is_unlimited means no limit (pass 0 to MWIS)
+    # A finite value means use that value
+    compilation_timeout_value = 0.0 if compilation_timeout.is_unlimited else (compilation_timeout.timeout_seconds or 0.0)
     try:
         compilation = mis_solver.compile(
         canonical_problem,
@@ -334,7 +337,7 @@ def _execute_reduction_round(
             run_id=config.run_identity.run_id,
             round_index=_round_index,
             node_order=graph.node_ids,
-            residual_time_budget_seconds=compilation_timeout.timeout_seconds,
+            residual_time_budget_seconds=compilation_timeout_value,
             requested_provider_id=capabilities.provider_id,
             requested_backend_id=capabilities.backend_id,
             requested_backend_family=capabilities.backend_family,
@@ -356,16 +359,19 @@ def _execute_reduction_round(
             metrics=_run_metrics(started_at, mis_compilation_result=compilation),
         )
     execution_timeout = effective_timeout(
-        config.mis_execution.execution_time_limit_seconds,
+        config.mis_execution.execution_time_limit_seconds or 0.0,
         _remaining_budget_or_zero(config, started_at),
+        config.reduction.max_end_to_end_runtime_seconds,
     )
     if not execution_timeout.validation.is_valid:
         return _budget_exhausted(
             config, PipelineStage.MIS, mis_compilation_result=compilation
         )
-    assert execution_timeout.timeout_seconds is not None
+    # Determine the effective timeout: None with is_unlimited means no limit (pass 0 to MWIS)
+    execution_timeout_value = 0.0 if execution_timeout.is_unlimited else (execution_timeout.timeout_seconds or 0.0)
+    effective_log_timeout = "unlimited" if execution_timeout.is_unlimited else f"{execution_timeout_value:.1f}s"
     with logging_context(stage="mwis_execution", solver_id=config.mis_solver_id):
-        logger.info("Starting MWIS execution solver_id=%s timeout=%.1fs", config.mis_solver_id, execution_timeout.timeout_seconds)
+        logger.info("Starting MWIS execution solver_id=%s timeout=%s", config.mis_solver_id, effective_log_timeout)
         try:
             execution = mis_solver.solve(
             compilation.compiled_job,
@@ -376,7 +382,7 @@ def _execute_reduction_round(
                 node_order=graph.node_ids,
                 random_seed=config.mis_execution.random_seed,
                 requested_solution_count=config.mis_execution.requested_solution_count,
-                residual_time_budget_seconds=execution_timeout.timeout_seconds,
+                residual_time_budget_seconds=execution_timeout_value,
                 execution_parameters=config.mis_execution.provider_parameters,
             ),
             )
@@ -763,8 +769,8 @@ def _execute_reduction_round(
                 retained_item_ids,
             ),
         )
-    remaining_budget = _remaining_budget_seconds(config, started_at)
-    if remaining_budget is None:
+    # Check if budget is exhausted (but not if unlimited)
+    if _is_budget_exhausted(config, started_at):
         return _budget_exhausted(
             config,
             PipelineStage.CLASSICAL,
@@ -786,6 +792,8 @@ def _execute_reduction_round(
                 retained_item_ids,
             ),
         )
+    configured_budget = config.reduction.max_end_to_end_runtime_seconds
+    remaining_budget = _remaining_budget_seconds(config, started_at)
     with logging_context(stage="classical_solve", solver_id=config.classical_solve.classical_solver_id):
         logger.info("Starting classical solve solver_id=%s", config.classical_solve.classical_solver_id)
         try:
@@ -805,6 +813,7 @@ def _execute_reduction_round(
                     _model_export_write_path or config.classical_solve.model_export_path
                 ),
                 requested_solver_id=config.classical_solve.classical_solver_id,
+                configured_end_to_end_budget_seconds=configured_budget,
             ),
             staging_path=_model_export_write_path,
             logical_path=config.classical_solve.model_export_path,
@@ -1031,17 +1040,41 @@ def _resolved_lambda_edge(config: ResolvedRunConfig) -> float:
 
 def _remaining_budget_seconds(
     config: ResolvedRunConfig, started_at: float
-) -> float | None:
-    """Return the positive end-to-end budget available at the current pipeline stage."""
-    remaining = config.reduction.max_end_to_end_runtime_seconds - (
-        perf_counter() - started_at
-    )
-    return remaining if remaining > 0 else None
+) -> float:
+    """Return the remaining end-to-end budget at the current pipeline stage.
+
+    Returns:
+        - 0.0 if the configured budget is 0 (unlimited)
+        - The positive remaining budget if still available
+        - A non-positive value if the budget is exhausted
+    """
+    configured = config.reduction.max_end_to_end_runtime_seconds
+    if configured == 0:
+        return 0.0  # Unlimited budget
+    return configured - (perf_counter() - started_at)
+
+
+def _is_budget_exhausted(config: ResolvedRunConfig, started_at: float) -> bool:
+    """Check if the end-to-end budget is exhausted.
+
+    Returns False if the budget is unlimited (configured to 0).
+    """
+    configured = config.reduction.max_end_to_end_runtime_seconds
+    if configured == 0:
+        return False  # Unlimited budget cannot be exhausted
+    remaining = configured - (perf_counter() - started_at)
+    return remaining <= 0
 
 
 def _remaining_budget_or_zero(config: ResolvedRunConfig, started_at: float) -> float:
-    """Return the remaining end-to-end budget for timeout clamping helpers."""
-    return config.reduction.max_end_to_end_runtime_seconds - (perf_counter() - started_at)
+    """Return the remaining end-to-end budget for timeout clamping helpers.
+
+    If the budget is unlimited (configured to 0), returns 0.0 to signal no limit.
+    """
+    configured = config.reduction.max_end_to_end_runtime_seconds
+    if configured == 0:
+        return 0.0  # Unlimited
+    return configured - (perf_counter() - started_at)
 
 
 def _budget_exhausted(

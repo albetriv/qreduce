@@ -3,6 +3,11 @@
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
+from qreduce.config import (
+    DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS,
+    DEFAULT_END_TO_END_BUDGET_SECONDS,
+    validate_timeout_value,
+)
 from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
 from qreduce.experiments.portfolio.models import (
     PortfolioGraphPolicy,
@@ -57,7 +62,7 @@ def default_reduction_policy(asset_count: int = 30) -> ReductionPolicy:
         num_source_mis_candidates=1,
         min_reduction_ratio=0.1,
         target_binary_variables=3,
-        max_end_to_end_runtime_seconds=60.0,
+        max_end_to_end_runtime_seconds=DEFAULT_END_TO_END_BUDGET_SECONDS,
     )
 
 
@@ -108,6 +113,7 @@ def build_synthetic_portfolio_inputs(
     graph_policy: PortfolioGraphPolicy | None = None,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
+    classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
     lower_bound: float = 0.0,
@@ -125,6 +131,10 @@ def build_synthetic_portfolio_inputs(
         graph_policy: Optional graph policy. If None, uses default_graph_policy() with near_duplicate.
         mis_solver_id: MIS solver to use.
         classical_solver_id: Classical solver to use.
+        classical_time_limit_seconds: Maximum time per classical solve invocation.
+            A value of 0 means no per-solve time limit (solver runs until
+            completion or end-to-end budget exhaustion). If None, uses the
+            default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         lower_bound: Minimum investment per selected asset. Default 0.0.
@@ -136,8 +146,8 @@ def build_synthetic_portfolio_inputs(
         SyntheticPortfolioInputs with problem, adapter, and configuration.
 
     Raises:
-        ValueError: If asset_count < 6 or if D-Wave parameters are used with
-            a non-D-Wave solver.
+        ValueError: If asset_count < 6, if D-Wave parameters are used with
+            a non-D-Wave solver, or if classical_time_limit_seconds is negative.
     """
     from qreduce.experiments.portfolio.generator import (
         default_generation_policy,
@@ -146,6 +156,15 @@ def build_synthetic_portfolio_inputs(
 
     if asset_count < 6:
         raise ValueError("asset_count must be at least 6 for meaningful experiments.")
+
+    # Validate and resolve classical time limit - reject booleans, NaN, infinity
+    if classical_time_limit_seconds is None:
+        resolved_time_limit = DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS
+    else:
+        error = validate_timeout_value(classical_time_limit_seconds, "classical_time_limit_seconds")
+        if error:
+            raise ValueError(error)
+        resolved_time_limit = classical_time_limit_seconds
 
     # Use provided policies or defaults
     if generation_policy is None:
@@ -181,7 +200,7 @@ def build_synthetic_portfolio_inputs(
         mis_execution=MISExecutionOptions(1, 17, 1, False, 0, 0.0, 20),
         classical_solve=ClassicalSolveOptions(
             classical_solver_id=classical_solver_id,
-            time_limit_seconds=10.0,
+            time_limit_seconds=resolved_time_limit,
             mip_gap_tolerance=None,
             threads=1,
             model_export_enabled=False,

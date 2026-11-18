@@ -54,7 +54,7 @@ class MISCompilationRequest:
         _require_nonempty(self.run_id, "run_id")
         _require_nonnegative_int(self.round_index, "round_index")
         _require_node_order(self.node_order, "node_order")
-        _require_positive_finite(self.residual_time_budget_seconds, "residual_time_budget_seconds")
+        _require_nonnegative_finite_timeout(self.residual_time_budget_seconds, "residual_time_budget_seconds")
         _require_nonempty(self.requested_provider_id, "requested_provider_id")
         _require_nonempty(self.requested_backend_id, "requested_backend_id")
         object.__setattr__(self, "node_order", tuple(self.node_order))
@@ -151,7 +151,7 @@ class MISBackendRequest:
         _require_nonnegative_int(self.round_index, "round_index")
         _require_node_order(self.node_order, "node_order")
         _require_positive_int(self.requested_solution_count, "requested_solution_count")
-        _require_positive_finite(self.residual_time_budget_seconds, "residual_time_budget_seconds")
+        _require_nonnegative_finite_timeout(self.residual_time_budget_seconds, "residual_time_budget_seconds")
         object.__setattr__(self, "node_order", tuple(self.node_order))
         object.__setattr__(self, "execution_parameters", MappingProxyType(dict(self.execution_parameters)))
 
@@ -301,3 +301,12 @@ def _require_positive_finite(value: float, field: str) -> None:
 def _require_nonnegative_finite(value: float, field: str) -> None:
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
         raise MWISValidationError("invalid_numeric_value", field, "Value must be finite and >= 0.")
+
+
+def _require_nonnegative_finite_timeout(value: float, field: str) -> None:
+    """Validate a timeout value where 0 means unlimited.
+
+    Accepts finite values >= 0. Rejects negative, NaN, infinity, and non-numeric.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
+        raise MWISValidationError("invalid_timeout", field, "Timeout must be finite and >= 0 (0 = unlimited).")

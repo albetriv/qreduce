@@ -63,7 +63,8 @@ class ScipClassicalBackend:
                 TerminalReason.UNSUPPORTED_PROBLEM_STRUCTURE,
                 f"ScipClassicalBackend cannot execute requested solver '{request.requested_solver_id}'.",
             )
-        if request.effective_time_limit_seconds is None:
+        # Check if budget is exhausted (but not if running unlimited)
+        if request.is_budget_exhausted:
             return _not_run_result(request)
         if not isinstance(reduced_problem, ClassicalModelProvider):
             return _failure_result(
@@ -168,8 +169,17 @@ def _set_quadratic_objective_via_epigraph(
 
 
 def _configure_model(model: Any, request: ClassicalSolveRequest) -> dict[str, object]:
-    effective_parameters: dict[str, object] = {"time_limit_seconds": request.effective_time_limit_seconds}
-    model.setParam("limits/time", request.effective_time_limit_seconds)
+    effective_parameters: dict[str, object] = {}
+    # Only set time limit if a finite limit is configured (not unlimited)
+    effective_limit = request.effective_time_limit_seconds
+    if effective_limit is not None and effective_limit > 0:
+        model.setParam("limits/time", effective_limit)
+        effective_parameters["time_limit_seconds"] = effective_limit
+    elif request.is_unlimited:
+        effective_parameters["time_limit_seconds"] = "unlimited"
+    else:
+        # This shouldn't happen if is_budget_exhausted is checked earlier
+        effective_parameters["time_limit_seconds"] = effective_limit
     if request.mip_gap_tolerance is not None:
         model.setParam("limits/gap", request.mip_gap_tolerance)
         effective_parameters["mip_gap_tolerance"] = request.mip_gap_tolerance
@@ -250,7 +260,7 @@ def _not_run_result(request: ClassicalSolveRequest) -> ClassicalSolveResult:
         False,
         0.0,
         remaining_time_budget_at_start_seconds=request.remaining_end_to_end_seconds,
-        diagnostic_message="No positive end-to-end time budget remains for the classical backend.",
+        diagnostic_message="The end-to-end time budget has been exhausted.",
         requested_solver_id=request.requested_solver_id,
     )
 

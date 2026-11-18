@@ -12,12 +12,24 @@ from qreduce.status import ClassicalSolverStatus, TerminalReason
 
 @dataclass(frozen=True, slots=True)
 class ClassicalSolveRequest:
-    """Resolved request to solve one opaque residual classical problem."""
+    """Resolved request to solve one opaque residual classical problem.
+
+    Attributes:
+        time_limit_seconds: Per-solve timeout. A value of 0 means no per-solve
+            limit; the solver runs until completion or end-to-end budget exhaustion.
+        remaining_end_to_end_seconds: Budget left at request creation time.
+            May be <= 0 if the budget is exhausted. Ignored if budget is unlimited.
+        configured_end_to_end_budget_seconds: Originally configured budget.
+            A value of 0 means no global budget was configured (unlimited).
+            This field is required to correctly distinguish "unlimited" from
+            "exhausted" budget states.
+    """
 
     run_id: str
     round_index: int
     time_limit_seconds: float
     remaining_end_to_end_seconds: float
+    configured_end_to_end_budget_seconds: float
     mip_gap_tolerance: float | None
     random_seed: int | None
     threads: int | None
@@ -31,8 +43,9 @@ class ClassicalSolveRequest:
             raise ValueError("run_id cannot be blank.")
         if self.round_index < 0:
             raise ValueError("round_index must be non-negative.")
-        _require_positive_finite(self.time_limit_seconds, "time_limit_seconds")
+        _require_nonnegative_finite(self.time_limit_seconds, "time_limit_seconds")
         _require_finite(self.remaining_end_to_end_seconds, "remaining_end_to_end_seconds")
+        _require_nonnegative_finite(self.configured_end_to_end_budget_seconds, "configured_end_to_end_budget_seconds")
         if self.mip_gap_tolerance is not None:
             _require_nonnegative_finite(self.mip_gap_tolerance, "mip_gap_tolerance")
         if self.threads is not None and self.threads < 1:
@@ -45,10 +58,53 @@ class ClassicalSolveRequest:
 
     @property
     def effective_time_limit_seconds(self) -> float | None:
-        """Return the positive time limit that the backend may actually consume."""
-        if self.remaining_end_to_end_seconds <= 0:
+        """Return the positive time limit the backend should use, or None.
+
+        Return values:
+        - None with is_unlimited=True: No time limit (backend runs to completion)
+        - None with is_unlimited=False: Budget exhausted, backend should NOT run
+        - float > 0: Backend should use this time limit
+
+        Cases:
+        - Budget configured (> 0) but exhausted (remaining <= 0): None (don't run)
+        - Both unlimited (time_limit=0 and budget=0): None (is_unlimited=True)
+        - Timeout unlimited (0), budget finite: remaining budget
+        - Timeout finite, budget unlimited (0): timeout
+        - Both finite: min(timeout, remaining)
+        """
+        timeout_unlimited = self.time_limit_seconds == 0
+        budget_unlimited = self.configured_end_to_end_budget_seconds == 0
+
+        # Budget is configured but exhausted
+        if not budget_unlimited and self.remaining_end_to_end_seconds <= 0:
             return None
+
+        # Both unlimited - signal via None but caller checks is_unlimited
+        if timeout_unlimited and budget_unlimited:
+            return None
+
+        # Timeout unlimited, use remaining budget
+        if timeout_unlimited:
+            return self.remaining_end_to_end_seconds
+
+        # Budget unlimited, use timeout
+        if budget_unlimited:
+            return self.time_limit_seconds
+
+        # Both finite, use minimum
         return min(self.time_limit_seconds, self.remaining_end_to_end_seconds)
+
+    @property
+    def is_unlimited(self) -> bool:
+        """Return True if no time limit is configured (both timeout and budget are 0)."""
+        return self.time_limit_seconds == 0 and self.configured_end_to_end_budget_seconds == 0
+
+    @property
+    def is_budget_exhausted(self) -> bool:
+        """Return True if the end-to-end budget was configured and is now exhausted."""
+        if self.configured_end_to_end_budget_seconds == 0:
+            return False  # No budget configured means it cannot be exhausted
+        return self.remaining_end_to_end_seconds <= 0
 
     def to_dict(self) -> dict[str, object]:
         return redact_metadata(to_primitive(self))  # type: ignore[return-value]

@@ -42,6 +42,7 @@ def run_portfolio_experiment(
     reduction_policy: ReductionPolicy | None = None,
     mis_solver_id: str = "local_greedy",
     classical_solver_id: str = "scip",
+    classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
     model_export_enabled: bool = False,
@@ -75,6 +76,10 @@ def run_portfolio_experiment(
             default single-pass policy from the inputs builder.
         mis_solver_id: MIS solver to use.
         classical_solver_id: Classical solver to use.
+        classical_time_limit_seconds: Maximum time per classical solve invocation.
+            A value of 0 means no per-solve time limit (solver runs until
+            completion or end-to-end budget exhaustion). If None, uses the
+            default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         model_export_enabled: Whether to export the residual model.
@@ -89,7 +94,8 @@ def run_portfolio_experiment(
 
     Raises:
         ValueError: If asset_count < 6, or if D-Wave parameters are used with
-            a non-D-Wave solver, or if cardinality/bound constraints are invalid.
+            a non-D-Wave solver, or if cardinality/bound constraints are invalid,
+            or if classical_time_limit_seconds is negative.
     """
     # Validate asset_count early
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
@@ -106,6 +112,7 @@ def run_portfolio_experiment(
         graph_policy=graph_policy,
         mis_solver_id=mis_solver_id,
         classical_solver_id=classical_solver_id,
+        classical_time_limit_seconds=classical_time_limit_seconds,
         mis_num_reads=mis_num_reads,
         mis_num_sweeps=mis_num_sweeps,
         lower_bound=lower_bound,
