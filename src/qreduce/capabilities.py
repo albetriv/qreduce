@@ -37,6 +37,7 @@ class RuntimeCapabilities:
     requires_geometric_mapping: bool = False
     requires_device_mapping: bool = False
     supported_parameter_names: frozenset[str] = frozenset()
+    supported_compilation_parameter_names: frozenset[str] = frozenset()
     required_sdk: str | None = None
     required_credentials: bool = False
     supported_device_ids: frozenset[str] | None = None

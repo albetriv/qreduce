@@ -66,7 +66,9 @@ def validate_compilation_request(
         and request.requested_device_id not in capabilities.supported_device_ids
     ):
         return _invalid("requested_device_id", "Requested device is unsupported.")
-    unsupported_parameters = set(request.compilation_parameters) - set(capabilities.supported_parameter_names)
+    # Internal parameters (starting with _) are pipeline-managed and not validated against capabilities
+    user_parameters = {k for k in request.compilation_parameters if not k.startswith("_")}
+    unsupported_parameters = user_parameters - capabilities.supported_compilation_parameter_names
     if unsupported_parameters:
         return _invalid("compilation_parameters", "Unsupported compilation parameters were requested.")
     return ValidationResult.valid()

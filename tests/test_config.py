@@ -206,6 +206,68 @@ def test_zero_reduction_rounds_baseline_is_valid() -> None:
             ),
             "recovery_attempts_without_policy",
         ),
+        # Embedding profile with no reduction
+        (
+            make_config(
+                reduction=replace(
+                    make_config().reduction,
+                    max_reduction_rounds=0,
+                    max_recovery_attempts=0,
+                    recovery_policy_on_domain_too_small="fail",
+                    recovery_policy_on_infeasible="fail",
+                ),
+                mis_solver_id="dwave_simulated_annealing",
+                mis_execution=replace(
+                    make_config().mis_execution,
+                    compilation_parameters={"embedding_profile": "pegasus_p16"},
+                ),
+            ),
+            "embedding_requires_reduction",
+        ),
+        # Embedding profile with wrong solver
+        (
+            make_config(
+                mis_solver_id="local_greedy",  # Wrong solver
+                mis_execution=replace(
+                    make_config().mis_execution,
+                    compilation_parameters={"embedding_profile": "pegasus_p16"},
+                ),
+            ),
+            "embedding_requires_dwave_solver",
+        ),
+        # Invalid embedding profile value
+        (
+            make_config(
+                mis_solver_id="dwave_simulated_annealing",
+                mis_execution=replace(
+                    make_config().mis_execution,
+                    compilation_parameters={"embedding_profile": "invalid_profile"},
+                ),
+            ),
+            "invalid_embedding_profile_value",
+        ),
+        # Non-string embedding profile type
+        (
+            make_config(
+                mis_solver_id="dwave_simulated_annealing",
+                mis_execution=replace(
+                    make_config().mis_execution,
+                    compilation_parameters={"embedding_profile": 123},
+                ),
+            ),
+            "invalid_embedding_profile_type",
+        ),
+        # Explicit None is not allowed (use "none" string or omit the key)
+        (
+            make_config(
+                mis_solver_id="dwave_simulated_annealing",
+                mis_execution=replace(
+                    make_config().mis_execution,
+                    compilation_parameters={"embedding_profile": None},
+                ),
+            ),
+            "embedding_profile_explicit_none",
+        ),
     ],
 )
 def test_invalid_configuration_has_normalized_reason(

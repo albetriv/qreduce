@@ -186,6 +186,56 @@ poetry run python -m qreduce.experiments.portfolio \
 | `--classical-solver-id`  | `cplex`, `scip`                                  | `scip`                |
 | `--mis-num-reads`        | D-Wave num_reads (richiede dwave_simulated_annealing) |                  |
 | `--mis-num-sweeps`       | D-Wave num_sweeps (richiede dwave_simulated_annealing) |                 |
+| `--mis-embedding-profile`| Profilo embedding locale: `none`, `pegasus_p16`, `zephyr_z12` | `none`   |
+
+**Embedding locale:**
+
+Il parametro `--mis-embedding-profile` vincola il campionamento D-Wave a una
+topologia hardware-like senza richiedere QPU o credenziali. I profili
+disponibili sono:
+
+- `none` (default): campionamento diretto del BQM logico, senza embedding.
+- `pegasus_p16`: embedding su topologia Pegasus ideale con parametro m=16.
+- `zephyr_z12`: embedding su topologia Zephyr ideale con parametro m=12.
+
+L'embedding modella i vincoli di connettività e l'overhead delle catene, ma
+non simula dinamiche quantistiche o tempi QPU. È un campionamento classico
+vincolato alla struttura del grafo hardware.
+
+Requisiti per profili diversi da `none`:
+- `--mis-solver-id dwave_simulated_annealing`
+- `--max-reduction-rounds >= 1` (riduzione attiva)
+
+**Gestione del budget durante l'embedding:**
+
+Quando è impostato un budget end-to-end (`--max-end-to-end-runtime-seconds > 0`),
+il backend gestisce cooperativamente il tempo residuo:
+
+- Il budget viene ricontrollato prima di ogni operazione costosa (ricerca
+  embedding, calcolo chain strength, campionamento).
+- Il tempo residuo limita la durata della ricerca dell'embedding: se rimane
+  poco budget, la ricerca può terminare prima del timeout standard di 60
+  secondi.
+- Non è garantita l'interruzione forzata di chiamate SDK già in corso: se
+  una singola operazione supera il budget residuo, il fallimento viene
+  rilevato solo al ritorno della chiamata.
+- Se il budget si esaurisce prima del completamento, la compilazione
+  fallisce con `MIS_COMPILATION_FAILED` e messaggio diagnostico esplicito.
+
+**Esempio con embedding Pegasus:**
+
+```bash
+poetry run python -m qreduce.experiments.portfolio \
+  --run-id embedded_pegasus \
+  --asset-count 20 \
+  --mis-solver-id dwave_simulated_annealing \
+  --mis-embedding-profile pegasus_p16 \
+  --mis-num-reads 100
+```
+
+Il configuratore HTML include un selettore "Profilo embedding locale" nel
+pannello dei parametri D-Wave, attivo solo con il solver D-Wave e riduzione
+abilitata.
 
 ### Opzioni reduction policy
 
@@ -344,9 +394,12 @@ crocette.
 
 - **SCIP**: `poetry install --with experiments` (PySCIPOpt)
 - **CPLEX**: binding `cplex` + licenza utilizzabile
-- **D-Wave**: `poetry install --with experiments` (simulatore locale, no QPU)
+- **D-Wave simulatore**: `poetry install --with experiments` (simulatore locale, no QPU)
+- **D-Wave embedding**: `poetry install --with dwave-embedding` (per profili `pegasus_p16`, `zephyr_z12`)
 
-Un backend non disponibile produce failure esplicito senza fallback.
+Un backend non disponibile produce failure esplicito senza fallback. L'uso di
+profili di embedding diversi da `none` senza le dipendenze corrispondenti
+produce un errore esplicito che indica come installare il gruppo mancante.
 
 ## API Python
 

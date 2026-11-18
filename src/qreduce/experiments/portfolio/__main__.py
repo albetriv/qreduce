@@ -201,6 +201,19 @@ Examples:
         type=int,
         help="D-Wave simulated-annealing num_sweeps parameter.",
     )
+    solver_group.add_argument(
+        "--mis-embedding-profile",
+        choices=("none", "pegasus_p16", "zephyr_z12"),
+        default=None,
+        help=(
+            "Local embedding profile for D-Wave simulated annealing. "
+            "Constrains sampling to hardware-like topology without QPU access. "
+            "none = direct logical BQM sampling (default), "
+            "pegasus_p16 = Pegasus m=16 topology, "
+            "zephyr_z12 = Zephyr m=12 topology. "
+            "Requires --mis-solver-id=dwave_simulated_annealing and reduction active."
+        ),
+    )
 
     # Reduction policy options
     reduction_group = parser.add_argument_group("Reduction policy options")
@@ -273,6 +286,19 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     # D-Wave parameters require D-Wave solver
     if (args.mis_num_reads is not None or args.mis_num_sweeps is not None) and args.mis_solver_id != "dwave_simulated_annealing":
         parser.error("--mis-num-reads and --mis-num-sweeps require --mis-solver-id=dwave_simulated_annealing")
+
+    # Embedding profile validation
+    if args.mis_embedding_profile is not None and args.mis_embedding_profile != "none":
+        if args.mis_solver_id != "dwave_simulated_annealing":
+            parser.error(
+                f"--mis-embedding-profile={args.mis_embedding_profile} requires "
+                "--mis-solver-id=dwave_simulated_annealing"
+            )
+        if args.max_reduction_rounds is not None and args.max_reduction_rounds == 0:
+            parser.error(
+                f"--mis-embedding-profile={args.mis_embedding_profile} requires "
+                "reduction to be enabled (--max-reduction-rounds > 0)"
+            )
 
     # Time limit validation - reject booleans, NaN, infinity
     if args.classical_time_limit_seconds is not None:
@@ -417,6 +443,7 @@ def main() -> int:
         classical_time_limit_seconds=args.classical_time_limit_seconds,
         mis_num_reads=args.mis_num_reads,
         mis_num_sweeps=args.mis_num_sweeps,
+        mis_embedding_profile=args.mis_embedding_profile,
         model_export_enabled=args.model_export,
         model_export_path=args.model_export_path,
         lower_bound=args.lower_bound,

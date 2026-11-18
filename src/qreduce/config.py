@@ -360,6 +360,58 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
         0.0,
     )
 
+    # Embedding profile validation
+    # Distinguish between: key absent (OK), key=string (validate), key=None (reject)
+    compilation_params = execution.compilation_parameters
+    has_embedding_profile_key = "embedding_profile" in compilation_params
+    embedding_profile = compilation_params.get("embedding_profile")
+    valid_profiles = ("none", "pegasus_p16", "zephyr_z12")
+    hardware_profiles = ("pegasus_p16", "zephyr_z12")
+
+    if has_embedding_profile_key:
+        if embedding_profile is None:
+            # Explicit None is not allowed - use "none" string or omit the key
+            _add_issue(
+                issues,
+                "embedding_profile_explicit_none",
+                "mis_execution.compilation_parameters.embedding_profile",
+                "embedding_profile=None is not allowed. Use \"none\" or omit the key.",
+            )
+        elif not isinstance(embedding_profile, str):
+            # Must be a string (reject numbers, booleans, lists, etc.)
+            _add_issue(
+                issues,
+                "invalid_embedding_profile_type",
+                "mis_execution.compilation_parameters.embedding_profile",
+                f"embedding_profile must be a string, got {type(embedding_profile).__name__}.",
+            )
+        elif embedding_profile not in valid_profiles:
+            _add_issue(
+                issues,
+                "invalid_embedding_profile_value",
+                "mis_execution.compilation_parameters.embedding_profile",
+                f"embedding_profile='{embedding_profile}' is not valid. "
+                f"Allowed values: {', '.join(valid_profiles)}.",
+            )
+        elif embedding_profile in hardware_profiles:
+            # Hardware profile requires dwave_simulated_annealing solver
+            if config.mis_solver_id != "dwave_simulated_annealing":
+                _add_issue(
+                    issues,
+                    "embedding_requires_dwave_solver",
+                    "mis_execution.compilation_parameters.embedding_profile",
+                    f"embedding_profile='{embedding_profile}' requires "
+                    "mis_solver_id='dwave_simulated_annealing'.",
+                )
+            # Hardware profile requires reduction enabled
+            if reduction.max_reduction_rounds == 0:
+                _add_issue(
+                    issues,
+                    "embedding_requires_reduction",
+                    "mis_execution.compilation_parameters.embedding_profile",
+                    f"embedding_profile='{embedding_profile}' requires max_reduction_rounds >= 1.",
+                )
+
     return ValidationResult.invalid(*issues) if issues else ValidationResult.valid()
 
 

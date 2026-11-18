@@ -39,6 +39,7 @@
     classicalSolver: "scip",
     numReads: "",
     numSweeps: "",
+    embeddingProfile: "none",
     modelExport: false,
     modelExportPath: "",
   };
@@ -492,6 +493,11 @@
         if (numSweeps !== null) {
           args.push({ flag: "--mis-num-sweeps", value: numSweeps });
         }
+        // Embedding profile (only if not "none")
+        var embeddingProfile = C.value("embeddingProfile");
+        if (embeddingProfile && embeddingProfile !== "none") {
+          args.push({ flag: "--mis-embedding-profile", value: embeddingProfile });
+        }
       }
     }
 
@@ -525,6 +531,17 @@
     document.querySelectorAll(".dwave-only input").forEach(function (input) {
       input.disabled = !dwaveSolver || !reductionActive;
     });
+
+    // D-Wave select fields (embedding profile): disabled if not D-Wave OR if baseline mode
+    document.querySelectorAll(".dwave-only select").forEach(function (select) {
+      select.disabled = !dwaveSolver || !reductionActive;
+    });
+
+    // Reset embedding profile to "none" when switching to incompatible state
+    var embeddingSelect = C.$("embeddingProfile");
+    if (embeddingSelect && (!dwaveSolver || !reductionActive)) {
+      embeddingSelect.value = "none";
+    }
 
     // Near-duplicate params: disabled if not near_duplicate mode
     document.querySelectorAll(".near-duplicate input").forEach(function (input) {

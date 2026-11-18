@@ -331,6 +331,10 @@ def _execute_reduction_round(
     # A finite value means use that value
     compilation_timeout_value = 0.0 if compilation_timeout.is_unlimited else (compilation_timeout.timeout_seconds or 0.0)
     try:
+        # Include random seed in compilation parameters for embedding search
+        effective_compilation_parameters = dict(config.mis_execution.compilation_parameters)
+        if config.mis_execution.random_seed is not None:
+            effective_compilation_parameters["_random_seed"] = config.mis_execution.random_seed
         compilation = mis_solver.compile(
         canonical_problem,
         MISCompilationRequest(
@@ -343,6 +347,7 @@ def _execute_reduction_round(
             requested_backend_family=capabilities.backend_family,
             requested_execution_mode=capabilities.execution_mode,
             required_problem_form=required_problem_form,
+            compilation_parameters=effective_compilation_parameters,
         ),
         )
         if not isinstance(compilation, MISCompilationResult):

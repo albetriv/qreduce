@@ -45,6 +45,7 @@ def run_portfolio_experiment(
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
+    mis_embedding_profile: str | None = None,
     model_export_enabled: bool = False,
     model_export_path: str | None = None,
     lower_bound: float = 0.0,
@@ -82,6 +83,10 @@ def run_portfolio_experiment(
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+        mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
+            Constrains sampling to hardware-like topology without QPU access.
+            Valid values: 'none' (default), 'pegasus_p16', 'zephyr_z12'.
+            Requires mis_solver_id='dwave_simulated_annealing' and reduction active.
         model_export_enabled: Whether to export the residual model.
         model_export_path: Optional path for model export.
         lower_bound: Minimum investment per selected asset. Default 0.0.
@@ -95,7 +100,8 @@ def run_portfolio_experiment(
     Raises:
         ValueError: If asset_count < 6, or if D-Wave parameters are used with
             a non-D-Wave solver, or if cardinality/bound constraints are invalid,
-            or if classical_time_limit_seconds is negative.
+            or if classical_time_limit_seconds is negative, or if embedding profile
+            is incompatible with the solver.
     """
     # Validate asset_count early
     if isinstance(asset_count, bool) or not isinstance(asset_count, int) or asset_count < 6:
@@ -115,6 +121,7 @@ def run_portfolio_experiment(
         classical_time_limit_seconds=classical_time_limit_seconds,
         mis_num_reads=mis_num_reads,
         mis_num_sweeps=mis_num_sweeps,
+        mis_embedding_profile=mis_embedding_profile,
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         min_selected_assets=min_selected_assets,

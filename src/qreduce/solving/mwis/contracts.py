@@ -66,7 +66,15 @@ class MISCompilationRequest:
 
 @dataclass(frozen=True, slots=True)
 class CompiledMISJob:
-    """Provider-neutral successful compilation artifact ready for execution."""
+    """Provider-neutral successful compilation artifact ready for execution.
+
+    For hardware embedding profiles, the embedded_bqm_serialized field holds
+    the pre-embedded BQM in JSON-serializable format (via dimod's to_serializable()).
+    This avoids re-embedding in solve() and ensures chain_strength consistency.
+
+    The serialized format is provider-neutral and can be reconstructed with
+    dimod.BinaryQuadraticModel.from_serializable() when needed.
+    """
 
     compiled_job_id: str
     run_id: str
@@ -84,6 +92,9 @@ class CompiledMISJob:
     runtime_seconds: float
     effective_compilation_parameters: Mapping[str, object]
     capabilities_snapshot: RuntimeCapabilities
+    # Serialized embedded BQM for hardware profiles (None for software profiles)
+    # Format: dimod.BinaryQuadraticModel.to_serializable() output
+    embedded_bqm_serialized: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         _require_nonempty(self.compiled_job_id, "compiled_job_id")

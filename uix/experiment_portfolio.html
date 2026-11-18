@@ -296,6 +296,16 @@
                   <label for="numSweeps">num_sweeps <span class="param">--mis-num-sweeps</span></label>
                   <input id="numSweeps" type="number" min="1" step="1" placeholder="Opzionale">
                 </div>
+                <!-- PARAM_DESC: Profilo di embedding locale per vincolare il campionamento a una topologia hardware-like. Nessuno: campionamento BQM logico diretto (default). Pegasus P16: topologia Pegasus m=16. Zephyr Z12: topologia Zephyr m=12. Simula vincoli di connettività hardware senza QPU reale o credenziali. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
+                <div class="field dwave-only">
+                  <label for="embeddingProfile">Profilo embedding locale <span class="param">--mis-embedding-profile</span></label>
+                  <select id="embeddingProfile">
+                    <option value="none">Nessuno (default)</option>
+                    <option value="pegasus_p16">Pegasus P16</option>
+                    <option value="zephyr_z12">Zephyr Z12</option>
+                  </select>
+                  <p class="help">Campionamento classico con vincoli topologici, non simulazione quantistica.</p>
+                </div>
               </div>
             </div>
           </section>

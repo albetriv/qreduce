@@ -228,3 +228,125 @@ def test_backend_rejects_malformed_ocean_sample_labels_and_values(monkeypatch, b
     assert result.samples == ()
     assert result.completion_status is MISCompletionStatus.FAILED
     assert result.terminal_reason is TerminalReason.MIS_RESULT_NORMALIZATION_FAILED
+
+
+
+def test_solve_rejects_hardware_profile_without_embedding(monkeypatch) -> None:
+    """A hardware profile job with missing embedding fails explicitly, no fallback to logical sampling."""
+    sampler_called = False
+
+    class FakeBQM:
+        @classmethod
+        def from_qubo(cls, coefficients, offset):
+            del coefficients, offset
+            return "fake-bqm"
+
+    class SpySampler:
+        def sample(self, bqm, **parameters):
+            nonlocal sampler_called
+            sampler_called = True
+            raise AssertionError("Sampler must not be called for invalid hardware job")
+
+    def import_fake(module_name: str):
+        if module_name == "dimod":
+            return SimpleNamespace(BinaryQuadraticModel=FakeBQM)
+        if module_name == "dwave.samplers":
+            return SimpleNamespace(SimulatedAnnealingSampler=SpySampler)
+        raise AssertionError(f"Unexpected import: {module_name}")
+
+    monkeypatch.setattr(
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", import_fake
+    )
+    backend = DWaveSimulatedAnnealingMISBackend()
+    problem = make_problem()
+
+    # Compile without embedding profile first
+    compilation = backend.compile(problem, make_compilation_request(problem))
+    assert compilation.compiled_job is not None
+
+    # Manually create a job that claims hardware profile but lacks embedding
+    from dataclasses import replace
+    fake_hardware_job = replace(
+        compilation.compiled_job,
+        effective_compilation_parameters={"embedding_profile": "pegasus_p16"},  # No _embedding!
+    )
+
+    result = backend.solve(
+        fake_hardware_job,
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id=fake_hardware_job.compiled_job_id,
+            node_order=problem.graph.node_ids,
+            random_seed=None,
+            requested_solution_count=1,
+            residual_time_budget_seconds=5.0,
+        ),
+    )
+
+    assert sampler_called is False, "Sampler should not be called for invalid hardware job"
+    assert result.samples == ()
+    assert result.completion_status is MISCompletionStatus.FAILED
+    assert result.terminal_reason is TerminalReason.MIS_EMBEDDING_FAILED
+    assert "pegasus_p16" in result.diagnostic_message
+    assert "embedding" in result.diagnostic_message.lower()
+
+
+def test_solve_rejects_hardware_profile_with_empty_embedding(monkeypatch) -> None:
+    """A hardware profile job with empty embedding fails explicitly."""
+    sampler_called = False
+
+    class FakeBQM:
+        @classmethod
+        def from_qubo(cls, coefficients, offset):
+            del coefficients, offset
+            return "fake-bqm"
+
+    class SpySampler:
+        def sample(self, bqm, **parameters):
+            nonlocal sampler_called
+            sampler_called = True
+            raise AssertionError("Sampler must not be called for invalid hardware job")
+
+    def import_fake(module_name: str):
+        if module_name == "dimod":
+            return SimpleNamespace(BinaryQuadraticModel=FakeBQM)
+        if module_name == "dwave.samplers":
+            return SimpleNamespace(SimulatedAnnealingSampler=SpySampler)
+        raise AssertionError(f"Unexpected import: {module_name}")
+
+    monkeypatch.setattr(
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._import_module", import_fake
+    )
+    backend = DWaveSimulatedAnnealingMISBackend()
+    problem = make_problem()
+
+    compilation = backend.compile(problem, make_compilation_request(problem))
+    assert compilation.compiled_job is not None
+
+    from dataclasses import replace
+    fake_hardware_job = replace(
+        compilation.compiled_job,
+        effective_compilation_parameters={
+            "embedding_profile": "zephyr_z12",
+            "_embedding": {},  # Empty embedding!
+        },
+    )
+
+    result = backend.solve(
+        fake_hardware_job,
+        MISBackendRequest(
+            run_id="run-001",
+            round_index=0,
+            compiled_job_id=fake_hardware_job.compiled_job_id,
+            node_order=problem.graph.node_ids,
+            random_seed=None,
+            requested_solution_count=1,
+            residual_time_budget_seconds=5.0,
+        ),
+    )
+
+    assert sampler_called is False
+    assert result.samples == ()
+    assert result.completion_status is MISCompletionStatus.FAILED
+    assert result.terminal_reason is TerminalReason.MIS_EMBEDDING_FAILED

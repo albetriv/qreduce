@@ -602,3 +602,240 @@ class TestPortfolioModeTransitions:
         assert "--mis-solver-id" not in result["command"]
         assert "--mis-num-reads" not in result["command"]
         assert "--mis-num-sweeps" not in result["command"]
+
+
+class TestPortfolioEmbeddingSelector:
+    """Test embedding profile selector behavior in portfolio configurator."""
+
+    def test_hardware_profile_emits_flag(self, portfolio_parser):
+        """Test that hardware profiles (pegasus_p16, zephyr_z12) emit the flag."""
+        for profile in ["pegasus_p16", "zephyr_z12"]:
+            result = run_js_generator(
+                "portfolio",
+                {
+                    "runId": "embed_test",
+                    "maxRounds": "1",  # Reduction active
+                    "misSolver": "dwave_simulated_annealing",
+                    "embeddingProfile": profile,
+                },
+            )
+            assert result["isValid"] is True, f"Profile {profile} should be valid"
+            assert f"--mis-embedding-profile {profile}" in result["command"], (
+                f"Profile {profile} should emit flag"
+            )
+
+            # Verify command parses
+            args = extract_cli_args(result["command"])
+            parsed = portfolio_parser.parse_args(args)
+            assert parsed.mis_embedding_profile == profile
+
+    def test_none_profile_omits_flag(self, portfolio_parser):
+        """Test that profile 'none' (default) does not emit the flag."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "embed_test",
+                "maxRounds": "1",
+                "misSolver": "dwave_simulated_annealing",
+                "embeddingProfile": "none",
+            },
+        )
+        assert result["isValid"] is True
+        # Default value should not be emitted
+        assert "--mis-embedding-profile" not in result["command"]
+
+    def test_embedding_reset_when_solver_changes(self):
+        """Test that embedding profile resets to 'none' when switching to local_greedy.
+
+        When the solver is not dwave_simulated_annealing, embedding profile
+        should be ignored and not emitted.
+        """
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "embed_test",
+                "maxRounds": "1",
+                "misSolver": "local_greedy",  # Not D-Wave
+                "embeddingProfile": "pegasus_p16",  # Should be ignored
+            },
+        )
+        assert result["isValid"] is True
+        # Embedding flag should not be emitted for non-D-Wave solver
+        assert "--mis-embedding-profile" not in result["command"]
+
+    def test_embedding_ignored_in_baseline_mode(self):
+        """Test that embedding profile is ignored when reduction is disabled.
+
+        In baseline mode (maxRounds=0), MIS params including embedding are ignored.
+        """
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "embed_test",
+                "maxRounds": "0",  # Baseline - no MIS
+                "misSolver": "dwave_simulated_annealing",
+                "embeddingProfile": "zephyr_z12",
+            },
+        )
+        assert result["isValid"] is True
+        # Neither MIS solver nor embedding should be emitted in baseline
+        assert "--mis-solver-id" not in result["command"]
+        assert "--mis-embedding-profile" not in result["command"]
+
+    def test_embedding_with_dwave_and_reduction(self, portfolio_parser):
+        """Test full valid configuration with embedding, D-Wave solver, and reduction."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "full_embed_test",
+                "maxRounds": "2",
+                "misSolver": "dwave_simulated_annealing",
+                "embeddingProfile": "pegasus_p16",
+                "numReads": "100",
+                "numSweeps": "500",
+            },
+        )
+        assert result["isValid"] is True
+
+        # All relevant flags should be emitted
+        assert "--mis-solver-id dwave_simulated_annealing" in result["command"]
+        assert "--mis-embedding-profile pegasus_p16" in result["command"]
+        assert "--mis-num-reads 100" in result["command"]
+        assert "--mis-num-sweeps 500" in result["command"]
+
+        # Verify command parses correctly
+        args = extract_cli_args(result["command"])
+        parsed = portfolio_parser.parse_args(args)
+        assert parsed.mis_solver_id == "dwave_simulated_annealing"
+        assert parsed.mis_embedding_profile == "pegasus_p16"
+        assert parsed.mis_num_reads == 100
+        assert parsed.mis_num_sweeps == 500
+
+
+class TestPortfolioEmbeddingDOMTransitions:
+    """Test that embedding selector DOM state transitions work correctly.
+
+    These tests verify the actual DOM element state changes after user interactions,
+    not just the command output for a given configuration.
+    """
+
+    def run_transition_test(self, steps: list) -> dict:
+        """Run a sequence of DOM changes and verify state transitions."""
+        runner_path = Path(__file__).parent / "uix_transition_runner.js"
+        if not runner_path.exists():
+            pytest.skip("uix_transition_runner.js not found")
+
+        try:
+            subprocess.run(
+                ["node", "--version"],
+                capture_output=True,
+                timeout=5,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pytest.skip("Node.js not available")
+
+        result = subprocess.run(
+            ["node", str(runner_path), "portfolio", json.dumps(steps)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            if "Cannot find module" in result.stderr and "jsdom" in result.stderr:
+                pytest.skip("jsdom not installed")
+            pytest.fail(f"Transition runner failed: {result.stderr}")
+
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            pytest.fail(f"Invalid JSON output: {result.stdout}")
+
+    def test_embedding_resets_when_solver_changes_to_local_greedy(self):
+        """Test DOM transition: D-Wave + pegasus -> local_greedy resets to none + disabled."""
+        steps = [
+            # Step 1: Set up initial state with D-Wave and hardware embedding
+            {
+                "set": {
+                    "runId": "transition_test",
+                    "maxRounds": "1",
+                    "misSolver": "dwave_simulated_annealing",
+                    "embeddingProfile": "pegasus_p16",
+                },
+                "verify": {
+                    "embeddingProfile": {"value": "pegasus_p16", "disabled": False},
+                },
+            },
+            # Step 2: Change solver to local_greedy - embedding should reset
+            {
+                "set": {"misSolver": "local_greedy"},
+                "verify": {
+                    "embeddingProfile": {"value": "none", "disabled": True},
+                },
+            },
+        ]
+
+        result = self.run_transition_test(steps)
+        assert result["success"], f"Transition test failed: {result}"
+
+    def test_embedding_resets_when_reduction_disabled(self):
+        """Test DOM transition: reduction enabled + pegasus -> maxRounds=0 resets to none + disabled."""
+        steps = [
+            # Step 1: Set up initial state with D-Wave and hardware embedding
+            {
+                "set": {
+                    "runId": "transition_test",
+                    "maxRounds": "2",
+                    "misSolver": "dwave_simulated_annealing",
+                    "embeddingProfile": "zephyr_z12",
+                },
+                "verify": {
+                    "embeddingProfile": {"value": "zephyr_z12", "disabled": False},
+                },
+            },
+            # Step 2: Disable reduction - embedding should reset
+            {
+                "set": {"maxRounds": "0"},
+                "verify": {
+                    "embeddingProfile": {"value": "none", "disabled": True},
+                },
+            },
+        ]
+
+        result = self.run_transition_test(steps)
+        assert result["success"], f"Transition test failed: {result}"
+
+    def test_embedding_enabled_when_switching_to_dwave(self):
+        """Test DOM transition: local_greedy -> D-Wave enables embedding selector."""
+        steps = [
+            # Step 1: Start with local_greedy
+            {
+                "set": {
+                    "runId": "transition_test",
+                    "maxRounds": "1",
+                    "misSolver": "local_greedy",
+                },
+                "verify": {
+                    "embeddingProfile": {"value": "none", "disabled": True},
+                },
+            },
+            # Step 2: Switch to D-Wave - embedding should become enabled
+            {
+                "set": {"misSolver": "dwave_simulated_annealing"},
+                "verify": {
+                    "embeddingProfile": {"disabled": False},
+                },
+            },
+            # Step 3: Now we can select a hardware profile
+            {
+                "set": {"embeddingProfile": "pegasus_p16"},
+                "verify": {
+                    "embeddingProfile": {"value": "pegasus_p16", "disabled": False},
+                },
+            },
+        ]
+
+        result = self.run_transition_test(steps)
+        assert result["success"], f"Transition test failed: {result}"

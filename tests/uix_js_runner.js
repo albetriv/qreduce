@@ -127,10 +127,14 @@ function main() {
     const currentValues = {};
     ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
      "runId", "assetCount", "generationSeed", "maxRounds", "edgeMode",
-     "correlationThreshold", "misSolver", "classicalSolver"].forEach((id) => {
+     "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         currentValues[id] = el.type === "checkbox" ? el.checked : el.value;
+        // Also capture disabled state for embedding profile
+        if (id === "embeddingProfile") {
+          currentValues["embeddingProfileDisabled"] = el.disabled;
+        }
       }
     });
 

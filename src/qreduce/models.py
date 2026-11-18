@@ -67,13 +67,19 @@ class MISExecutionOptions:
     execution_time_limit_seconds: float | None = None
     compilation_time_limit_seconds: float | None = None
     provider_parameters: Mapping[str, object] = field(default_factory=dict)
+    compilation_parameters: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Freeze provider parameters so the resolved request cannot be mutated."""
+        """Freeze provider and compilation parameters so the resolved request cannot be mutated."""
         object.__setattr__(
             self,
             "provider_parameters",
             MappingProxyType(dict(self.provider_parameters)),
+        )
+        object.__setattr__(
+            self,
+            "compilation_parameters",
+            MappingProxyType(dict(self.compilation_parameters)),
         )
 
 

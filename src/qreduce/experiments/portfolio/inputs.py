@@ -116,6 +116,7 @@ def build_synthetic_portfolio_inputs(
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
     mis_num_sweeps: int | None = None,
+    mis_embedding_profile: str | None = None,
     lower_bound: float = 0.0,
     upper_bound: float = 0.7,
     min_selected_assets: int | None = None,
@@ -137,6 +138,10 @@ def build_synthetic_portfolio_inputs(
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
+        mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
+            Constrains sampling to hardware-like topology without QPU access.
+            Valid values: 'none' (default), 'pegasus_p16', 'zephyr_z12'.
+            Requires mis_solver_id='dwave_simulated_annealing'.
         lower_bound: Minimum investment per selected asset. Default 0.0.
         upper_bound: Maximum investment per selected asset. Default 0.7.
         min_selected_assets: Optional minimum number of assets to select (cardinality).
@@ -147,7 +152,8 @@ def build_synthetic_portfolio_inputs(
 
     Raises:
         ValueError: If asset_count < 6, if D-Wave parameters are used with
-            a non-D-Wave solver, or if classical_time_limit_seconds is negative.
+            a non-D-Wave solver, if classical_time_limit_seconds is negative,
+            or if embedding profile is incompatible with the solver.
     """
     from qreduce.experiments.portfolio.generator import (
         default_generation_policy,
@@ -233,6 +239,29 @@ def build_synthetic_portfolio_inputs(
                 provider_parameters=provider_parameters,
             ),
         )
+
+    # Handle embedding profile for D-Wave simulated annealing
+    if mis_embedding_profile is not None and mis_embedding_profile != "none":
+        if mis_solver_id != "dwave_simulated_annealing":
+            raise ValueError(
+                f"mis_embedding_profile='{mis_embedding_profile}' requires "
+                "mis_solver_id='dwave_simulated_annealing'."
+            )
+        valid_profiles = ("none", "pegasus_p16", "zephyr_z12")
+        if mis_embedding_profile not in valid_profiles:
+            raise ValueError(
+                f"Invalid mis_embedding_profile: {mis_embedding_profile!r}. "
+                f"Valid values: {', '.join(valid_profiles)}"
+            )
+        compilation_parameters: dict[str, object] = {"embedding_profile": mis_embedding_profile}
+        config = replace(
+            config,
+            mis_execution=replace(
+                config.mis_execution,
+                compilation_parameters=compilation_parameters,
+            ),
+        )
+
     return SyntheticPortfolioInputs(
         problem=problem,
         graph_policy=graph_policy,
