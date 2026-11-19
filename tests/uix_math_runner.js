@@ -5,7 +5,7 @@
  * Usage: node tests/uix_math_runner.js <configurator> <test_type> [json_input]
  *
  * Where:
- *   configurator: "portfolio" or "facility_location"
+ *   configurator: "portfolio", "portfolio_sr", or "facility_location"
  *   test_type: see switch in main()
  *   json_input: JSON object with field values to set (optional)
  *
@@ -15,6 +15,48 @@
 const { JSDOM } = require("jsdom");
 const fs = require("fs");
 const path = require("path");
+
+/**
+ * Centralized configurator mapping.
+ * All configurator-specific details in one place.
+ */
+const CONFIGURATOR_CONFIG = {
+  portfolio: {
+    htmlFile: "experiment_portfolio_mv.html",
+    scriptMode: "file",
+    scriptFile: "portfolio_mv.js",
+    roundsField: "maxRounds",
+    cardinalityFields: ["minSelectedAssets", "maxSelectedAssets"],
+    dynamicIds: ["mathCardinalityLatex", "mathReductionContent"],
+  },
+  portfolio_sr: {
+    htmlFile: "experiment_portfolio_sr.html",
+    scriptMode: "inline",
+    roundsField: "maxRounds",
+    cardinalityFields: ["maxPositions"],
+    dynamicIds: ["mathReductionContent"],
+  },
+  facility_location: {
+    htmlFile: "experiment_facility_location.html",
+    scriptMode: "file",
+    scriptFile: "facility_location.js",
+    roundsField: "rounds",
+    cardinalityFields: [],
+    dynamicIds: ["mathReductionContent"],
+  },
+};
+
+const VALID_CONFIGURATORS = Object.keys(CONFIGURATOR_CONFIG);
+
+/**
+ * Get configurator config with validation.
+ */
+function getConfiguratorConfig(configurator) {
+  if (!CONFIGURATOR_CONFIG[configurator]) {
+    throw new Error(`Invalid configurator: ${configurator}. Valid: ${VALID_CONFIGURATORS.join(", ")}`);
+  }
+  return CONFIGURATOR_CONFIG[configurator];
+}
 
 /**
  * Setup jsdom with required globals.
@@ -34,14 +76,8 @@ function setupJsdomGlobals(window) {
 }
 
 /**
- * Create a mock MathJax that transforms the DOM like real MathJax.
- * 
- * Real MathJax behavior:
- * - Adds mjx-container elements to render the math
- * - Does NOT remove the original TeX text
- * - CSS hides the original text when mjx-container is present
- * 
- * Our mock simulates this by adding mjx-container without removing content.
+ * Create a MathJax mock with optional consumption of source text.
+ * The consuming mode catches missing TeX restoration on subsequent renders.
  */
 function createMathJaxMock(window, options = {}) {
   const calls = {
@@ -67,8 +103,7 @@ function createMathJaxMock(window, options = {}) {
 
         // Simulate async rendering with configurable delay
         setTimeout(() => {
-          // Simulate MathJax transforming .math-latex elements
-          // Real MathJax adds mjx-container but does NOT clear original content
+          // Simulate transformation of .math-latex elements.
           if (elements) {
             elements.forEach((container) => {
               if (!container) return;
@@ -78,7 +113,7 @@ function createMathJaxMock(window, options = {}) {
                   const mockContainer = window.document.createElement("mjx-container");
                   mockContainer.setAttribute("data-rendered", "true");
                   mockContainer.textContent = "[Rendered]";
-                  // Append WITHOUT clearing - real MathJax keeps the original
+                  if (options.consumeTex) el.textContent = "";
                   el.appendChild(mockContainer);
                 }
               });
@@ -112,16 +147,13 @@ function createMathJaxMock(window, options = {}) {
 
 /**
  * Load and initialize the UIX page.
- * @param {string} configurator - "portfolio" or "facility_location"
+ * @param {string} configurator - "portfolio", "portfolio_sr", or "facility_location"
  * @param {object} options - { simulateLoadFailure: boolean, slowRenderer: boolean }
  */
 function loadPage(configurator, options = {}) {
+  const config = getConfiguratorConfig(configurator);
   const uixDir = path.join(__dirname, "..", "uix");
-  const htmlFile =
-    configurator === "portfolio"
-      ? "experiment_portfolio_mv.html"
-      : "experiment_facility_location.html";
-  const htmlPath = path.join(uixDir, htmlFile);
+  const htmlPath = path.join(uixDir, config.htmlFile);
 
   if (!fs.existsSync(htmlPath)) {
     throw new Error(`HTML file not found: ${htmlPath}`);
@@ -168,18 +200,28 @@ function loadPage(configurator, options = {}) {
     window.QReduceMath._simulateLoadFailure();
   }
 
-  // Load specific script
-  const specificJs =
-    configurator === "portfolio"
-      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
-      : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
-  window.eval(specificJs);
+  // Load specific script based on config
+  if (config.scriptMode === "file" && config.scriptFile) {
+    const specificJs = fs.readFileSync(path.join(uixDir, "assets", config.scriptFile), "utf8");
+    window.eval(specificJs);
+  } else if (config.scriptMode === "inline") {
+    // Extract and evaluate inline scripts from HTML
+    // Skip the module scripts (common.js, math_formulation.js) which are already loaded
+    const scriptTags = document.querySelectorAll("script:not([src])");
+    scriptTags.forEach((script) => {
+      const content = script.textContent;
+      // Only eval application scripts (not empty or library config)
+      if (content && content.includes("DOMContentLoaded")) {
+        window.eval(content);
+      }
+    });
+  }
 
   // Trigger DOMContentLoaded
   const initEvent = new window.Event("DOMContentLoaded");
   document.dispatchEvent(initEvent);
 
-  return { dom, window, document, mathJaxCalls };
+  return { dom, window, document, mathJaxCalls, config };
 }
 
 /**
@@ -507,27 +549,35 @@ async function testPortfolioCardinality(fieldValues) {
  * Test: Reduction mode display
  */
 async function testReductionMode(configurator, fieldValues) {
-  const { document, window } = loadPage(configurator);
+  const { document, window, config } = loadPage(configurator);
 
-  // Set field values
-  setFieldValues(document, window, fieldValues);
+  // Set field values using the correct rounds field for this configurator
+  const roundsField = config.roundsField;
+  const roundsValue = fieldValues.maxRounds || fieldValues.rounds || fieldValues[roundsField];
+  if (roundsValue !== undefined) {
+    setFieldValues(document, window, { [roundsField]: String(roundsValue) });
+  }
 
   // Wait for debounce and render queue
   await waitForRender(window);
 
   const reductionContent = document.getElementById("mathReductionContent");
   const content = reductionContent ? reductionContent.innerHTML : "";
+  const textContent = reductionContent ? reductionContent.textContent : "";
 
   // Check for baseline vs reduction indicators
-  const isBaseline = content.includes("baseline") || content.includes("Baseline");
-  const isReduction =
-    content.includes("single-pass") || content.includes("multi-round") || content.includes("candidato");
+  const isBaseline = /baseline/i.test(textContent) || /senza riduzione/i.test(textContent);
+  const isSinglePass = /single[- ]?pass/i.test(textContent) || /un round/i.test(textContent);
+  const isMultiRound = /multi[- ]?round/i.test(textContent) || /fino a \d+/i.test(textContent);
 
   return {
     success: true,
+    reductionContent: textContent.substring(0, 500),
     reductionContentHTML: content.substring(0, 500),
     showsBaseline: isBaseline,
-    showsReduction: isReduction,
+    showsSinglePass: isSinglePass,
+    showsMultiRound: isMultiRound,
+    showsReduction: isSinglePass || isMultiRound,
   };
 }
 
@@ -535,9 +585,10 @@ async function testReductionMode(configurator, fieldValues) {
  * Test: Reset restores math panel
  */
 async function testReset(configurator) {
-  const { document, window } = loadPage(configurator);
+  const { document, window, config } = loadPage(configurator);
 
-  // Modify some values
+  // Modify some values using the correct rounds field
+  const roundsField = config.roundsField;
   if (configurator === "portfolio") {
     setFieldValues(document, window, {
       assetCount: "50",
@@ -545,11 +596,18 @@ async function testReset(configurator) {
       upperBound: "0.5",
       minSelectedAssets: "5",
       maxSelectedAssets: "10",
-      maxRounds: "3",
+      [roundsField]: "3",
+    });
+  } else if (configurator === "portfolio_sr") {
+    setFieldValues(document, window, {
+      assetCount: "100",
+      upperBound: "0.5",
+      maxPositions: "20",
+      [roundsField]: "3",
     });
   } else {
     setFieldValues(document, window, {
-      rounds: "2",
+      [roundsField]: "2",
     });
   }
 
@@ -577,13 +635,27 @@ async function testReset(configurator) {
       lowerBoundAfterReset: mathLowerBound ? mathLowerBound.textContent : null,
       cardinalityHiddenAfterReset: cardinalityBlock && cardinalityBlock.style.display === "none",
     };
-  } else {
+  } else if (configurator === "portfolio_sr") {
+    const mathAssetCount = document.getElementById("mathAssetCount");
+    const mathUpperBound = document.getElementById("mathUpperBound");
+    const cardinalityBlock = document.getElementById("mathCardinalityBlock");
     const reductionContent = document.getElementById("mathReductionContent");
-    const content = reductionContent ? reductionContent.innerHTML : "";
+    const content = reductionContent ? reductionContent.textContent : "";
 
     return {
       success: true,
-      showsBaselineAfterReset: content.includes("baseline") || content.includes("Baseline"),
+      assetCountAfterReset: mathAssetCount ? mathAssetCount.textContent : null,
+      upperBoundAfterReset: mathUpperBound ? mathUpperBound.textContent : null,
+      cardinalityHiddenAfterReset: cardinalityBlock && cardinalityBlock.style.display === "none",
+      showsSinglePassAfterReset: /single[- ]?pass/i.test(content) || /un round/i.test(content),
+    };
+  } else {
+    const reductionContent = document.getElementById("mathReductionContent");
+    const content = reductionContent ? reductionContent.textContent : "";
+
+    return {
+      success: true,
+      showsBaselineAfterReset: /baseline/i.test(content),
     };
   }
 }
@@ -613,13 +685,13 @@ function testFallbackOnLoadFailure(configurator) {
  * Test: Render serialization - no DOM modifications during active render
  */
 async function testRenderSerialization(configurator) {
-  const { document, window, mathJaxCalls } = loadPage(configurator, { slowRenderer: true });
+  const { document, window, mathJaxCalls, config } = loadPage(configurator, { slowRenderer: true });
 
   // Get initial revision
   const initialRevision = window.QReduceMath.getRevision();
 
-  // Trigger multiple rapid updates
-  const fieldName = configurator === "portfolio" ? "maxRounds" : "rounds";
+  // Trigger multiple rapid updates using the correct rounds field
+  const fieldName = config.roundsField;
   setFieldValues(document, window, { [fieldName]: "1" });
   const rev1 = window.QReduceMath.getRevision();
 
@@ -698,7 +770,7 @@ function testNumberFormatPrecision() {
  */
 async function testLateMathJaxLoading(configurator) {
   // Use the standard loadPage which sets up MathJax mock correctly
-  const { document, window } = loadPage(configurator, { slowRenderer: true });
+  const { document, window, config } = loadPage(configurator, { slowRenderer: true });
 
   // Track concurrent renders by wrapping the original mock
   const calls = {
@@ -723,7 +795,7 @@ async function testLateMathJaxLoading(configurator) {
 
   // Initial render has already started from DOMContentLoaded
   // Now trigger multiple rapid updates that should all be serialized
-  const fieldName = configurator === "portfolio" ? "maxRounds" : "rounds";
+  const fieldName = config.roundsField;
 
   // These updates arrive while initialize's render might still be in progress
   setFieldValues(document, window, { [fieldName]: "1" });
@@ -760,12 +832,9 @@ async function testLateMathJaxLoading(configurator) {
  * 4. The queue should complete and render should happen
  */
 async function testTrueLateMathJaxLoading(configurator) {
+  const config = getConfiguratorConfig(configurator);
   const uixDir = path.join(__dirname, "..", "uix");
-  const htmlFile =
-    configurator === "portfolio"
-      ? "experiment_portfolio_mv.html"
-      : "experiment_facility_location.html";
-  const htmlPath = path.join(uixDir, htmlFile);
+  const htmlPath = path.join(uixDir, config.htmlFile);
   const htmlContent = fs.readFileSync(htmlPath, "utf8");
 
   const dom = new JSDOM(htmlContent, {
@@ -800,12 +869,20 @@ async function testTrueLateMathJaxLoading(configurator) {
   // Reset state - MathJax is NOT ready yet
   window.QReduceMath._resetForTesting();
 
-  // Load specific script
-  const specificJs =
-    configurator === "portfolio"
-      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
-      : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
-  window.eval(specificJs);
+  // Load specific script based on config
+  if (config.scriptMode === "file" && config.scriptFile) {
+    const specificJs = fs.readFileSync(path.join(uixDir, "assets", config.scriptFile), "utf8");
+    window.eval(specificJs);
+  } else if (config.scriptMode === "inline") {
+    // Extract and evaluate inline scripts from HTML
+    const scriptTags = document.querySelectorAll("script:not([src])");
+    scriptTags.forEach((script) => {
+      const content = script.textContent;
+      if (content && content.includes("DOMContentLoaded")) {
+        window.eval(content);
+      }
+    });
+  }
 
   // Trigger DOMContentLoaded - initialize() will start loading MathJax
   // but since we've reset, it won't be ready
@@ -813,8 +890,17 @@ async function testTrueLateMathJaxLoading(configurator) {
   document.dispatchEvent(initEvent);
 
   // Set a field value - this will trigger requestRender()
-  const fieldName = configurator === "portfolio" ? "minSelectedAssets" : "rounds";
-  const fieldValue = configurator === "portfolio" ? "5" : "2";
+  let fieldName, fieldValue;
+  if (configurator === "portfolio") {
+    fieldName = "minSelectedAssets";
+    fieldValue = "5";
+  } else if (configurator === "portfolio_sr") {
+    fieldName = "maxPositions";
+    fieldValue = "10";
+  } else {
+    fieldName = config.roundsField;
+    fieldValue = "2";
+  }
   setFieldValues(document, window, { [fieldName]: fieldValue });
 
   // Wait for debounce to expire (150ms) - the queued operation should now be waiting for MathJax
@@ -853,8 +939,18 @@ async function testTrueLateMathJaxLoading(configurator) {
   // Check if a subsequent update works
   let subsequentUpdateWorks = false;
   if (queueCompleted) {
-    const fieldName2 = configurator === "portfolio" ? "maxSelectedAssets" : "rounds";
-    const fieldValue2 = configurator === "portfolio" ? "10" : "3";
+    // Use config-appropriate fields for the subsequent update
+    let fieldName2, fieldValue2;
+    if (configurator === "portfolio") {
+      fieldName2 = "maxSelectedAssets";
+      fieldValue2 = "10";
+    } else if (configurator === "portfolio_sr") {
+      fieldName2 = config.roundsField;
+      fieldValue2 = "3";
+    } else {
+      fieldName2 = config.roundsField;
+      fieldValue2 = "3";
+    }
     setFieldValues(document, window, { [fieldName2]: fieldValue2 });
 
     await new Promise((resolve) => setTimeout(resolve, debounceMs + 100));
@@ -864,6 +960,10 @@ async function testTrueLateMathJaxLoading(configurator) {
     if (configurator === "portfolio") {
       const cardinalityLatex = document.getElementById("mathCardinalityLatex");
       subsequentUpdateWorks = cardinalityLatex && cardinalityLatex.innerHTML.length > 0;
+    } else if (configurator === "portfolio_sr") {
+      const reductionContent = document.getElementById("mathReductionContent");
+      subsequentUpdateWorks =
+        reductionContent && /multi[- ]?round/i.test(reductionContent.textContent);
     } else {
       const reductionContent = document.getElementById("mathReductionContent");
       subsequentUpdateWorks =
@@ -885,7 +985,7 @@ async function testTrueLateMathJaxLoading(configurator) {
  * Uses MutationObserver to detect DOM changes while MathJax is rendering.
  */
 async function testMutationsDuringRender(configurator) {
-  const { document, window, mathJaxCalls } = loadPage(configurator, { slowRenderer: true });
+  const { document, window, mathJaxCalls, config } = loadPage(configurator, { slowRenderer: true });
 
   // Track mutations to the math content panel
   const mathContent = document.getElementById("mathContent");
@@ -918,8 +1018,8 @@ async function testMutationsDuringRender(configurator) {
     attributes: true,
   });
 
-  // Start a render by changing a parameter
-  const fieldName = configurator === "portfolio" ? "maxRounds" : "rounds";
+  // Start a render by changing a parameter using the correct field
+  const fieldName = config.roundsField;
   setFieldValues(document, window, { [fieldName]: "2" });
 
   // Wait for debounce
@@ -999,11 +1099,77 @@ function testNoHtmlInTex(configurator) {
   };
 }
 
+/**
+ * Test: Portfolio SR specific - values update
+ */
+async function testPortfolioSRUpdateValues(fieldValues) {
+  const { document, window, mathJaxCalls } = loadPage("portfolio_sr");
+
+  // Set field values
+  setFieldValues(document, window, fieldValues);
+
+  // Wait for debounce and render queue
+  await waitForRender(window);
+
+  // Read displayed values
+  const mathAssetCount = document.getElementById("mathAssetCount");
+  const mathUpperBound = document.getElementById("mathUpperBound");
+  const mathMaxPositions = document.getElementById("mathMaxPositions");
+
+  // Check if script was executed and rendering happened
+  const mathContent = document.getElementById("mathContent");
+  const hasRenderedContent = mathJaxCalls.typesetPromise.length > 0 && !!mathContent.querySelector('mjx-container');
+  const visible = (id) => document.getElementById(id).style.display !== 'none';
+
+  return {
+    success: true,
+    hasMathContent: !!mathContent,
+    hasRenderedContent: hasRenderedContent,
+    displayedAssetCount: mathAssetCount ? mathAssetCount.textContent : null,
+    displayedUpperBound: mathUpperBound ? mathUpperBound.textContent : null,
+    displayedMaxPositions: mathMaxPositions ? mathMaxPositions.textContent : null,
+    cardinalityVisible: visible('mathCardinalityBlock'),
+    transformedCardinalityVisible: visible('mathTransformedCardinalityBlock'),
+    cardinalityText: document.getElementById('mathTransformedCardinalityBlock').textContent,
+    sectorVisible: visible('mathSectorBlock'),
+    sectorFormulaVisible: document.querySelector('#mathSectorBlock .math-formula').style.display !== 'none',
+    sectorDetails: document.getElementById('mathSectorDetails').textContent,
+    transformedSectorDetails: document.getElementById('mathTransformedSectorNote').textContent,
+    reductionText: document.getElementById('mathReductionContent').textContent,
+    valid: document.getElementById('validationBadge').textContent === 'Configurazione valida',
+    copyDisabled: document.querySelector('.command-actions .button.primary').disabled,
+    command: document.getElementById('commandPreview').textContent,
+  };
+}
+
+/** Verify repeated renders with a renderer that consumes the original TeX. */
+async function testSROptionalFormulaLifecycle() {
+  const { document, window, mathJaxCalls } = loadPage('portfolio_sr', { consumeTex: true });
+  const ids = ['mathObjective', 'mathConstraints', 'mathCardinalityBlock', 'mathSectorBlock',
+    'mathTransformedSectorBlock', 'mathTransformedCardinalityBlock'];
+  const stages = [];
+  const changes = [{}, { maxPositions: '10', sectorMin: 'Technology=0.1' },
+    { upperBound: '0.5' }, { maxPositions: '8' }, { maxPositions: '', sectorMin: '' },
+    { maxPositions: '5', sectorMax: 'Technology=0.4' }];
+  for (const fields of changes) {
+    setFieldValues(document, window, fields);
+    await waitForRender(window);
+    stages.push(ids.every((id) => Array.from(document.querySelectorAll('#' + id + ' .math-latex'))
+      .every((el) => el.getAttribute('data-tex-source')?.includes('\\') && el.querySelector('mjx-container'))));
+  }
+  document.getElementById('resetDefaults').click();
+  await waitForRender(window);
+  stages.push(ids.every((id) => !!document.querySelector('#' + id + ' mjx-container')));
+  return { success: true, stages, typesetCalls: mathJaxCalls.typesetPromise.length,
+    cardinalityHidden: document.getElementById('mathCardinalityBlock').style.display === 'none',
+    sectorsHidden: document.getElementById('mathSectorBlock').style.display === 'none' };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.length < 2) {
     console.error("Usage: node uix_math_runner.js <configurator> <test_type> [json_input]");
-    console.error('  configurator: "portfolio" or "facility_location"');
+    console.error(`  configurator: ${VALID_CONFIGURATORS.join(", ")}`);
     console.error("  test_type: init, tex_preservation, formula_restoration, update_values,");
     console.error("             cardinality, cardinality_survives, cardinality_updates,");
     console.error("             reduction_mode, reset, fallback_load_failure,");
@@ -1015,8 +1181,8 @@ async function main() {
   const testType = args[1];
   const jsonInput = args[2] ? JSON.parse(args[2]) : {};
 
-  if (!["portfolio", "facility_location"].includes(configurator)) {
-    console.error(`Invalid configurator: ${configurator}`);
+  if (!VALID_CONFIGURATORS.includes(configurator)) {
+    console.error(`Invalid configurator: ${configurator}. Valid: ${VALID_CONFIGURATORS.join(", ")}`);
     process.exit(1);
   }
 
@@ -1024,6 +1190,9 @@ async function main() {
     let result;
 
     switch (testType) {
+      case "sr_formula_lifecycle":
+        result = await testSROptionalFormulaLifecycle();
+        break;
       case "risk_aversion":
         result = await testRiskAversion(jsonInput);
         break;
@@ -1036,11 +1205,14 @@ async function main() {
       case "formula_restoration":
         result = await testFormulaRestoration(configurator);
         break;
+      case "values_update":
       case "update_values":
-        if (configurator !== "portfolio") {
-          result = { success: false, error: "update_values only for portfolio" };
-        } else {
+        if (configurator === "portfolio") {
           result = await testPortfolioUpdateValues(jsonInput);
+        } else if (configurator === "portfolio_sr") {
+          result = await testPortfolioSRUpdateValues(jsonInput);
+        } else {
+          result = { success: false, error: "update_values only for portfolio/portfolio_sr" };
         }
         break;
       case "cardinality":

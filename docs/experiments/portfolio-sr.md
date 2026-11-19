@@ -235,6 +235,34 @@ Il configuratore [`uix/experiment_portfolio_sr.html`](../../uix/experiment_portf
 genera comandi CLI interattivamente. È una pagina statica apribile da
 filesystem.
 
+Il configuratore include un pannello espandibile con la formulazione matematica
+del problema configurato. Il pannello mostra:
+
+- **Problema originale**: massimizzazione Sharpe con budget e bounds
+- **Vincoli**: cardinalità (quando configurata), vincoli settoriali
+- **Problema trasformato**: minimizzazione varianza con rendimento normalizzato
+- **Ricostruzione**: recupero pesi originali e Sharpe dall'obiettivo
+- **Riduzione euristica**: modalità corrente (baseline, single-pass, multi-round)
+
+I valori configurati (n, U, K) si aggiornano dinamicamente. Le formule usano
+MathJax quando disponibile, con fallback testuale per uso offline.
+
+Il pannello è aperto inizialmente. Le formule dei vincoli opzionali vengono
+conservate anche dopo aggiornamenti ripetuti e dopo il ripristino dei default.
+Il pulsante **Ripristina** reimposta campi, formulazione e comando CLI.
+
+Numero di asset, cardinalità e round richiedono valori interi nel rispettivo
+dominio. I limiti settoriali usano `Settore=valore`, con valori finiti tra 0 e 1:
+il minimo non può superare il massimo e la somma dei minimi non può superare 1.
+Un limite omesso assume minimo 0 o massimo 1, come nella CLI. Input malformati
+per questi parametri non vengono ignorati o troncati: il pannello segnala l'errore e il comando non
+viene generato né reso copiabile finché la configurazione non è valida.
+
+**Note sulla formulazione:**
+- Il tasso risk-free è fisso a 0 nella versione corrente
+- I coefficienti big-M per cardinalità dipendono dal dataset caricato
+- Senza cardinalità il problema è un QP convesso; con cardinalità è MIQP
+
 ## Differenze dal portfolio sintetico
 
 | Aspetto | portfolio_mv | portfolio_sr |

@@ -528,3 +528,221 @@ class TestTrueLateMathJaxLoading:
         result = run_math_test("facility_location", "true_late_loading")
         assert result["success"] is True
         assert result["subsequentUpdateWorks"] is True
+
+
+
+class TestPortfolioSRMathPanel:
+    """Test portfolio_sr specific math formulation functionality."""
+
+    def test_panel_exists(self):
+        """Test that portfolio_sr has a math formulation panel."""
+        result = run_math_test("portfolio_sr", "init")
+        assert result["success"] is True
+        assert result["hasMathPanel"] is True
+        assert result["hasMathContent"] is True
+        assert result["hasReductionSection"] is True
+
+    def test_static_tex_preserved(self):
+        """Test that portfolio_sr static TeX is preserved."""
+        result = run_math_test("portfolio_sr", "tex_preservation")
+        assert result["success"] is True
+        assert result["staticElements"] > 0
+        # Not all elements may be preserved if they're in dynamic containers
+        # The important thing is that some static content is preserved
+        assert result["preservedCount"] > 0
+
+    def test_formulas_restored_after_clear(self):
+        """Test that portfolio_sr formulas are restored after clear."""
+        result = run_math_test("portfolio_sr", "formula_restoration")
+        assert result["success"] is True
+        assert result["contentRestored"] is True
+
+    def test_cardinality_display(self):
+        """Test that cardinality block appears when maxPositions is set."""
+        result = run_math_test(
+            "portfolio_sr",
+            "values_update",
+            {"maxPositions": "10"},
+        )
+        assert result["success"] is True
+        assert result["hasRenderedContent"] is True
+        assert result["cardinalityVisible"] is True
+        assert result["transformedCardinalityVisible"] is True
+        assert result["displayedMaxPositions"] == "10"
+        assert "M_i" in result["cardinalityText"]
+
+    def test_reduction_mode_display(self):
+        """Test that reduction mode displays correctly for baseline."""
+        result = run_math_test(
+            "portfolio_sr",
+            "reduction_mode",
+            {"maxRounds": "0"},
+        )
+        assert result["success"] is True
+        # Use reductionContent (text) which the runner now returns
+        content = result.get("reductionContent") or result.get("reductionContentHTML") or ""
+        assert content, "No reduction content found"
+        assert "baseline" in content.lower() or "senza riduzione" in content.lower()
+
+    def test_reduction_mode_single_pass(self):
+        """Test that reduction mode displays correctly for single-pass."""
+        result = run_math_test(
+            "portfolio_sr",
+            "reduction_mode",
+            {"maxRounds": "1"},
+        )
+        assert result["success"] is True
+        content = result.get("reductionContent") or result.get("reductionContentHTML") or ""
+        assert content, "No reduction content found"
+        assert "single" in content.lower() or "un round" in content.lower()
+
+    def test_reduction_mode_multi_round(self):
+        """Test that reduction mode displays correctly for multi-round."""
+        result = run_math_test(
+            "portfolio_sr",
+            "reduction_mode",
+            {"maxRounds": "3"},
+        )
+        assert result["success"] is True
+        content = result.get("reductionContent") or result.get("reductionContentHTML") or ""
+        assert content, "No reduction content found"
+        assert "multi" in content.lower() or "3" in content or "fino a" in content.lower()
+
+    def test_fallback_on_load_failure(self):
+        """Test that portfolio_sr shows fallback when MathJax fails."""
+        result = run_math_test("portfolio_sr", "fallback_load_failure")
+        assert result["success"] is True
+        assert result["mathJaxHasFailed"] is True
+        assert result["hasLatexElements"] is True
+        assert result["hasFallbackElements"] is True
+
+    def test_no_html_in_tex(self):
+        """Test that portfolio_sr TeX has no internal HTML tags."""
+        result = run_math_test("portfolio_sr", "no_html_in_tex")
+        assert result["success"] is True
+        assert result["noViolations"] is True, f"Found HTML inside TeX: {result['violations']}"
+
+    def test_no_concurrent_renders(self):
+        """Test that portfolio_sr has no concurrent renders on late load."""
+        result = run_math_test("portfolio_sr", "late_loading")
+        assert result["success"] is True
+        assert result["noConcurrentRenders"] is True
+
+    def test_reset_restores_defaults(self):
+        """Test that reset restores default values in math panel."""
+        result = run_math_test("portfolio_sr", "reset")
+        assert result["success"] is True
+        # After reset, asset count should be default (50)
+        assert result.get("assetCountAfterReset") == "50"
+        # Cardinality should be hidden after reset
+        assert result.get("cardinalityHiddenAfterReset") is True
+
+    def test_render_serialization(self):
+        """Test that renders are serialized correctly."""
+        result = run_math_test("portfolio_sr", "render_serialization")
+        assert result["success"] is True
+        assert result["revisionsIncremented"] is True
+        assert result["noCleansDuringRender"] is True
+
+    def test_true_late_loading_no_deadlock(self):
+        """Test that late MathJax loading doesn't cause deadlock."""
+        result = run_math_test("portfolio_sr", "true_late_loading")
+        assert result["success"] is True
+        assert result["queueCompleted"] is True
+        assert result["noDeadlock"] is True
+
+    def test_optional_formulas_survive_consuming_renderer(self):
+        result = run_math_test("portfolio_sr", "sr_formula_lifecycle")
+        assert len(result["stages"]) == 7
+        assert all(result["stages"])
+        assert result["typesetCalls"] >= 7
+        assert result["cardinalityHidden"] and result["sectorsHidden"]
+
+    @pytest.mark.parametrize("fields,display,key", [
+        ({"assetCount": "12.5"}, "?", "displayedAssetCount"),
+        ({"assetCount": ""}, "?", "displayedAssetCount"),
+        ({"assetCount": "0"}, "?", "displayedAssetCount"),
+        ({"maxPositions": "2.5"}, "Non valido", "displayedMaxPositions"),
+        ({"maxPositions": "0"}, "Non valido", "displayedMaxPositions"),
+        ({"maxPositions": "-1"}, "Non valido", "displayedMaxPositions"),
+        ({"maxPositions": "51"}, "Non valido", "displayedMaxPositions"),
+        ({"upperBound": "0"}, "?", "displayedUpperBound"),
+        ({"upperBound": "1.1"}, "?", "displayedUpperBound"),
+    ])
+    def test_invalid_numbers_are_not_presented_as_valid(self, fields, display, key):
+        result = run_math_test("portfolio_sr", "update_values", fields)
+        assert result[key] == display
+        assert not result["valid"]
+        assert result["copyDisabled"]
+        assert result["command"].startswith("Configurazione non valida")
+
+    @pytest.mark.parametrize("rounds", ["", "-1", "1.5"])
+    def test_invalid_rounds_do_not_become_baseline(self, rounds):
+        result = run_math_test("portfolio_sr", "update_values", {"maxRounds": rounds})
+        assert "non determinabile" in result["reductionText"]
+        assert not result["valid"]
+
+    @pytest.mark.parametrize("fields", [
+        {"sectorMin": "Technology=0.2junk"},
+        {"sectorMin": "Technology"},
+        {"sectorMin": "Technology="},
+        {"sectorMin": "Technology=Infinity"},
+        {"sectorMin": "Technology=NaN"},
+        {"sectorMin": "Technology=-0.1"},
+        {"sectorMax": "Technology=1.1"},
+        {"sectorMin": "Technology=0.5", "sectorMax": "Technology=0.2"},
+        {"sectorMin": "Technology=0.6,Health Care=0.6"},
+        {"sectorMin": "Technology=0.1,malformed"},
+    ])
+    def test_invalid_sectors_are_not_silently_ignored(self, fields):
+        result = run_math_test("portfolio_sr", "update_values", fields)
+        assert not result["valid"]
+        assert result["copyDisabled"]
+        assert result["sectorVisible"]
+        assert not result["sectorFormulaVisible"]
+        assert "non validi" in result["sectorDetails"]
+
+    @pytest.mark.parametrize("fields,expected", [
+        ({"sectorMin": "Technology=0.1"}, "0.1–1"),
+        ({"sectorMax": "Technology=0.3"}, "0–0.3"),
+        ({"sectorMin": "Technology=0.1", "sectorMax": "Technology=0.3"}, "0.1–0.3"),
+        ({"sectorMin": "hasOwnProperty=0.1"}, "0.1–1"),
+        ({"sectorMin": "__proto__=0.1"}, "0.1–1"),
+    ])
+    def test_sector_defaults_and_transformed_details(self, fields, expected):
+        result = run_math_test("portfolio_sr", "update_values", fields)
+        assert result["valid"]
+        assert expected in result["sectorDetails"]
+        assert result["sectorDetails"] == result["transformedSectorDetails"]
+
+    def test_sr_command_is_accepted_by_python_parser(self):
+        import shlex
+
+        from qreduce.experiments.portfolio_sr.__main__ import (
+            _build_parser,
+            _parse_sector_constraints,
+        )
+
+        result = run_math_test("portfolio_sr", "update_values", {
+            "assetCount": "25", "maxPositions": "10", "maxRounds": "3",
+            "upperBound": "0.5", "sectorMin": "Technology=0.1",
+            "sectorMax": "Technology=0.3",
+        })
+        assert result["valid"]
+        tokens = shlex.split(result["command"].replace("\\\n", " "))
+        args = _build_parser().parse_args(tokens[tokens.index("qreduce.experiments.portfolio_sr") + 1:])
+        assert args.asset_count == 25
+        assert args.max_positions == 10
+        sectors = _parse_sector_constraints(args.sector_min, args.sector_max)
+        assert sectors.sector_min["Technology"] == 0.1
+
+    def test_integer_scientific_notation_is_not_truncated_in_command(self):
+        result = run_math_test("portfolio_sr", "update_values", {
+            "assetCount": "1e2", "maxPositions": "1e1", "maxRounds": "2e0",
+        })
+        assert result["valid"]
+        assert result["displayedAssetCount"] == "100"
+        assert result["displayedMaxPositions"] == "10"
+        assert "--asset-count 100" in result["command"]
+        assert "--max-positions 10" in result["command"]
+        assert "--max-reduction-rounds 2" in result["command"]
