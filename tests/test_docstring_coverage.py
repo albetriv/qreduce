@@ -99,13 +99,17 @@ class TestExperimentAdapterDocstrings:
     """Verify experiment adapters have docstrings on all public methods."""
 
     def test_portfolio_adapter_methods_documented(self):
-        from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
+        from qreduce.experiments.portfolio_mv.adapter import (
+            MeanVariancePortfolioAdapter,
+        )
 
         missing = _check_docstrings(MeanVariancePortfolioAdapter)
         assert not missing, f"MeanVariancePortfolioAdapter methods missing docstrings: {missing}"
 
     def test_portfolio_adapter_class_documented(self):
-        from qreduce.experiments.portfolio.adapter import MeanVariancePortfolioAdapter
+        from qreduce.experiments.portfolio_mv.adapter import (
+            MeanVariancePortfolioAdapter,
+        )
 
         assert MeanVariancePortfolioAdapter.__doc__, "MeanVariancePortfolioAdapter needs a docstring"
 

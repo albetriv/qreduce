@@ -65,7 +65,7 @@ richiesto.
 
 **Default di output_root:**
 - API runner (`run_experiment`): `outputs`
-- CLI delle famiglie (convenzione): `outputs/<famiglia>` (es. `outputs/portfolio`)
+- CLI delle famiglie (convenzione): `outputs/<famiglia>` (es. `outputs/portfolio_mv`)
 
 L'opzione `--output-root` sostituisce questo default: il runner usa
 `{output_root}/{run_id}/` senza aggiungere automaticamente la famiglia.
@@ -95,7 +95,7 @@ L'architettura comune è descritta in
 
 | Famiglia            | Stato         | Guida                                    |
 |---------------------|---------------|------------------------------------------|
-| portfolio           | completo      | [portfolio.md](./portfolio.md)           |
+| portfolio_mv        | completo      | [portfolio.md](./portfolio.md)           |
 | portfolio_sr        | completo      | [portfolio-sr.md](./portfolio-sr.md)     |
 | facility_location   | sperimentale  | [facility-location.md](./facility-location.md) |
 
@@ -110,7 +110,7 @@ da filesystem senza server.
 
 | Configuratore                           | Famiglia          |
 |-----------------------------------------|-------------------|
-| [experiment_portfolio.html](../../uix/experiment_portfolio.html) | portfolio |
+| [experiment_portfolio_mv.html](../../uix/experiment_portfolio_mv.html) | portfolio_mv |
 | [experiment_portfolio_sr.html](../../uix/experiment_portfolio_sr.html) | portfolio_sr |
 | [experiment_facility_location.html](../../uix/experiment_facility_location.html) | facility_location |
 

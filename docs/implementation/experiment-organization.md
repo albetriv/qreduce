@@ -25,12 +25,12 @@ registry o una nuova gerarchia di classi. I benchmark pubblici restano opzionali
 
 ## Migrazione implementata
 
-Il package `qreduce.experiments.portfolio` raccoglie dominio, generazione, input
+Il package `qreduce.experiments.portfolio_mv` raccoglie dominio, generazione, input
 condivisi, analisi e tre entry point. I chiamanti sono migrati direttamente,
 senza wrapper legacy, inclusi test, notebook, documentazione e interfacce che
 producono comandi. Algoritmi e formato degli artifact restano invariati.
-I notebook portfolio si trovano in `notebooks/experiments/portfolio/` e le tre
-modalita pubblicano per default in `outputs/portfolio/{run_id}/`. Un
+I notebook portfolio si trovano in `notebooks/experiments/portfolio_mv/` e le tre
+modalita pubblicano per default in `outputs/portfolio_mv/{run_id}/`. Un
 `output_root` esplicito sostituisce questo default senza aggiunte implicite.
 Gli artifact esistenti non sono spostati e restano leggibili al percorso originale.
 

@@ -44,7 +44,7 @@ function main() {
     const uixDir = path.join(__dirname, "..", "uix");
     const htmlFile =
       configurator === "portfolio"
-        ? "experiment_portfolio.html"
+        ? "experiment_portfolio_mv.html"
         : "experiment_facility_location.html";
     const htmlPath = path.join(uixDir, htmlFile);
 
@@ -78,7 +78,7 @@ function main() {
     // Load specific script
     const specificJs =
       configurator === "portfolio"
-        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio.js"), "utf8")
+        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
         : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
     window.eval(specificJs);
 
@@ -126,7 +126,7 @@ function main() {
     // Collect field values for verification (used by reset tests)
     const currentValues = {};
     ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
-     "runId", "assetCount", "generationSeed", "maxRounds", "edgeMode",
+      "runId", "assetCount", "riskAversion", "generationSeed", "maxRounds", "edgeMode",
      "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -167,6 +167,7 @@ function main() {
       errors,
       command,
       currentValues,
+      riskAversionDisabled: document.getElementById("riskAversion")?.disabled,
     };
 
     console.log(JSON.stringify(result));

@@ -12,7 +12,7 @@ from dataclasses import replace
 
 import pytest
 
-from qreduce.experiments.portfolio import (
+from qreduce.experiments.portfolio_mv import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

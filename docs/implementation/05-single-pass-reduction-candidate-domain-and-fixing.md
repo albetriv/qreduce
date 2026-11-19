@@ -39,11 +39,11 @@ La ratio misura gli item del grafo dopo protezioni e cap; nel single-pass
 
 | Requisito/osservazione | Campo nel risultato | Disponibilita` | Evidenza principale |
 |---|---|---|---|
-| Tempo end-to-end | `end_to_end_runtime_seconds` | Sempre, anche in failure prima del grafo | `_run_metrics` in `src/qreduce/pipeline/single_pass.py`; `tests/experiments/portfolio/test_portfolio_single_pass.py` |
+| Tempo end-to-end | `end_to_end_runtime_seconds` | Sempre, anche in failure prima del grafo | `_run_metrics` in `src/qreduce/pipeline/single_pass.py`; `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` |
 | Compilation ed esecuzione MIS | `mis_compilation_runtime_seconds`, `mis_execution_runtime_seconds`, `mis_runtime_seconds` | Dopo compilation/esecuzione MIS raggiunta | `_run_metrics`; `tests/solving/mwis/test_pipeline_capability_gate.py` |
 | Backend MIS effettivo | `mis_provider_id`, `mis_backend_id`, `mis_backend_family`, `mis_execution_mode`, `mis_device_id` | Dopo esecuzione MIS | `_run_metrics`; `tests/solving/mwis/test_contracts.py` |
-| Sample raw e distinte | `raw_sample_count`, `unique_sample_count` | Dopo normalizzazione; le distinte sono contate prima del cap | `_run_metrics`; `tests/experiments/portfolio/test_portfolio_single_pass.py` |
-| Sample elaborate e repair | `processed_unique_sample_count`, `repaired_candidate_count` | Dopo applicazione di cap e repair | post-elaborazione dei `CandidateRecord`; `tests/experiments/portfolio/test_portfolio_single_pass.py` |
+| Sample raw e distinte | `raw_sample_count`, `unique_sample_count` | Dopo normalizzazione; le distinte sono contate prima del cap | `_run_metrics`; `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` |
+| Sample elaborate e repair | `processed_unique_sample_count`, `repaired_candidate_count` | Dopo applicazione di cap e repair | post-elaborazione dei `CandidateRecord`; `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` |
 | Candidate e dominio | `valid_candidate_count`, `selected_candidate_count`, `candidate_domain_size` | Dopo ranking, diversita`, protezioni e cap | `_candidate_metrics`; `tests/pipeline/test_single_pass_selection.py` |
 | Riduzione e conteggi logici | `round_reduction_ratio`, `cumulative_reduction_ratio`, `original_variable_counts`, `residual_variable_counts` | Dopo costruzione del dominio; i conteggi residui richiedono restriction | `LogicalVariableCounts`; `tests/domains/test_logical_variable_counts.py` |
 
@@ -55,7 +55,7 @@ Le metriche di solve e post-check sono documentate in M06.
 ## Test e verifica
 
 - `tests/pipeline/test_single_pass_selection.py` verifica ranking, diversita`, cap, protezioni e reason di esclusione.
-- `tests/experiments/portfolio/test_portfolio_single_pass.py` verifica il percorso end-to-end e i rami di failure con dati intermedi.
+- `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` verifica il percorso end-to-end e i rami di failure con dati intermedi.
 - `tests/domains/test_fixing_guarantees.py` verifica provenienza e garanzia delle entry del manifest.
 - `tests/domains/test_logical_variable_counts.py` e `tests/domains/test_evaluation_metrics.py` verificano conteggi e metriche esposte dagli adapter.
 

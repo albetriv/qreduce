@@ -188,7 +188,7 @@ alle singole famiglie. I notebook caricano artifact gia` prodotti tramite
 `load_experiment_run` e non eseguono direttamente la pipeline.
 
 Famiglie disponibili:
-- **portfolio**: ottimizzazione media-varianza sintetica;
+- **portfolio_mv**: ottimizzazione media-varianza sintetica;
 - **facility_location**: esperimento sperimentale con istanze OR-Library.
 
 Un run con esito `failed` viene comunque salvato come risultato analizzabile.

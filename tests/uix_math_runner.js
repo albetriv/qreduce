@@ -119,7 +119,7 @@ function loadPage(configurator, options = {}) {
   const uixDir = path.join(__dirname, "..", "uix");
   const htmlFile =
     configurator === "portfolio"
-      ? "experiment_portfolio.html"
+      ? "experiment_portfolio_mv.html"
       : "experiment_facility_location.html";
   const htmlPath = path.join(uixDir, htmlFile);
 
@@ -171,7 +171,7 @@ function loadPage(configurator, options = {}) {
   // Load specific script
   const specificJs =
     configurator === "portfolio"
-      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio.js"), "utf8")
+      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
       : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
   window.eval(specificJs);
 
@@ -451,6 +451,30 @@ async function testPortfolioUpdateValues(fieldValues) {
     displayedLowerBound: mathLowerBound ? mathLowerBound.textContent : null,
     displayedUpperBound: mathUpperBound ? mathUpperBound.textContent : null,
   };
+}
+
+/** Test risk aversion through render, reset, and the offline fallback. */
+async function testRiskAversion(fieldValues) {
+  const { document, window } = loadPage("portfolio", {
+    simulateLoadFailure: Boolean(fieldValues._fallback),
+  });
+  setFieldValues(document, window, fieldValues);
+  await waitForRender(window);
+  const displayed = document.getElementById("mathRiskAversion").textContent;
+  const objective = document.getElementById("mathObjective");
+  const result = {
+    success: true,
+    displayed,
+    latex: objective.querySelector(".math-latex").textContent,
+    fallback: objective.querySelector(".math-fallback").textContent,
+    disabled: document.getElementById("riskAversion").disabled,
+  };
+  document.getElementById("resetDefaults").click();
+  await waitForRender(window);
+  result.afterReset = document.getElementById("mathRiskAversion").textContent;
+  result.fieldAfterReset = document.getElementById("riskAversion").value;
+  window.close();
+  return result;
 }
 
 /**
@@ -739,7 +763,7 @@ async function testTrueLateMathJaxLoading(configurator) {
   const uixDir = path.join(__dirname, "..", "uix");
   const htmlFile =
     configurator === "portfolio"
-      ? "experiment_portfolio.html"
+      ? "experiment_portfolio_mv.html"
       : "experiment_facility_location.html";
   const htmlPath = path.join(uixDir, htmlFile);
   const htmlContent = fs.readFileSync(htmlPath, "utf8");
@@ -779,7 +803,7 @@ async function testTrueLateMathJaxLoading(configurator) {
   // Load specific script
   const specificJs =
     configurator === "portfolio"
-      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio.js"), "utf8")
+      ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
       : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
   window.eval(specificJs);
 
@@ -1000,6 +1024,9 @@ async function main() {
     let result;
 
     switch (testType) {
+      case "risk_aversion":
+        result = await testRiskAversion(jsonInput);
+        break;
       case "init":
         result = testInit(configurator);
         break;

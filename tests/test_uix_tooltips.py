@@ -19,6 +19,7 @@ PORTFOLIO_PARAMS = [
     "outputRoot",
     "logConfig",
     "assetCount",
+    "riskAversion",
     "generationSeed",
     "observationCount",
     "lowerBound",
@@ -40,8 +41,10 @@ PORTFOLIO_PARAMS = [
     "recoveryAttempts",
     "misSolver",
     "classicalSolver",
+    "classicalTimeLimit",
     "numReads",
     "numSweeps",
+    "embeddingProfile",
     "modelExport",
     "modelExportPath",
 ]
@@ -54,6 +57,7 @@ FACILITY_LOCATION_PARAMS = [
     "rounds",
     "cap",
     "budget",
+    "classicalTimeLimit",
     "seed",
     "minReductionRatio",
     "recoveryAttempts",
@@ -102,7 +106,7 @@ class TestPortfolioTooltipComments:
     @pytest.fixture
     def html_content(self) -> str:
         """Load portfolio HTML content."""
-        html_path = get_uix_path() / "experiment_portfolio.html"
+        html_path = get_uix_path() / "experiment_portfolio_mv.html"
         return html_path.read_text()
 
     def test_exact_param_coverage(self, html_content: str) -> None:
@@ -180,8 +184,8 @@ class TestTooltipJavaScript:
 
     @pytest.fixture
     def portfolio_js(self) -> str:
-        """Load portfolio.js content."""
-        js_path = get_uix_path() / "assets" / "portfolio.js"
+        """Load portfolio_mv.js content."""
+        js_path = get_uix_path() / "assets" / "portfolio_mv.js"
         return js_path.read_text()
 
     @pytest.fixture
@@ -211,7 +215,7 @@ class TestTooltipJavaScript:
         assert "initTooltips: initTooltips" in common_js
 
     def test_portfolio_calls_init_tooltips(self, portfolio_js: str) -> None:
-        """Test that portfolio.js calls initTooltips."""
+        """Test that portfolio_mv.js calls initTooltips."""
         assert "initTooltips()" in portfolio_js or "C.initTooltips()" in portfolio_js
 
     def test_facility_location_calls_init_tooltips(self, facility_location_js: str) -> None:
@@ -344,6 +348,7 @@ class TestTooltipJSExecution:
         result = self.run_tooltip_test("portfolio")
         expected = len(PORTFOLIO_PARAMS)
         actual = result["tooltipCount"]
+        assert set(result["fieldsWithTooltips"]) == set(PORTFOLIO_PARAMS)
         assert actual == expected, \
             f"Expected exactly {expected} tooltips, got {actual}. Missing: {set(PORTFOLIO_PARAMS) - set(result.get('fieldsWithTooltips', []))}"
 
@@ -352,6 +357,7 @@ class TestTooltipJSExecution:
         result = self.run_tooltip_test("facility_location")
         expected = len(FACILITY_LOCATION_PARAMS)
         actual = result["tooltipCount"]
+        assert set(result["fieldsWithTooltips"]) == set(FACILITY_LOCATION_PARAMS)
         assert actual == expected, \
             f"Expected exactly {expected} tooltips, got {actual}. Missing: {set(FACILITY_LOCATION_PARAMS) - set(result.get('fieldsWithTooltips', []))}"
 
@@ -372,7 +378,7 @@ class TestTooltipJSExecution:
     def test_portfolio_tooltip_text_matches_comment(self) -> None:
         """Test that tooltip text matches the PARAM_DESC comment exactly."""
         result = self.run_tooltip_test("portfolio")
-        html_path = get_uix_path() / "experiment_portfolio.html"
+        html_path = get_uix_path() / "experiment_portfolio_mv.html"
         html_content = html_path.read_text()
         comments = extract_param_desc_comments(html_content)
 

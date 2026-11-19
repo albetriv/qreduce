@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from qreduce.experiments.portfolio.__main__ import (
+from qreduce.experiments.portfolio_mv.__main__ import (
     _build_parser as build_portfolio_parser,
 )
 
@@ -39,7 +39,7 @@ class TestPortfolioCLICommands:
         args = parser.parse_args(shlex.split(cmd))
 
         # These should match the JS defaults
-        assert args.output_root == "outputs/portfolio"
+        assert args.output_root == "outputs/portfolio_mv"
         assert args.asset_count == 30
         assert args.generation_seed == 42
         assert args.observation_count is None
@@ -402,9 +402,9 @@ class TestUIXFileStructure:
         assert index_file.exists(), "uix/index.html should exist"
 
     def test_experiment_portfolio_html_exists(self) -> None:
-        """Test that experiment_portfolio.html exists."""
-        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio.html"
-        assert file.exists(), "uix/experiment_portfolio.html should exist"
+        """Test that experiment_portfolio_mv.html exists."""
+        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio_mv.html"
+        assert file.exists(), "uix/experiment_portfolio_mv.html should exist"
 
     def test_experiment_facility_location_html_exists(self) -> None:
         """Test that experiment_facility_location.html exists."""
@@ -427,9 +427,9 @@ class TestUIXFileStructure:
         assert file.exists(), "uix/assets/common.js should exist"
 
     def test_portfolio_js_exists(self) -> None:
-        """Test that portfolio.js exists."""
-        file = Path(__file__).parent.parent / "uix" / "assets" / "portfolio.js"
-        assert file.exists(), "uix/assets/portfolio.js should exist"
+        """Test that portfolio_mv.js exists."""
+        file = Path(__file__).parent.parent / "uix" / "assets" / "portfolio_mv.js"
+        assert file.exists(), "uix/assets/portfolio_mv.js should exist"
 
     def test_facility_location_js_exists(self) -> None:
         """Test that facility_location.js exists."""
@@ -444,14 +444,14 @@ class TestUIXHtmlContent:
         """Test that index.html links to both configurators."""
         index_file = Path(__file__).parent.parent / "uix" / "index.html"
         content = index_file.read_text()
-        assert "experiment_portfolio.html" in content, "index should link to portfolio"
+        assert "experiment_portfolio_mv.html" in content, "index should link to portfolio_mv"
         assert "experiment_facility_location.html" in content, "index should link to facility_location"
 
     def test_portfolio_uses_unified_cli(self) -> None:
         """Test that portfolio configurator uses the unified CLI entry point."""
-        file = Path(__file__).parent.parent / "uix" / "assets" / "portfolio.js"
+        file = Path(__file__).parent.parent / "uix" / "assets" / "portfolio_mv.js"
         content = file.read_text()
-        assert "qreduce.experiments.portfolio" in content, "should use unified CLI"
+        assert "qreduce.experiments.portfolio_mv" in content, "should use unified CLI"
         # Should NOT reference old entry points
         assert "portfolio.single_pass" not in content, "should not reference old single_pass"
         assert "portfolio.multi_round" not in content, "should not reference old multi_round"
@@ -464,7 +464,7 @@ class TestUIXHtmlContent:
 
     def test_portfolio_has_back_link(self) -> None:
         """Test that portfolio page has back link to catalog."""
-        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio.html"
+        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio_mv.html"
         content = file.read_text()
         assert "index.html" in content, "should have back link to index"
 
@@ -476,11 +476,11 @@ class TestUIXHtmlContent:
 
     def test_portfolio_includes_common_assets(self) -> None:
         """Test that portfolio page includes common assets."""
-        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio.html"
+        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio_mv.html"
         content = file.read_text()
         assert "assets/common.css" in content, "should include common.css"
         assert "assets/common.js" in content, "should include common.js"
-        assert "assets/portfolio.js" in content, "should include portfolio.js"
+        assert "assets/portfolio_mv.js" in content, "should include portfolio_mv.js"
 
     def test_facility_location_includes_common_assets(self) -> None:
         """Test that facility_location page includes common assets."""

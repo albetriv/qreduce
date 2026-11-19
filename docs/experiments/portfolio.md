@@ -1,6 +1,6 @@
-# Esperimento portfolio
+# Esperimento portfolio media-varianza
 
-L'esperimento portfolio verifica la pipeline QReduce con un problema di
+L'esperimento portfolio media-varianza (`portfolio_mv`) verifica la pipeline QReduce con un problema di
 ottimizzazione media-varianza sintetico. È la famiglia principale per lo
 sviluppo e il test del framework.
 
@@ -33,7 +33,7 @@ Tutti gli esperimenti portfolio usano un singolo comando CLI. La modalità di
 esecuzione è controllata da `--max-reduction-rounds`:
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio --help
+poetry run python -m qreduce.experiments.portfolio_mv --help
 ```
 
 | Valore                     | Modalità                         |
@@ -44,7 +44,7 @@ poetry run python -m qreduce.experiments.portfolio --help
 
 ### Configuratore HTML
 
-Il configuratore [`uix/experiment_portfolio.html`](../../uix/experiment_portfolio.html)
+Il configuratore [`uix/experiment_portfolio_mv.html`](../../uix/experiment_portfolio_mv.html)
 genera comandi CLI interattivamente. È una pagina statica apribile direttamente
 da filesystem; seleziona i parametri e copia il comando nel terminale.
 
@@ -58,7 +58,7 @@ verifica la disponibilità dei solver.
 ### Classical-only baseline (senza riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id 001_classical \
   --asset-count 30 \
   --max-reduction-rounds 0
@@ -70,7 +70,7 @@ per confronto.
 ### Single-pass (un round di riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id 002_scip \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -85,7 +85,7 @@ modalità predefinita (`--max-reduction-rounds 1`).
 ### Multi-round (più round di riduzione)
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id 004_correlation_only \
   --asset-count 30 \
   --graph-edge-mode correlation_only \
@@ -106,7 +106,7 @@ espone i seguenti gruppi di opzioni:
 | Opzione                  | Descrizione                                      | Default               |
 |--------------------------|--------------------------------------------------|-----------------------|
 | `--run-id`               | Identificatore unico del run (obbligatorio)      |                       |
-| `--output-root`          | Directory radice degli artifact                  | `outputs/portfolio`   |
+| `--output-root`          | Directory radice degli artifact                  | `outputs/portfolio_mv`   |
 | `--log-config`           | Percorso file YAML di configurazione logging     | `config/logging.yaml` |
 | `--model-export`         | Esporta il modello residuo                       | disabilitato          |
 | `--model-export-path`    | Percorso per export esterno                      |                       |
@@ -116,8 +116,41 @@ espone i seguenti gruppi di opzioni:
 | Opzione                  | Descrizione                                      | Default               |
 |--------------------------|--------------------------------------------------|-----------------------|
 | `--asset-count`          | Numero di asset nel portfolio                    | 30                    |
+| `--risk-aversion`        | Coefficiente di avversione al rischio            | 1.0                   |
 | `--generation-seed`      | Seed per la generazione                          | 42                    |
 | `--observation-count`    | Numero di osservazioni storiche                  | 10 × asset_count      |
+
+**Avversione al rischio:**
+
+Il parametro `--risk-aversion` (λ) controlla il trade-off tra rendimento atteso
+e varianza nella funzione obiettivo media-varianza:
+
+```text
+minimize  λ * x' * Σ * x - μ' * x
+```
+
+- Valori maggiori (λ > 1) penalizzano di più la varianza, producendo portfolio
+  meno rischiosi ma con rendimento atteso potenzialmente inferiore.
+- Valori minori (0 < λ < 1) riducono la penalizzazione della varianza, favorendo
+  il rendimento atteso.
+- Il parametro deve essere finito e strettamente positivo. Valori di zero o
+  negativi sono rifiutati.
+- Il default (1.0) mantiene la compatibilità con il comportamento originale,
+  ma non garantisce contributi equivalenti tra rendimento e varianza: il
+  bilanciamento dipende dalla scala dei dati.
+
+Il valore viene salvato in `problem.json` ed è verificabile nelle analisi.
+Il coefficiente numerico va interpretato rispetto alla scala temporale e alla
+scala dei rendimenti e della covarianza usati.
+
+**Esempio con alta avversione al rischio:**
+
+```bash
+poetry run python -m qreduce.experiments.portfolio_mv \
+  --run-id high_risk_aversion \
+  --asset-count 30 \
+  --risk-aversion 2.5
+```
 
 ### Opzioni limiti di investimento e cardinalità
 
@@ -148,7 +181,7 @@ Queste opzioni controllano i vincoli sul portfolio finale:
 **Esempio con cardinalità e soglie positive:**
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id cardinality_test \
   --asset-count 100 \
   --lower-bound 0.05 \
@@ -160,7 +193,7 @@ poetry run python -m qreduce.experiments.portfolio \
 **Esempio con cardinalità esatta e investimento fisso:**
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id exact_cardinality \
   --asset-count 50 \
   --lower-bound 0.10 \
@@ -225,7 +258,7 @@ il backend gestisce cooperativamente il tempo residuo:
 **Esempio con embedding Pegasus:**
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id embedded_pegasus \
   --asset-count 20 \
   --mis-solver-id dwave_simulated_annealing \
@@ -269,7 +302,7 @@ Entrambi i parametri rifiutano valori negativi, NaN, infinito e booleani.
 ### D-Wave simulated annealing con CPLEX
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id 003_dwave_cplex \
   --asset-count 12 \
   --graph-edge-mode correlation_only \
@@ -286,7 +319,7 @@ binding e licenza.
 ### Multi-round con recovery
 
 ```bash
-poetry run python -m qreduce.experiments.portfolio \
+poetry run python -m qreduce.experiments.portfolio_mv \
   --run-id multi_with_recovery \
   --asset-count 50 \
   --max-reduction-rounds 5 \
@@ -326,7 +359,7 @@ Per un nuovo run mantenere il prefisso e scegliere un nome distinto (es.
 ## Directory degli artifact
 
 ```text
-outputs/portfolio/{run_id}/
+outputs/portfolio_mv/{run_id}/
 ├── run_result.json
 ├── config_used.json
 ├── problem.json
@@ -345,12 +378,12 @@ outputs/portfolio/{run_id}/
   esistente, file non preesistente). Non compare nella run directory.
 - Un run fallito prima del solve classico non produce il file di export.
 
-L'opzione `--output-root` sostituisce interamente `outputs/portfolio`: il
+L'opzione `--output-root` sostituisce interamente `outputs/portfolio_mv`: il
 runner usa `output_root/{run_id}/` senza aggiungere la famiglia.
 
 ## Notebook di analisi
 
-I notebook si trovano in `notebooks/experiments/portfolio/`:
+I notebook si trovano in `notebooks/experiments/portfolio_mv/`:
 
 | Notebook                                       | Dati caricati            |
 |------------------------------------------------|--------------------------|
@@ -361,7 +394,7 @@ I notebook si trovano in `notebooks/experiments/portfolio/`:
 
 I notebook caricano artifact già prodotti tramite `load_experiment_run` e non
 eseguono la pipeline. La logica di analisi risiede in
-`qreduce.experiments.portfolio.analysis`.
+`qreduce.experiments.portfolio_mv.analysis`.
 
 ### Interpretazione dei grafici
 
@@ -408,7 +441,7 @@ L'entry point principale è `run_portfolio_experiment`:
 ```python
 from dataclasses import replace
 
-from qreduce.experiments.portfolio import (
+from qreduce.experiments.portfolio_mv import (
     build_synthetic_portfolio_inputs,
     run_portfolio_experiment,
 )
@@ -434,8 +467,8 @@ run = run_portfolio_experiment("multi", reduction_policy=multi_policy)
 
 ## Riferimenti
 
-- Execution: `src/qreduce/experiments/portfolio/execution.py`
-- Adapter: `src/qreduce/experiments/portfolio/adapter.py`
-- Modelli: `src/qreduce/experiments/portfolio/models.py`
-- Analisi: `src/qreduce/experiments/portfolio/analysis.py`
-- Post-check: `src/qreduce/experiments/portfolio/postcheck.py`
+- Execution: `src/qreduce/experiments/portfolio_mv/execution.py`
+- Adapter: `src/qreduce/experiments/portfolio_mv/adapter.py`
+- Modelli: `src/qreduce/experiments/portfolio_mv/models.py`
+- Analisi: `src/qreduce/experiments/portfolio_mv/analysis.py`
+- Post-check: `src/qreduce/experiments/portfolio_mv/postcheck.py`

@@ -48,7 +48,7 @@ function main() {
     const uixDir = path.join(__dirname, "..", "uix");
     const htmlFile =
       configurator === "portfolio"
-        ? "experiment_portfolio.html"
+        ? "experiment_portfolio_mv.html"
         : "experiment_facility_location.html";
     const htmlPath = path.join(uixDir, htmlFile);
 
@@ -80,7 +80,7 @@ function main() {
 
     const specificJs =
       configurator === "portfolio"
-        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio.js"), "utf8")
+        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
         : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
     window.eval(specificJs);
 

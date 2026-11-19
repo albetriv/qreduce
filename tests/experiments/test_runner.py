@@ -13,7 +13,7 @@ from qreduce.experiments import (
     load_experiment_run,
     run_experiment,
 )
-from qreduce.experiments.portfolio import (
+from qreduce.experiments.portfolio_mv import (
     MeanVariancePortfolioAdapter,
     PortfolioGraphPolicy,
     PortfolioProblem,

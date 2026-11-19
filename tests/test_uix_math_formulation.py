@@ -74,6 +74,21 @@ def run_math_test(configurator: str, test_type: str, field_values: dict | None =
         pytest.fail(f"Invalid JSON output: {result.stdout}")
 
 
+@pytest.mark.parametrize("fallback", [False, True])
+@pytest.mark.parametrize("rounds", ["0", "1"])
+def test_risk_aversion_math_panel_and_reset(fallback, rounds):
+    result = run_math_test("portfolio", "risk_aversion", {
+        "riskAversion": "2.5", "maxRounds": rounds, "_fallback": fallback,
+    })
+    assert result["success"]
+    assert float(result["displayed"]) == 2.5
+    assert "\\lambda" in result["latex"]
+    assert "λ" in result["fallback"]
+    assert result["disabled"] is False
+    assert float(result["afterReset"]) == 1.0
+    assert float(result["fieldAfterReset"]) == 1.0
+
+
 class TestMathPanelInitialization:
     """Test that math formulation panels are properly initialized."""
 

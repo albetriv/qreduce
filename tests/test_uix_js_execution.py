@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from qreduce.experiments.portfolio.__main__ import (
+from qreduce.experiments.portfolio_mv.__main__ import (
     _build_parser as build_portfolio_parser,
 )
 
@@ -154,14 +154,44 @@ def extract_cli_args(command: str) -> list[str]:
     return parts
 
 
+class TestPortfolioRiskAversion:
+    """Exercise the real JavaScript generator and the Python CLI parser."""
+
+    @pytest.mark.parametrize("value", ["1.0", "2.5", "2.55", "0.0001"])
+    @pytest.mark.parametrize("rounds", ["0", "1", "3"])
+    def test_valid_values_and_formats(self, portfolio_parser, value, rounds):
+        results = [run_js_generator("portfolio", {
+            "riskAversion": value, "maxRounds": rounds, "_format": format_name,
+        }) for format_name in ("inline", "multiline")]
+        for result in results:
+            assert result["isValid"], result["errors"]
+            assert result["riskAversionDisabled"] is False
+            argv = extract_cli_args(result["command"])
+            assert portfolio_parser.parse_args(argv).risk_aversion == float(value)
+            assert ("--risk-aversion" in argv) is (float(value) != 1.0)
+        assert extract_cli_args(results[0]["command"]) == extract_cli_args(results[1]["command"])
+
+    @pytest.mark.parametrize("value", ["", "0", "-1", "NaN", "Infinity", "invalid"])
+    def test_invalid_values(self, value):
+        result = run_js_generator("portfolio", {"riskAversion": value})
+        assert result["isValid"] is False
+        assert "riskAversion" in result["errors"]
+
+    def test_reset_restores_default(self):
+        result = run_js_generator("portfolio", {"riskAversion": "2.5", "_action": "reset"})
+        assert result["isValid"]
+        assert float(result["currentValues"]["riskAversion"]) == 1.0
+        assert "--risk-aversion" not in result["command"]
+
+
 class TestPortfolioJSValidation:
-    """Test portfolio.js validation catches invalid inputs."""
+    """Test portfolio_mv.js validation catches invalid inputs."""
 
     def test_valid_minimal_config(self):
         """Test that minimal valid config passes validation."""
         result = run_js_generator("portfolio", {"runId": "test001"})
         assert result["isValid"] is True
-        assert "poetry run python -m qreduce.experiments.portfolio" in result["command"]
+        assert "poetry run python -m qreduce.experiments.portfolio_mv" in result["command"]
 
     def test_invalid_seed_float(self):
         """Test that float seed is rejected."""
@@ -241,7 +271,7 @@ class TestPortfolioJSSolverSwitch:
 
 
 class TestPortfolioJSBaselineRecovery:
-    """Test baseline/recovery coherence in portfolio.js."""
+    """Test baseline/recovery coherence in portfolio_mv.js."""
 
     def test_baseline_ignores_recovery_policy_values(self):
         """Test that baseline (rounds=0) ignores recovery policy values in disabled fields.

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from qreduce.experiments.portfolio.__main__ import (
+from qreduce.experiments.portfolio_mv.__main__ import (
     _build_parser as build_portfolio_parser,
 )
 
@@ -436,7 +436,7 @@ class TestTooltipPresence:
     @pytest.fixture
     def portfolio_html(self) -> str:
         """Load portfolio HTML content."""
-        html_path = Path(__file__).parent.parent / "uix" / "experiment_portfolio.html"
+        html_path = Path(__file__).parent.parent / "uix" / "experiment_portfolio_mv.html"
         return html_path.read_text()
 
     def test_lower_bound_has_tooltip(self, portfolio_html: str) -> None:

@@ -31,7 +31,7 @@ dell'esperimento portfolio.
 
 `src/qreduce/solving/residual/` definisce il modello classico generico, i contratti, il registry e le traduzioni lazy per CPLEX e SCIP. Il backend selezionato riceve solo il modello solver-agnostic e non conosce il dominio concreto. Binding non disponibili, capability incompatibili, time limit e infeasibility producono reason normalizzate senza fallback automatico.
 
-L'adapter sintetico in `src/qreduce/experiments/portfolio/` tratta ogni asset come item. Per gli asset esclusi applica `delta_i = 0` e `x_i = 0`, preserva obiettivo e vincoli globali nel MIQP residuo, ed esegue il post-check sul problema originale con il manifest applicato.
+L'adapter sintetico in `src/qreduce/experiments/portfolio_mv/` tratta ogni asset come item. Per gli asset esclusi applica `delta_i = 0` e `x_i = 0`, preserva obiettivo e vincoli globali nel MIQP residuo, ed esegue il post-check sul problema originale con il manifest applicato.
 
 Il post-check separa stato del solver, fattibilita` dichiarata, fattibilita`
 verificata e adozione. Eccezioni o risultati invalidi dell'adapter diventano
@@ -46,10 +46,10 @@ valutazione genera `adapter_failure` senza scartare gli esiti precedenti.
 
 | Requisito/osservazione | Campo nel risultato | Disponibilita` | Evidenza principale |
 |---|---|---|---|
-| Tempo e fattibilita` del solve residuo | `classical_runtime_seconds`, `classical_solver_claimed_feasible` | Dopo invocazione del backend classico | `_run_metrics`; `tests/experiments/portfolio/test_portfolio_single_pass.py` |
+| Tempo e fattibilita` del solve residuo | `classical_runtime_seconds`, `classical_solver_claimed_feasible` | Dopo invocazione del backend classico | `_run_metrics`; `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` |
 | Obiettivo, bound e gap | `objective_value`, `best_bound`, `solver_gap` | Quando il backend classico restituisce il risultato | `_run_metrics`; `test_time_limit_with_feasible_incumbent_produces_partial_success` |
-| Fattibilita` del post-check | `postcheck_feasible`, `postcheck_failure_reasons` | Solo dopo post-check raggiunto | `_run_metrics`; `tests/experiments/portfolio/test_postcheck.py` |
-| Obiettivo ricalcolato | `objective_recomputed` | Solo se l'adapter lo supporta e il post-check lo calcola | `_run_metrics`; `tests/experiments/portfolio/test_postcheck.py` |
+| Fattibilita` del post-check | `postcheck_feasible`, `postcheck_failure_reasons` | Solo dopo post-check raggiunto | `_run_metrics`; `tests/experiments/portfolio_mv/test_postcheck.py` |
+| Obiettivo ricalcolato | `objective_recomputed` | Solo se l'adapter lo supporta e il post-check lo calcola | `_run_metrics`; `tests/experiments/portfolio_mv/test_postcheck.py` |
 | Metriche di dominio | `domain_evaluation_metrics` con valore, unita`, convenzione e provenance redatta | Solo dopo post-check raggiunto; `None` se il post-check non e` raggiunto | `evaluate_domain_metrics`; `test_domain_metrics_persist_and_redact` |
 | Stati e dati parziali | `run_status`, `terminal_reason`, `classical_result`, `postcheck_result` | Progressivamente, senza cancellare dati di stage precedenti | `test_classical_solver_infeasible_is_serialized_with_candidate_data` e test di failure post-check |
 
@@ -61,9 +61,9 @@ non valido del post-check conserva il risultato classico ma impedisce l'adozione
 ## Test e verifica
 
 - `tests/solving/residual/` verifica contratti, registry e backend classici.
-- `tests/experiments/portfolio/test_portfolio_scip_integration.py` verifica il percorso portfolio predefinito con SCIP.
-- `tests/experiments/portfolio/test_portfolio_single_pass.py` verifica backend CPLEX non disponibile, infeasibility e preservazione di manifest/candidate.
-- `tests/experiments/portfolio/test_postcheck.py` verifica il post-check.
+- `tests/experiments/portfolio_mv/test_portfolio_scip_integration.py` verifica il percorso portfolio predefinito con SCIP.
+- `tests/experiments/portfolio_mv/test_portfolio_single_pass.py` verifica backend CPLEX non disponibile, infeasibility e preservazione di manifest/candidate.
+- `tests/experiments/portfolio_mv/test_postcheck.py` verifica il post-check.
 - `tests/domains/test_evaluation_metrics.py` verifica le metriche di dominio.
 
 ## Criteri di completamento

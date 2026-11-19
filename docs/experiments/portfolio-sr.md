@@ -237,7 +237,7 @@ filesystem.
 
 ## Differenze dal portfolio sintetico
 
-| Aspetto | portfolio | portfolio_sr |
+| Aspetto | portfolio_mv | portfolio_sr |
 |---------|-----------|--------------|
 | **Dati** | Sintetici | Reali S&P500 |
 | **Obiettivo** | Media-varianza (risk_aversion) | Sharpe ratio |

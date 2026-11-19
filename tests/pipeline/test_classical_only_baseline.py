@@ -579,7 +579,7 @@ class TestClassicalOnlyWithRealSolver:
 
         from dataclasses import replace
 
-        from qreduce.experiments.portfolio.inputs import (
+        from qreduce.experiments.portfolio_mv.inputs import (
             build_synthetic_portfolio_inputs,
         )
 
