@@ -96,6 +96,7 @@ L'architettura comune è descritta in
 | Famiglia            | Stato         | Guida                                    |
 |---------------------|---------------|------------------------------------------|
 | portfolio           | completo      | [portfolio.md](./portfolio.md)           |
+| portfolio_sr        | completo      | [portfolio-sr.md](./portfolio-sr.md)     |
 | facility_location   | sperimentale  | [facility-location.md](./facility-location.md) |
 
 Ogni guida descrive: comandi CLI, parametri specifici, convenzioni dei run ID,
@@ -110,6 +111,7 @@ da filesystem senza server.
 | Configuratore                           | Famiglia          |
 |-----------------------------------------|-------------------|
 | [experiment_portfolio.html](../../uix/experiment_portfolio.html) | portfolio |
+| [experiment_portfolio_sr.html](../../uix/experiment_portfolio_sr.html) | portfolio_sr |
 | [experiment_facility_location.html](../../uix/experiment_facility_location.html) | facility_location |
 
 Il catalogo [`uix/index.html`](../../uix/index.html) elenca tutti i

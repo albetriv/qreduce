@@ -23,6 +23,7 @@ notebooks = [
     "pandas (>=2.2,<4)",
 ]
 experiments = [
+    "numpy (>=2,<3)",
     "cplex (>=22.2.0.0,<23.0.0.0)",
     "dwave-samplers (>=1.7,<2)",
     "pyscipopt (>=5.0,<6.0)",

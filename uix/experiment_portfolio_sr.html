@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Configuratore per esperimenti portfolio Sharpe ratio QReduce.">
+  <title>QReduce | Portfolio Sharpe Ratio</title>
+  <link rel="stylesheet" href="assets/common.css">
+</head>
+<body>
+  <main class="shell">
+    <a href="index.html" class="back-link">Torna al catalogo</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">QR</div>
+        <div>
+          <p class="eyebrow">Portfolio Sharpe Ratio experiment</p>
+          <h1>Configuratore Portfolio SR</h1>
+          <p class="muted" style="margin:0">Configura un esperimento Sharpe ratio con dati reali S&P500.</p>
+        </div>
+      </div>
+      <span class="badge" id="validationBadge">Configurazione valida</span>
+    </header>
+
+    <div class="layout">
+      <section class="panel main-panel" aria-label="Configurazione esperimento">
+        <nav class="tabs" aria-label="Sezioni di configurazione">
+          <button class="tab active" data-tab="experiment">01 · Dati</button>
+          <button class="tab" data-tab="problem">02 · Problema</button>
+          <button class="tab" data-tab="reduction">03 · Riduzione</button>
+          <button class="tab" data-tab="solver">04 · Solver</button>
+        </nav>
+
+        <form id="configForm" novalidate>
+          <!-- Tab 1: Data -->
+          <section class="tab-content active" id="experiment">
+            <div class="section-head">
+              <div>
+                <h2>Dataset e selezione universo</h2>
+                <p>Parametri per caricamento dati S&P500 e preprocessing.</p>
+              </div>
+              <span class="pill">--run-id, --asset-count, ...</span>
+            </div>
+
+            <div class="form-grid">
+              <!-- PARAM_DESC: Identificatore univoco del run. Usato come nome della sottodirectory nella directory di output. -->
+              <div class="field">
+                <label for="runId">ID del run <span class="param">--run-id</span></label>
+                <input id="runId" value="sr_001" required pattern="\S+">
+                <p class="help">Deve essere unico nella directory di output.</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Directory radice per gli artifact dell'esperimento. Default: outputs/portfolio_sr. -->
+              <div class="field">
+                <label for="outputRoot">Directory artifact <span class="param">--output-root</span></label>
+                <input id="outputRoot" value="outputs/portfolio_sr">
+                <p class="help">Default: outputs/portfolio_sr</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Percorso del file CSV S&P500 con prezzi storici. -->
+              <div class="field">
+                <label for="csvPath">File CSV <span class="param">--csv-path</span></label>
+                <input id="csvPath" value="data/yahoo/SP500.csv">
+                <p class="help">Default: data/yahoo/SP500.csv</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Numero di asset da selezionare dall'universo. -->
+              <div class="field">
+                <label for="assetCount">Numero di asset <span class="param">--asset-count</span></label>
+                <input id="assetCount" type="number" value="50" min="1" step="1" required>
+                <p class="help">Default: 50</p>
+                <p class="error"></p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Filtri temporali e rendimenti</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Data inizio per filtro serie temporale (YYYY-MM-DD). -->
+                <div class="field">
+                  <label for="startDate">Data inizio <span class="param">--start-date</span></label>
+                  <input id="startDate" type="date" placeholder="YYYY-MM-DD">
+                  <p class="help">Opzionale</p>
+                </div>
+                <!-- PARAM_DESC: Data fine per filtro serie temporale (YYYY-MM-DD). -->
+                <div class="field">
+                  <label for="endDate">Data fine <span class="param">--end-date</span></label>
+                  <input id="endDate" type="date" placeholder="YYYY-MM-DD">
+                  <p class="help">Opzionale</p>
+                </div>
+                <!-- PARAM_DESC: Convenzione rendimenti: log (logaritmici) o simple (aritmetici). -->
+                <div class="field">
+                  <label for="returnConvention">Tipo rendimento <span class="param">--return-convention</span></label>
+                  <select id="returnConvention">
+                    <option value="log">log (default)</option>
+                    <option value="simple">simple</option>
+                  </select>
+                </div>
+                <!-- PARAM_DESC: Fattore di annualizzazione per media e covarianza. -->
+                <div class="field">
+                  <label for="annualizationFactor">Annualizzazione <span class="param">--annualization-factor</span></label>
+                  <input id="annualizationFactor" type="number" value="252" min="1" step="1">
+                  <p class="help">Giorni/anno. Default: 252</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Selezione universo</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Ordine di selezione dei ticker: alphabetical, sharpe_descending, random. -->
+                <div class="field">
+                  <label for="selectionOrder">Ordine selezione <span class="param">--selection-order</span></label>
+                  <select id="selectionOrder">
+                    <option value="alphabetical">alphabetical (default)</option>
+                    <option value="sharpe_descending">sharpe_descending</option>
+                    <option value="random">random</option>
+                  </select>
+                </div>
+                <!-- PARAM_DESC: Seed per selezione random. -->
+                <div class="field">
+                  <label for="randomSeed">Seed random <span class="param">--random-seed</span></label>
+                  <input id="randomSeed" type="number" placeholder="Opzionale">
+                  <p class="help">Per selezione random riproducibile</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 2: Problem -->
+          <section class="tab-content" id="problem">
+            <div class="section-head">
+              <div>
+                <h2>Configurazione problema</h2>
+                <p>Vincoli, limiti e parametri dell'ottimizzazione Sharpe.</p>
+              </div>
+              <span class="pill">--upper-bound, --max-positions, ...</span>
+            </div>
+
+            <div class="form-grid">
+              <!-- PARAM_DESC: Peso massimo per singolo asset. -->
+              <div class="field">
+                <label for="upperBound">Upper bound <span class="param">--upper-bound</span></label>
+                <input id="upperBound" type="number" value="1.0" min="0" max="1" step="0.01">
+                <p class="help">Default: 1.0 (nessun limite)</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Massimo numero di posizioni (cardinalità). -->
+              <div class="field">
+                <label for="maxPositions">Max posizioni <span class="param">--max-positions</span></label>
+                <input id="maxPositions" type="number" min="1" step="1" placeholder="Opzionale">
+                <p class="help">Vincolo cardinalità (opzionale)</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Tasso risk-free per calcolo Sharpe ratio. Fisso a 0.0 nella versione corrente. -->
+              <div class="field">
+                <label for="riskFreeRate">Risk-free rate <span class="param" style="text-decoration: line-through;">--risk-free-rate</span></label>
+                <input id="riskFreeRate" type="number" value="0.0" step="0.001" disabled readonly
+                       title="Fisso a 0.0 nella versione corrente" style="opacity: 0.6; cursor: not-allowed;">
+                <p class="help">Fisso a 0.0 (versione corrente)</p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Vincoli settoriali</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Limiti di esposizione per settore. Formato: <code>Sector1=0.10,Sector2=0.05</code>
+              </p>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Esposizioni settoriali minime. Formato: Technology=0.10,Health Care=0.05 -->
+                <div class="field">
+                  <label for="sectorMin">Minimi settoriali <span class="param">--sector-min</span></label>
+                  <input id="sectorMin" placeholder="Technology=0.10,Health Care=0.05">
+                  <p class="help">Esposizioni minime per settore</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Esposizioni settoriali massime. Formato: Technology=0.30,Health Care=0.20 -->
+                <div class="field">
+                  <label for="sectorMax">Massimi settoriali <span class="param">--sector-max</span></label>
+                  <input id="sectorMax" placeholder="Technology=0.30,Health Care=0.20">
+                  <p class="help">Esposizioni massime per settore</p>
+                  <p class="error"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Policy grafo MWIS</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Semantica archi: near_duplicate (correlazione + similarità) o correlation_only. -->
+                <div class="field">
+                  <label for="edgeMode">Semantica archi <span class="param">--edge-mode</span></label>
+                  <select id="edgeMode">
+                    <option value="near_duplicate">near_duplicate (default)</option>
+                    <option value="correlation_only">correlation_only</option>
+                  </select>
+                </div>
+                <!-- PARAM_DESC: Soglia correlazione positiva per archi. -->
+                <div class="field">
+                  <label for="correlationThreshold">Soglia correlazione <span class="param">--correlation-threshold</span></label>
+                  <input id="correlationThreshold" type="number" value="0.80" min="0" max="1" step="0.01">
+                  <p class="help">Default: 0.80</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Max differenza rendimento relativa per near_duplicate. -->
+                <div class="field near-duplicate">
+                  <label for="returnDiff">Max diff. rendimento <span class="param">--near-duplicate-max-return-diff</span></label>
+                  <input id="returnDiff" type="number" value="0.15" min="0" step="0.01">
+                  <p class="help">Default: 0.15</p>
+                </div>
+                <!-- PARAM_DESC: Max differenza varianza relativa per near_duplicate. -->
+                <div class="field near-duplicate">
+                  <label for="varianceDiff">Max diff. varianza <span class="param">--near-duplicate-max-variance-diff</span></label>
+                  <input id="varianceDiff" type="number" value="0.15" min="0" step="0.01">
+                  <p class="help">Default: 0.15</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 3: Reduction -->
+          <section class="tab-content" id="reduction">
+            <div class="section-head">
+              <div>
+                <h2>Policy di riduzione</h2>
+                <p>Modalità di esecuzione e parametri MWIS.</p>
+              </div>
+              <span class="pill">--max-reduction-rounds, ...</span>
+            </div>
+
+            <div class="notice">
+              <strong>Modalità:</strong>
+              <code>0</code> = baseline (no riduzione),
+              <code>1</code> = single-pass (default),
+              <code>&gt;1</code> = multi-round.
+            </div>
+
+            <div class="form-grid three">
+              <!-- PARAM_DESC: Numero massimo round riduzione. 0=baseline, 1=single-pass, >1=multi-round. -->
+              <div class="field">
+                <label for="maxRounds">Round massimi <span class="param">--max-reduction-rounds</span></label>
+                <input id="maxRounds" type="number" min="0" step="1" value="1">
+                <p class="help">0=baseline, 1=default</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Minimo item nel dominio candidato. -->
+              <div class="field">
+                <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
+                <input id="minItems" type="number" min="1" step="1" placeholder="Default: 1">
+              </div>
+              <!-- PARAM_DESC: Massimo item nel dominio candidato. -->
+              <div class="field">
+                <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
+                <input id="maxItems" type="number" min="1" step="1" placeholder="Default: 60%">
+              </div>
+              <!-- PARAM_DESC: Timeout totale end-to-end in secondi. -->
+              <div class="field">
+                <label for="maxRuntime">Timeout totale (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
+                <input id="maxRuntime" type="number" min="0" step="1" value="120">
+                <p class="help">Default: 120</p>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Recovery (multi-round)</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Policy recovery quando problema infeasible. -->
+                <div class="field">
+                  <label for="recoveryInfeasible">Recovery infeasible <span class="param">--recovery-policy-on-infeasible</span></label>
+                  <select id="recoveryInfeasible">
+                    <option value="fail">fail (default)</option>
+                    <option value="retry_with_larger_domain">retry_with_larger_domain</option>
+                  </select>
+                </div>
+                <!-- PARAM_DESC: Massimo tentativi recovery. -->
+                <div class="field">
+                  <label for="maxRecovery">Max tentativi <span class="param">--max-recovery-attempts</span></label>
+                  <input id="maxRecovery" type="number" min="0" step="1" value="0">
+                  <p class="help">Default: 0</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Tab 4: Solver -->
+          <section class="tab-content" id="solver">
+            <div class="section-head">
+              <div>
+                <h2>Configurazione solver</h2>
+                <p>Solver MIS e classico.</p>
+              </div>
+              <span class="pill">--mis-solver-id, --classical-solver-id, ...</span>
+            </div>
+
+            <div class="form-grid">
+              <!-- PARAM_DESC: Solver MIS: local_greedy o dwave_simulated_annealing. -->
+              <div class="field">
+                <label for="misSolver">Solver MIS <span class="param">--mis-solver-id</span></label>
+                <select id="misSolver">
+                  <option value="local_greedy">local_greedy (default)</option>
+                  <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
+                </select>
+              </div>
+              <!-- PARAM_DESC: Solver classico: scip o cplex. -->
+              <div class="field">
+                <label for="classicalSolver">Solver classico <span class="param">--classical-solver-id</span></label>
+                <select id="classicalSolver">
+                  <option value="scip">scip (default)</option>
+                  <option value="cplex">cplex</option>
+                </select>
+              </div>
+              <!-- PARAM_DESC: Time limit per singola invocazione solver classico. -->
+              <div class="field">
+                <label for="classicalTimeout">Timeout classico (s) <span class="param">--classical-time-limit-seconds</span></label>
+                <input id="classicalTimeout" type="number" min="0" step="1" value="60">
+                <p class="help">Default: 60</p>
+              </div>
+            </div>
+
+            <div class="card dwave-params" style="margin-top:20px">
+              <h3>Parametri D-Wave</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Numero di letture per D-Wave simulated annealing. -->
+                <div class="field">
+                  <label for="misNumReads">Num reads <span class="param">--mis-num-reads</span></label>
+                  <input id="misNumReads" type="number" min="1" step="1" placeholder="Default D-Wave">
+                </div>
+                <!-- PARAM_DESC: Numero di sweeps per D-Wave simulated annealing. -->
+                <div class="field">
+                  <label for="misNumSweeps">Num sweeps <span class="param">--mis-num-sweeps</span></label>
+                  <input id="misNumSweeps" type="number" min="1" step="1" placeholder="Default D-Wave">
+                </div>
+                <!-- PARAM_DESC: Profilo embedding per D-Wave. -->
+                <div class="field">
+                  <label for="embeddingProfile">Embedding profile <span class="param">--mis-embedding-profile</span></label>
+                  <select id="embeddingProfile">
+                    <option value="">none (default)</option>
+                    <option value="pegasus_p16">pegasus_p16</option>
+                    <option value="zephyr_z12">zephyr_z12</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Export modello</h3>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Abilita export del modello classico. -->
+                <div class="field">
+                  <label for="modelExport">Export modello <span class="param">--model-export</span></label>
+                  <input type="checkbox" id="modelExport">
+                  <p class="help">Esporta il modello residuo</p>
+                </div>
+                <!-- PARAM_DESC: Path custom per export modello (.lp o .mps). -->
+                <div class="field">
+                  <label for="modelExportPath">Path export <span class="param">--model-export-path</span></label>
+                  <input id="modelExportPath" placeholder="Opzionale (.lp o .mps)">
+                </div>
+              </div>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <aside class="panel preview" aria-label="Anteprima comando">
+        <div class="preview-header">
+          <h2>Comando generato</h2>
+          <div class="format-selector">
+            <button class="format-btn active" data-format="single">Una riga</button>
+            <button class="format-btn" data-format="multi">Multilinea</button>
+          </div>
+        </div>
+        <div class="command-wrapper">
+          <pre><code id="commandPreview">poetry run python -m qreduce.experiments.portfolio_sr --run-id sr_001</code></pre>
+          <button class="copy-btn" onclick="copyCommand()">Copia</button>
+        </div>
+        <p class="help">Il comando include solo i parametri diversi dai default.</p>
+
+        <!-- Math formulation panel -->
+        <details class="math-panel" id="mathPanel">
+          <summary>Formulazione matematica</summary>
+          <div class="math-content" id="mathContent">
+            <p><strong>Problema originale:</strong></p>
+            <div class="math-formula" id="originalFormula">
+              $$\max_{x} \frac{\mu^\top x}{\sqrt{x^\top \Sigma x}}$$
+            </div>
+            <p><strong>Trasformazione convessa:</strong></p>
+            <div class="math-formula" id="transformedFormula">
+              $$\min_{x_s} x_s^\top \Sigma x_s \quad \text{s.t.} \quad \mu^\top x_s = 1$$
+            </div>
+            <p><strong>Ricostruzione:</strong></p>
+            <div class="math-formula" id="reconstructionFormula">
+              $$x = \frac{x_s}{x_{scale}}, \quad SR = \frac{1}{\sqrt{obj}}$$
+            </div>
+            <p id="cardinalityFormula" style="display:none;"><strong>Cardinalità:</strong></p>
+            <div class="math-formula" id="cardinalityMath" style="display:none;">
+              $$\sum_i \delta_i \le K$$
+            </div>
+          </div>
+        </details>
+      </aside>
+    </div>
+  </main>
+
+  <script src="assets/common.js"></script>
+  <script src="assets/math_formulation.js"></script>
+  <script>
+    // Alias for common utilities
+    var C = QReduceCommon;
+    var $ = function(id) { return document.getElementById(id); };
+    var quote = C.quote;
+    var setError = C.setError;
+    var clearErrors = C.clearErrors;
+    var updateValidationStatus = C.updateValidationStatus;
+    var setupTabs = C.setupTabs;
+    var setupFormatSelector = C.setupFormatSelector;
+    var initTooltips = C.initTooltips;
+    var copy = C.copy;
+    var buildCommand = C.buildCommand;
+    var getFormat = C.getFormat;
+
+    // Configuration
+    const CLI_MODULE = 'qreduce.experiments.portfolio_sr';
+    const DEFAULTS = {
+      outputRoot: 'outputs/portfolio_sr',
+      csvPath: 'data/yahoo/SP500.csv',
+      assetCount: 50,
+      returnConvention: 'log',
+      annualizationFactor: 252,
+      selectionOrder: 'alphabetical',
+      upperBound: 1.0,
+      riskFreeRate: 0.0,  // Fixed at 0.0 - model requires this
+      edgeMode: 'near_duplicate',
+      correlationThreshold: 0.80,
+      returnDiff: 0.15,
+      varianceDiff: 0.15,
+      maxRounds: 1,
+      maxRuntime: 120,
+      recoveryInfeasible: 'fail',
+      maxRecovery: 0,
+      misSolver: 'local_greedy',
+      classicalSolver: 'scip',
+      classicalTimeout: 60,
+    };
+
+    // DOM elements
+    const form = document.getElementById('configForm');
+    const preview = document.getElementById('commandPreview');
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      setupTabs();
+      setupFormatSelector();
+      initTooltips();
+      setupRiskFreeFixed();
+      updateEnabled();
+      update();
+      form.addEventListener('input', update);
+      form.addEventListener('change', update);
+    });
+
+    // Make risk-free rate read-only and disabled
+    function setupRiskFreeFixed() {
+      const riskFreeInput = $('riskFreeRate');
+      if (riskFreeInput) {
+        riskFreeInput.readOnly = true;
+        riskFreeInput.disabled = true;
+        riskFreeInput.value = '0.0';
+        riskFreeInput.title = 'Fisso a 0.0 nella versione corrente';
+        riskFreeInput.style.opacity = '0.6';
+        riskFreeInput.style.cursor = 'not-allowed';
+        // Update help text
+        const helpEl = riskFreeInput.parentElement.querySelector('.help');
+        if (helpEl) {
+          helpEl.textContent = 'Fisso a 0.0 (versione corrente)';
+        }
+      }
+    }
+
+    function isReductionActive() {
+      return parseInt($('maxRounds').value || '1') > 0;
+    }
+
+    function isDwaveSolver() {
+      return $('misSolver').value === 'dwave_simulated_annealing';
+    }
+
+    function isNearDuplicateMode() {
+      return $('edgeMode').value === 'near_duplicate';
+    }
+
+    function updateEnabled() {
+      const reduction = isReductionActive();
+      const dwave = isDwaveSolver();
+      const nearDup = isNearDuplicateMode();
+
+      // Near-duplicate fields
+      document.querySelectorAll('.field.near-duplicate').forEach(f => {
+        f.style.opacity = nearDup ? '1' : '0.5';
+        f.querySelectorAll('input').forEach(i => i.disabled = !nearDup);
+      });
+
+      // D-Wave params
+      document.querySelectorAll('.dwave-params input, .dwave-params select').forEach(el => {
+        el.disabled = !dwave || !reduction;
+      });
+      document.querySelector('.dwave-params').style.opacity = (dwave && reduction) ? '1' : '0.5';
+
+      // Recovery params
+      const recoveryEnabled = parseInt($('maxRounds').value || '1') > 1;
+      $('recoveryInfeasible').disabled = !recoveryEnabled;
+      $('maxRecovery').disabled = !recoveryEnabled;
+    }
+
+    function validate() {
+      let valid = true;
+      clearErrors();
+
+      // Run ID required
+      if (!$('runId').value.trim()) {
+        setError('runId', 'Richiesto');
+        valid = false;
+      }
+
+      // Asset count
+      const assetCount = parseInt($('assetCount').value);
+      if (isNaN(assetCount) || assetCount < 1) {
+        setError('assetCount', 'Deve essere almeno 1');
+        valid = false;
+      }
+
+      // Max positions vs asset count
+      const maxPositions = $('maxPositions').value ? parseInt($('maxPositions').value) : null;
+      if (maxPositions !== null && maxPositions > assetCount) {
+        setError('maxPositions', 'Non può superare asset count');
+        valid = false;
+      }
+
+      // Correlation threshold
+      const corrThreshold = parseFloat($('correlationThreshold').value);
+      if (isNaN(corrThreshold) || corrThreshold < 0 || corrThreshold > 1) {
+        setError('correlationThreshold', 'Deve essere tra 0 e 1');
+        valid = false;
+      }
+
+      // Upper bound
+      const upperBound = parseFloat($('upperBound').value);
+      if (isNaN(upperBound) || upperBound <= 0 || upperBound > 1) {
+        setError('upperBound', 'Deve essere tra 0 e 1');
+        valid = false;
+      }
+
+      updateValidationStatus(valid);
+      return valid;
+    }
+
+    function generateCommand() {
+      const args = [];
+
+      // Required: run-id
+      args.push({ flag: '--run-id', value: $('runId').value });
+
+      // Data options (only if different from defaults)
+      if ($('outputRoot').value !== DEFAULTS.outputRoot) {
+        args.push({ flag: '--output-root', value: $('outputRoot').value });
+      }
+      if ($('csvPath').value !== DEFAULTS.csvPath) {
+        args.push({ flag: '--csv-path', value: $('csvPath').value });
+      }
+      if (parseInt($('assetCount').value) !== DEFAULTS.assetCount) {
+        args.push({ flag: '--asset-count', value: parseInt($('assetCount').value) });
+      }
+      if ($('startDate').value) {
+        args.push({ flag: '--start-date', value: $('startDate').value });
+      }
+      if ($('endDate').value) {
+        args.push({ flag: '--end-date', value: $('endDate').value });
+      }
+      if ($('returnConvention').value !== DEFAULTS.returnConvention) {
+        args.push({ flag: '--return-convention', value: $('returnConvention').value });
+      }
+      if (parseInt($('annualizationFactor').value) !== DEFAULTS.annualizationFactor) {
+        args.push({ flag: '--annualization-factor', value: parseInt($('annualizationFactor').value) });
+      }
+      if ($('selectionOrder').value !== DEFAULTS.selectionOrder) {
+        args.push({ flag: '--selection-order', value: $('selectionOrder').value });
+      }
+      if ($('randomSeed').value) {
+        args.push({ flag: '--random-seed', value: parseInt($('randomSeed').value) });
+      }
+
+      // Problem options
+      if (parseFloat($('upperBound').value) !== DEFAULTS.upperBound) {
+        args.push({ flag: '--upper-bound', value: parseFloat($('upperBound').value) });
+      }
+      if ($('maxPositions').value) {
+        args.push({ flag: '--max-positions', value: parseInt($('maxPositions').value) });
+      }
+      // Note: risk-free-rate is fixed at 0.0 in current version, not emitted
+      if ($('sectorMin').value) {
+        args.push({ flag: '--sector-min', value: $('sectorMin').value });
+      }
+      if ($('sectorMax').value) {
+        args.push({ flag: '--sector-max', value: $('sectorMax').value });
+      }
+
+      // Graph options
+      if ($('edgeMode').value !== DEFAULTS.edgeMode) {
+        args.push({ flag: '--edge-mode', value: $('edgeMode').value });
+      }
+      if (parseFloat($('correlationThreshold').value) !== DEFAULTS.correlationThreshold) {
+        args.push({ flag: '--correlation-threshold', value: parseFloat($('correlationThreshold').value) });
+      }
+      if (isNearDuplicateMode()) {
+        if (parseFloat($('returnDiff').value) !== DEFAULTS.returnDiff) {
+          args.push({ flag: '--near-duplicate-max-return-diff', value: parseFloat($('returnDiff').value) });
+        }
+        if (parseFloat($('varianceDiff').value) !== DEFAULTS.varianceDiff) {
+          args.push({ flag: '--near-duplicate-max-variance-diff', value: parseFloat($('varianceDiff').value) });
+        }
+      }
+
+      // Reduction options
+      if (parseInt($('maxRounds').value) !== DEFAULTS.maxRounds) {
+        args.push({ flag: '--max-reduction-rounds', value: parseInt($('maxRounds').value) });
+      }
+      if ($('minItems').value) {
+        args.push({ flag: '--candidate-domain-min-items', value: parseInt($('minItems').value) });
+      }
+      if ($('maxItems').value) {
+        args.push({ flag: '--candidate-domain-max-items', value: parseInt($('maxItems').value) });
+      }
+      if (parseInt($('maxRuntime').value) !== DEFAULTS.maxRuntime) {
+        args.push({ flag: '--max-end-to-end-runtime-seconds', value: parseInt($('maxRuntime').value) });
+      }
+      if ($('recoveryInfeasible').value !== DEFAULTS.recoveryInfeasible) {
+        args.push({ flag: '--recovery-policy-on-infeasible', value: $('recoveryInfeasible').value });
+      }
+      if (parseInt($('maxRecovery').value) !== DEFAULTS.maxRecovery) {
+        args.push({ flag: '--max-recovery-attempts', value: parseInt($('maxRecovery').value) });
+      }
+
+      // Solver options
+      if ($('misSolver').value !== DEFAULTS.misSolver) {
+        args.push({ flag: '--mis-solver-id', value: $('misSolver').value });
+      }
+      if ($('classicalSolver').value !== DEFAULTS.classicalSolver) {
+        args.push({ flag: '--classical-solver-id', value: $('classicalSolver').value });
+      }
+      if (parseInt($('classicalTimeout').value) !== DEFAULTS.classicalTimeout) {
+        args.push({ flag: '--classical-time-limit-seconds', value: parseInt($('classicalTimeout').value) });
+      }
+
+      // D-Wave params
+      if (isDwaveSolver() && isReductionActive()) {
+        if ($('misNumReads').value) {
+          args.push({ flag: '--mis-num-reads', value: parseInt($('misNumReads').value) });
+        }
+        if ($('misNumSweeps').value) {
+          args.push({ flag: '--mis-num-sweeps', value: parseInt($('misNumSweeps').value) });
+        }
+        if ($('embeddingProfile').value) {
+          args.push({ flag: '--mis-embedding-profile', value: $('embeddingProfile').value });
+        }
+      }
+
+      // Export
+      if ($('modelExport').checked) {
+        args.push({ flag: '--model-export', value: true, isFlag: true });
+        if ($('modelExportPath').value) {
+          args.push({ flag: '--model-export-path', value: $('modelExportPath').value });
+        }
+      }
+
+      return buildCommand(`poetry run python -m ${CLI_MODULE}`, args, getFormat());
+    }
+
+    function updateMathFormulation() {
+      const maxPos = $('maxPositions').value;
+      const cardShow = maxPos && parseInt(maxPos) > 0;
+
+      document.getElementById('cardinalityFormula').style.display = cardShow ? 'block' : 'none';
+      document.getElementById('cardinalityMath').style.display = cardShow ? 'block' : 'none';
+
+      if (cardShow) {
+        const k = parseInt(maxPos);
+        document.getElementById('cardinalityMath').innerHTML = `$$\\sum_i \\delta_i \\le ${k}$$`;
+      }
+
+      // Re-render MathJax if available
+      if (typeof requestRender === 'function') {
+        requestRender();
+      }
+    }
+
+    function update() {
+      updateEnabled();
+      validate();
+      preview.textContent = generateCommand();
+      updateMathFormulation();
+    }
+
+    function copyCommand() {
+      copy(preview.textContent);
+    }
+
+    function resetDefaults() {
+      $('runId').value = 'sr_001';
+      $('outputRoot').value = DEFAULTS.outputRoot;
+      $('csvPath').value = DEFAULTS.csvPath;
+      $('assetCount').value = DEFAULTS.assetCount;
+      $('startDate').value = '';
+      $('endDate').value = '';
+      $('returnConvention').value = DEFAULTS.returnConvention;
+      $('annualizationFactor').value = DEFAULTS.annualizationFactor;
+      $('selectionOrder').value = DEFAULTS.selectionOrder;
+      $('randomSeed').value = '';
+      $('upperBound').value = DEFAULTS.upperBound;
+      $('maxPositions').value = '';
+      $('riskFreeRate').value = DEFAULTS.riskFreeRate;
+      $('sectorMin').value = '';
+      $('sectorMax').value = '';
+      $('edgeMode').value = DEFAULTS.edgeMode;
+      $('correlationThreshold').value = DEFAULTS.correlationThreshold;
+      $('returnDiff').value = DEFAULTS.returnDiff;
+      $('varianceDiff').value = DEFAULTS.varianceDiff;
+      $('maxRounds').value = DEFAULTS.maxRounds;
+      $('minItems').value = '';
+      $('maxItems').value = '';
+      $('maxRuntime').value = DEFAULTS.maxRuntime;
+      $('recoveryInfeasible').value = DEFAULTS.recoveryInfeasible;
+      $('maxRecovery').value = DEFAULTS.maxRecovery;
+      $('misSolver').value = DEFAULTS.misSolver;
+      $('classicalSolver').value = DEFAULTS.classicalSolver;
+      $('classicalTimeout').value = DEFAULTS.classicalTimeout;
+      $('misNumReads').value = '';
+      $('misNumSweeps').value = '';
+      $('embeddingProfile').value = '';
+      $('modelExport').checked = false;
+      $('modelExportPath').value = '';
+      update();
+    }
+  </script>
+</body>
+</html>

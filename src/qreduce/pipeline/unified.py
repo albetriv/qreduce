@@ -313,6 +313,10 @@ def _run_classical_only(
             original_variable_counts=original_counts,
         )
 
+    # Extract pre-existing manifest from input problem if available
+    # This is needed for screening scenarios where the problem arrives with fixing already applied
+    input_manifest = getattr(problem, "fixing_manifest", None)
+
     # Create empty fixing manifest with no_reduction origin
     empty_manifest = FixingManifest(
         retained_item_ids=original_item_ids,
@@ -326,17 +330,51 @@ def _run_classical_only(
         round_index=0,
     )
 
+    # Validate candidate domain explicitly before restricting
+    # This allows us to distinguish domain validation failures from adapter exceptions
+    try:
+        domain_validation = adapter.validate_candidate_domain(problem, original_item_ids)
+    except Exception as error:  # noqa: BLE001
+        # Use input manifest if available, otherwise empty
+        manifest_for_error = input_manifest if input_manifest is not None else empty_manifest
+        return _failed_pipeline(
+            config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
+            f"validate_candidate_domain: {error}", started_at, input_hash=input_hash,
+            original_variable_counts=original_counts,
+            cumulative_fixing_manifest=manifest_for_error,
+            final_retained_item_ids=original_item_ids,
+        )
+
+    if not domain_validation.is_valid:
+        # Domain is invalid (e.g., screening excluded a required sector)
+        # This is not an adapter failure - it's a domain constraint violation
+        manifest_for_error = input_manifest if input_manifest is not None else empty_manifest
+        reasons = ", ".join(domain_validation.failure_reasons) if domain_validation.failure_reasons else "unknown"
+        return _failed_pipeline(
+            config, PipelineStage.RESTRICTION, TerminalReason.CANDIDATE_DOMAIN_TOO_SMALL,
+            f"candidate_domain_invalid: {reasons}", started_at, input_hash=input_hash,
+            original_variable_counts=original_counts,
+            cumulative_fixing_manifest=manifest_for_error,
+            final_retained_item_ids=original_item_ids,
+        )
+
     # Restrict problem (effectively no restriction, full domain)
     try:
         restricted_problem = adapter.restrict_problem(problem, original_item_ids, empty_manifest)
     except Exception as error:  # noqa: BLE001
+        manifest_for_error = input_manifest if input_manifest is not None else empty_manifest
         return _failed_pipeline(
             config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
             f"restrict_problem: {error}", started_at, input_hash=input_hash,
             original_variable_counts=original_counts,
-            cumulative_fixing_manifest=empty_manifest,
+            cumulative_fixing_manifest=manifest_for_error,
             final_retained_item_ids=original_item_ids,
         )
+
+    # Use the cumulative manifest from restricted_problem if available
+    # This handles the case where the input problem was already a TransformedSharpeProblem
+    # with pre-existing fixing that was merged by restrict_problem
+    cumulative_manifest = getattr(restricted_problem, "fixing_manifest", empty_manifest)
 
     # Get residual variable counts (should match original for no_reduction)
     try:
@@ -346,7 +384,7 @@ def _run_classical_only(
             config, PipelineStage.RESTRICTION, TerminalReason.ADAPTER_FAILURE,
             f"describe_logical_variables on restricted: {error}", started_at, input_hash=input_hash,
             original_variable_counts=original_counts,
-            cumulative_fixing_manifest=empty_manifest,
+            cumulative_fixing_manifest=cumulative_manifest,
             final_retained_item_ids=original_item_ids,
         )
 
@@ -360,7 +398,7 @@ def _run_classical_only(
             str(error), started_at, input_hash=input_hash,
             original_variable_counts=original_counts,
             residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest,
+            cumulative_fixing_manifest=cumulative_manifest,
             final_retained_item_ids=original_item_ids,
         )
 
@@ -379,7 +417,7 @@ def _run_classical_only(
             "Time budget exhausted before classical solve", started_at, input_hash=input_hash,
             original_variable_counts=original_counts,
             residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest,
+            cumulative_fixing_manifest=cumulative_manifest,
             final_retained_item_ids=original_item_ids,
         )
 
@@ -422,7 +460,7 @@ def _run_classical_only(
                 str(error), started_at, input_hash=input_hash,
                 original_variable_counts=original_counts,
                 residual_variable_counts=residual_counts,
-                cumulative_fixing_manifest=empty_manifest,
+                cumulative_fixing_manifest=cumulative_manifest,
                 final_retained_item_ids=original_item_ids,
             )
 
@@ -434,17 +472,17 @@ def _run_classical_only(
             started_at, input_hash=input_hash,
             original_variable_counts=original_counts,
             residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest,
+            cumulative_fixing_manifest=cumulative_manifest,
             final_retained_item_ids=original_item_ids,
             classical_result=classical_result,
         )
 
-    # Post-check on original problem with empty manifest
+    # Post-check on original problem with cumulative manifest
     with logging_context(stage="postcheck"):
         logger.debug("Starting post-check validation (baseline)")
         try:
             postcheck_result = adapter.validate_final_solution(
-                problem, classical_result.variable_values, empty_manifest,
+                problem, classical_result.variable_values, cumulative_manifest,
                 config.classical_solve, solver_objective_value=classical_result.objective_value,
             )
             if not isinstance(postcheck_result, FinalSolutionValidationResult):
@@ -459,7 +497,7 @@ def _run_classical_only(
                 input_hash=input_hash,
                 original_variable_counts=original_counts,
                 residual_variable_counts=residual_counts,
-                cumulative_fixing_manifest=empty_manifest,
+                cumulative_fixing_manifest=cumulative_manifest,
                 final_retained_item_ids=original_item_ids,
                 classical_result=classical_result,
             )
@@ -484,7 +522,7 @@ def _run_classical_only(
             TerminalReason.ADAPTER_FAILURE, started_at,
             diagnostic=f"evaluate_domain_metrics: {error}", input_hash=input_hash,
             original_variable_counts=original_counts, residual_variable_counts=residual_counts,
-            cumulative_fixing_manifest=empty_manifest, final_retained_item_ids=original_item_ids,
+            cumulative_fixing_manifest=cumulative_manifest, final_retained_item_ids=original_item_ids,
             classical_result=classical_result, postcheck_result=postcheck_result,
             postcheck_status=postcheck_status,
         )
@@ -516,7 +554,7 @@ def _run_classical_only(
         resolved_config=config,
         round_results=(),  # No reduction rounds for classical-only
         recovery_attempts=(),
-        cumulative_fixing_manifest=empty_manifest,
+        cumulative_fixing_manifest=cumulative_manifest,
         final_retained_item_ids=original_item_ids,
         original_variable_counts=original_counts,
         residual_variable_counts=residual_counts,
