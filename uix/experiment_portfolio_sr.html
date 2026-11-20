@@ -184,9 +184,45 @@
                 </div>
               </div>
             </div>
+          </section>
 
-            <div class="card" style="margin-top:20px">
-              <h3>Policy grafo MWIS</h3>
+          <!-- Tab 3: Reduction -->
+          <section class="tab-content" id="reduction">
+            <div class="section-head">
+              <div>
+                <h2>Policy di riduzione</h2>
+                <p>Modalità di esecuzione e parametri MWIS.</p>
+              </div>
+              <span class="pill">--max-reduction-rounds, ...</span>
+            </div>
+
+            <div class="notice">
+              <strong>Modalità:</strong>
+              <code>0</code> = baseline (no riduzione),
+              <code>1</code> = single-pass (default),
+              <code>&gt;1</code> = multi-round.
+            </div>
+
+            <div class="form-grid three">
+              <!-- PARAM_DESC: Numero massimo round riduzione. 0=baseline, 1=single-pass, >1=multi-round. -->
+              <div class="field">
+                <label for="maxRounds">Round massimi <span class="param">--max-reduction-rounds</span></label>
+                <input id="maxRounds" type="number" min="0" step="1" value="1">
+                <p class="help">0=baseline, 1=default</p>
+                <p class="error"></p>
+              </div>
+            </div>
+
+            <div class="card graph-policy" id="graphPolicyCard" style="margin-top:20px">
+              <h3>Costruzione del grafo MWIS</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Questi parametri definiscono il grafo utilizzato per lo screening euristico.
+                Non modificano i vincoli del problema originale, ma possono influenzare la
+                qualità della soluzione ottenibile dopo la riduzione.
+              </p>
+              <p class="muted baseline-note" id="graphBaselineNote" style="font-size: 0.8rem; margin-bottom: 12px; display: none;">
+                <strong>Non utilizzata in modalità baseline.</strong>
+              </p>
               <div class="form-grid">
                 <!-- PARAM_DESC: Semantica archi: near_duplicate (correlazione + similarità) o correlation_only. -->
                 <div class="field">
@@ -217,48 +253,26 @@
                 </div>
               </div>
             </div>
-          </section>
 
-          <!-- Tab 3: Reduction -->
-          <section class="tab-content" id="reduction">
-            <div class="section-head">
-              <div>
-                <h2>Policy di riduzione</h2>
-                <p>Modalità di esecuzione e parametri MWIS.</p>
-              </div>
-              <span class="pill">--max-reduction-rounds, ...</span>
-            </div>
-
-            <div class="notice">
-              <strong>Modalità:</strong>
-              <code>0</code> = baseline (no riduzione),
-              <code>1</code> = single-pass (default),
-              <code>&gt;1</code> = multi-round.
-            </div>
-
-            <div class="form-grid three">
-              <!-- PARAM_DESC: Numero massimo round riduzione. 0=baseline, 1=single-pass, >1=multi-round. -->
-              <div class="field">
-                <label for="maxRounds">Round massimi <span class="param">--max-reduction-rounds</span></label>
-                <input id="maxRounds" type="number" min="0" step="1" value="1">
-                <p class="help">0=baseline, 1=default</p>
-                <p class="error"></p>
-              </div>
-              <!-- PARAM_DESC: Minimo item nel dominio candidato. -->
-              <div class="field">
-                <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
-                <input id="minItems" type="number" min="1" step="1" placeholder="Default: 1">
-              </div>
-              <!-- PARAM_DESC: Massimo item nel dominio candidato. -->
-              <div class="field">
-                <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
-                <input id="maxItems" type="number" min="1" step="1" placeholder="Default: 60%">
-              </div>
-              <!-- PARAM_DESC: Timeout totale end-to-end in secondi. -->
-              <div class="field">
-                <label for="maxRuntime">Timeout totale (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
-                <input id="maxRuntime" type="number" min="0" step="1" value="120">
-                <p class="help">Default: 120</p>
+            <div class="card" style="margin-top:20px">
+              <h3>Dominio candidato e criteri di arresto</h3>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Minimo item nel dominio candidato. -->
+                <div class="field">
+                  <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
+                  <input id="minItems" type="number" min="1" step="1" placeholder="Default: 1">
+                </div>
+                <!-- PARAM_DESC: Massimo item nel dominio candidato. -->
+                <div class="field">
+                  <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
+                  <input id="maxItems" type="number" min="1" step="1" placeholder="Default: 60%">
+                </div>
+                <!-- PARAM_DESC: Timeout totale end-to-end in secondi. -->
+                <div class="field">
+                  <label for="maxRuntime">Timeout totale (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
+                  <input id="maxRuntime" type="number" min="0" step="1" value="120">
+                  <p class="help">Default: 120</p>
+                </div>
               </div>
             </div>
 
@@ -363,22 +377,46 @@
         </form>
       </section>
 
-      <aside class="panel preview" aria-label="Anteprima comando">
-        <div class="preview-header">
-          <h2>Comando generato</h2>
-          <div class="format-selector">
-            <button class="format-btn active" data-format="single">Una riga</button>
-            <button class="format-btn" data-format="multi">Multilinea</button>
+      <!-- Sidebar -->
+      <aside class="panel summary" aria-label="Riepilogo configurazione">
+        <div class="summary-header">
+          <div>
+            <p class="eyebrow">Run pronto</p>
+            <h2 id="summaryRunId">sr_001</h2>
+            <p class="muted" style="font-size:.78rem;margin:0">Sharpe Ratio S&P500</p>
+          </div>
+          <span class="pill" id="summaryMode">single pass</span>
+        </div>
+
+        <div class="validation-status" id="validationStatus" role="status" aria-live="polite">
+          <span class="validation-icon" id="validationIcon">✓</span>
+          <div>
+            <strong id="validationTitle">Configurazione verificata</strong>
+            <p id="validationText">Puoi copiare il comando CLI.</p>
           </div>
         </div>
-        <div class="command-wrapper" style="display: flex; align-items: center; gap: 10px; margin-top: 12px;">
-          <pre style="flex: 1; margin: 0;"><code id="commandPreview">poetry run python -m qreduce.experiments.portfolio_sr --run-id sr_001</code></pre>
-          <div class="command-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
-            <button class="button primary" type="button">Copia</button>
-            <button class="button ghost" type="button" id="resetDefaults">Ripristina</button>
-          </div>
+
+        <ul class="summary-list">
+          <li><span>Asset</span><strong id="summaryAssets">50</strong></li>
+          <li><span>Riduzione</span><strong id="summaryReduction">1 round</strong></li>
+          <li><span>Backend MIS</span><strong id="summaryMis">local_greedy</strong></li>
+          <li><span>Backend classico</span><strong id="summaryClassical">scip</strong></li>
+        </ul>
+
+        <div class="format-selector">
+          <button type="button" data-format="inline" class="active">Una riga</button>
+          <button type="button" data-format="multiline">Multilinea</button>
         </div>
-        <p class="help">Il comando include solo i parametri diversi dai default.</p>
+
+        <div class="actions">
+          <button class="button primary" type="button" id="copyCommand">Copia comando CLI</button>
+          <button class="button ghost" type="button" id="resetDefaults">Ripristina default</button>
+        </div>
+
+        <div class="output">
+          <label for="cliPreview">Comando generato</label>
+          <pre id="cliPreview"></pre>
+        </div>
       </aside>
     </div>
 
@@ -605,6 +643,7 @@
     var setError = C.setError;
     var clearErrors = C.clearErrors;
     var updateValidationBadge = C.updateValidationBadge;
+    var updateValidationStatus = C.updateValidationStatus;
     var setupTabs = C.setupTabs;
     var setupFormatSelector = C.setupFormatSelector;
     var initTooltips = C.initTooltips;
@@ -638,8 +677,8 @@
 
     // DOM elements
     const form = document.getElementById('configForm');
-    const preview = document.getElementById('commandPreview');
-    const copyBtn = document.querySelector('.command-actions .button.primary');
+    const preview = document.getElementById('cliPreview');
+    const copyBtn = document.getElementById('copyCommand');
     const resetBtn = document.getElementById('resetDefaults');
 
     // Dynamic element IDs that should NOT be preserved (rebuilt by JS on each update)
@@ -701,10 +740,32 @@
       const dwave = isDwaveSolver();
       const nearDup = isNearDuplicateMode();
 
-      // Near-duplicate fields
+      // Graph policy controls: disabled in baseline mode
+      var graphPolicyCard = $('graphPolicyCard');
+      var graphBaselineNote = $('graphBaselineNote');
+      if (graphPolicyCard) {
+        // Show/hide baseline note
+        if (graphBaselineNote) {
+          graphBaselineNote.style.display = reduction ? 'none' : '';
+        }
+        // Disable graph policy controls in baseline
+        graphPolicyCard.querySelectorAll('input, select').forEach(function (el) {
+          // Near-duplicate controls have additional condition
+          if (el.closest('.near-duplicate')) {
+            el.disabled = !reduction || !nearDup;
+          } else {
+            el.disabled = !reduction;
+          }
+        });
+        // Visual dimming
+        graphPolicyCard.style.opacity = reduction ? '1' : '0.6';
+      }
+
+      // Near-duplicate fields outside graph card
       document.querySelectorAll('.field.near-duplicate').forEach(f => {
-        f.style.opacity = nearDup ? '1' : '0.5';
-        f.querySelectorAll('input').forEach(i => i.disabled = !nearDup);
+        if (f.closest('.graph-policy')) return; // Skip if already handled
+        f.style.opacity = (nearDup && reduction) ? '1' : '0.5';
+        f.querySelectorAll('input').forEach(i => i.disabled = !nearDup || !reduction);
       });
 
       // D-Wave params
@@ -773,10 +834,27 @@
         valid = false;
       }
 
-      // Correlation threshold
-      if (!readNumber('correlationThreshold', 0, 1, false).valid) {
-        setError('correlationThreshold', 'Deve essere tra 0 e 1');
-        valid = false;
+      // Graph policy validation: only when reduction is active
+      if (isReductionActive()) {
+        // Correlation threshold
+        if (!readNumber('correlationThreshold', 0, 1, false).valid) {
+          setError('correlationThreshold', 'Deve essere tra 0 e 1');
+          valid = false;
+        }
+
+        // Near-duplicate tolerances: validate only in near_duplicate mode
+        if (isNearDuplicateMode()) {
+          var returnDiff = readNumber('returnDiff', 0, Infinity, false);
+          if (!returnDiff.valid) {
+            setError('returnDiff', 'Deve essere un numero finito >= 0');
+            valid = false;
+          }
+          var varianceDiff = readNumber('varianceDiff', 0, Infinity, false);
+          if (!varianceDiff.valid) {
+            setError('varianceDiff', 'Deve essere un numero finito >= 0');
+            valid = false;
+          }
+        }
       }
 
       updateValidationBadge(valid);
@@ -834,64 +912,73 @@
         args.push({ flag: '--sector-max', value: $('sectorMax').value });
       }
 
-      // Graph options
-      if ($('edgeMode').value !== DEFAULTS.edgeMode) {
-        args.push({ flag: '--edge-mode', value: $('edgeMode').value });
-      }
-      if (parseFloat($('correlationThreshold').value) !== DEFAULTS.correlationThreshold) {
-        args.push({ flag: '--correlation-threshold', value: parseFloat($('correlationThreshold').value) });
-      }
-      if (isNearDuplicateMode()) {
-        if (parseFloat($('returnDiff').value) !== DEFAULTS.returnDiff) {
-          args.push({ flag: '--near-duplicate-max-return-diff', value: parseFloat($('returnDiff').value) });
-        }
-        if (parseFloat($('varianceDiff').value) !== DEFAULTS.varianceDiff) {
-          args.push({ flag: '--near-duplicate-max-variance-diff', value: parseFloat($('varianceDiff').value) });
-        }
-      }
-
       // Reduction options
       if (Number($('maxRounds').value) !== DEFAULTS.maxRounds) {
         args.push({ flag: '--max-reduction-rounds', value: Number($('maxRounds').value) });
       }
-      if ($('minItems').value) {
-        args.push({ flag: '--candidate-domain-min-items', value: parseInt($('minItems').value) });
+
+      // Graph options and reduction-specific params: only when reduction is active
+      if (isReductionActive()) {
+        // Graph options
+        if ($('edgeMode').value !== DEFAULTS.edgeMode) {
+          args.push({ flag: '--edge-mode', value: $('edgeMode').value });
+        }
+        if (parseFloat($('correlationThreshold').value) !== DEFAULTS.correlationThreshold) {
+          args.push({ flag: '--correlation-threshold', value: parseFloat($('correlationThreshold').value) });
+        }
+        if (isNearDuplicateMode()) {
+          if (parseFloat($('returnDiff').value) !== DEFAULTS.returnDiff) {
+            args.push({ flag: '--near-duplicate-max-return-diff', value: parseFloat($('returnDiff').value) });
+          }
+          if (parseFloat($('varianceDiff').value) !== DEFAULTS.varianceDiff) {
+            args.push({ flag: '--near-duplicate-max-variance-diff', value: parseFloat($('varianceDiff').value) });
+          }
+        }
+
+        // Domain and recovery options
+        if ($('minItems').value) {
+          args.push({ flag: '--candidate-domain-min-items', value: parseInt($('minItems').value) });
+        }
+        if ($('maxItems').value) {
+          args.push({ flag: '--candidate-domain-max-items', value: parseInt($('maxItems').value) });
+        }
+        if ($('recoveryInfeasible').value !== DEFAULTS.recoveryInfeasible) {
+          args.push({ flag: '--recovery-policy-on-infeasible', value: $('recoveryInfeasible').value });
+        }
+        if (parseInt($('maxRecovery').value) !== DEFAULTS.maxRecovery) {
+          args.push({ flag: '--max-recovery-attempts', value: parseInt($('maxRecovery').value) });
+        }
+
+        // MIS Solver (only matters if reduction is active)
+        if ($('misSolver').value !== DEFAULTS.misSolver) {
+          args.push({ flag: '--mis-solver-id', value: $('misSolver').value });
+        }
+
+        // D-Wave params (only if D-Wave solver AND reduction active)
+        if (isDwaveSolver()) {
+          if ($('misNumReads').value) {
+            args.push({ flag: '--mis-num-reads', value: parseInt($('misNumReads').value) });
+          }
+          if ($('misNumSweeps').value) {
+            args.push({ flag: '--mis-num-sweeps', value: parseInt($('misNumSweeps').value) });
+          }
+          if ($('embeddingProfile').value) {
+            args.push({ flag: '--mis-embedding-profile', value: $('embeddingProfile').value });
+          }
+        }
       }
-      if ($('maxItems').value) {
-        args.push({ flag: '--candidate-domain-max-items', value: parseInt($('maxItems').value) });
-      }
+
+      // Always-applicable options (both baseline and reduction)
       if (parseInt($('maxRuntime').value) !== DEFAULTS.maxRuntime) {
         args.push({ flag: '--max-end-to-end-runtime-seconds', value: parseInt($('maxRuntime').value) });
       }
-      if ($('recoveryInfeasible').value !== DEFAULTS.recoveryInfeasible) {
-        args.push({ flag: '--recovery-policy-on-infeasible', value: $('recoveryInfeasible').value });
-      }
-      if (parseInt($('maxRecovery').value) !== DEFAULTS.maxRecovery) {
-        args.push({ flag: '--max-recovery-attempts', value: parseInt($('maxRecovery').value) });
-      }
 
-      // Solver options
-      if ($('misSolver').value !== DEFAULTS.misSolver) {
-        args.push({ flag: '--mis-solver-id', value: $('misSolver').value });
-      }
+      // Classical solver (always relevant)
       if ($('classicalSolver').value !== DEFAULTS.classicalSolver) {
         args.push({ flag: '--classical-solver-id', value: $('classicalSolver').value });
       }
       if (parseInt($('classicalTimeout').value) !== DEFAULTS.classicalTimeout) {
         args.push({ flag: '--classical-time-limit-seconds', value: parseInt($('classicalTimeout').value) });
-      }
-
-      // D-Wave params
-      if (isDwaveSolver() && isReductionActive()) {
-        if ($('misNumReads').value) {
-          args.push({ flag: '--mis-num-reads', value: parseInt($('misNumReads').value) });
-        }
-        if ($('misNumSweeps').value) {
-          args.push({ flag: '--mis-num-sweeps', value: parseInt($('misNumSweeps').value) });
-        }
-        if ($('embeddingProfile').value) {
-          args.push({ flag: '--mis-embedding-profile', value: $('embeddingProfile').value });
-        }
       }
 
       // Export
@@ -1121,11 +1208,48 @@
       updateEnabled();
       const valid = validate();
       preview.textContent = valid ? generateCommand() : 'Configurazione non valida: correggere i campi evidenziati.';
+
+      // Update summary
+      $('summaryRunId').textContent = $('runId').value.trim() || 'run ID mancante';
+      var assets = readNumber('assetCount', 1, Infinity, true);
+      $('summaryAssets').textContent = assets.valid ? assets.value : '—';
+
+      var rounds = readNumber('maxRounds', 0, Infinity, true);
+      var modeText;
+      var reductionText;
+      var misText;
+      if (!rounds.valid) {
+        // Invalid rounds: empty, negative, fractional
+        modeText = '—';
+        reductionText = '—';
+        misText = '—';
+      } else if (rounds.value === 0) {
+        modeText = 'classical only';
+        reductionText = '0 rounds';
+        misText = '(non usato)';
+      } else if (rounds.value === 1) {
+        modeText = 'single pass';
+        reductionText = '1 round';
+        misText = $('misSolver').value;
+      } else {
+        modeText = 'multi-round';
+        reductionText = rounds.value + ' rounds';
+        misText = $('misSolver').value;
+      }
+      $('summaryMode').textContent = modeText;
+      $('summaryReduction').textContent = reductionText;
+      $('summaryMis').textContent = misText;
+      $('summaryClassical').textContent = $('classicalSolver').value;
+
+      // Validation badge and copy button are updated by validate()
+      // updateValidationStatus is called here because validate() does not call it
+      updateValidationStatus(valid);
+
       updateMathFormulation();
     }
 
     function copyCommand() {
-      if (validate()) copy(preview.textContent);
+      if (validate()) copy(preview.textContent, 'Comando CLI copiato negli appunti.');
     }
 
     function resetDefaults() {

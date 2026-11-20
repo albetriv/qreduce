@@ -8,7 +8,7 @@
  * Usage: node tests/uix_transition_runner.js <configurator> <steps_json>
  *
  * Where:
- *   configurator: "portfolio" or "facility_location"
+ *   configurator: "portfolio", "portfolio_sr", or "facility_location"
  *   steps_json: JSON array of steps, each with {set: {id: value}, verify: {id: expected}}
  *
  * Output: JSON object with { success, steps: [...results per step] }
@@ -28,7 +28,7 @@ function main() {
   const configurator = args[0];
   const stepsJson = args[1];
 
-  if (!["portfolio", "facility_location"].includes(configurator)) {
+  if (!["portfolio", "portfolio_sr", "facility_location"].includes(configurator)) {
     console.error(`Invalid configurator: ${configurator}`);
     process.exit(1);
   }
@@ -49,6 +49,8 @@ function main() {
     const htmlFile =
       configurator === "portfolio"
         ? "experiment_portfolio_mv.html"
+        : configurator === "portfolio_sr"
+        ? "experiment_portfolio_sr.html"
         : "experiment_facility_location.html";
     const htmlPath = path.join(uixDir, htmlFile);
 
@@ -78,11 +80,16 @@ function main() {
     const commonJs = fs.readFileSync(path.join(uixDir, "assets", "common.js"), "utf8");
     window.eval(commonJs);
 
-    const specificJs =
-      configurator === "portfolio"
-        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
-        : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
-    window.eval(specificJs);
+    if (configurator === "portfolio_sr") {
+      document.querySelectorAll("script:not([src])").forEach((script) => {
+        if (script.textContent.includes("DOMContentLoaded")) {
+          window.eval(script.textContent);
+        }
+      });
+    } else {
+      const scriptFile = configurator === "portfolio" ? "portfolio_mv.js" : "facility_location.js";
+      window.eval(fs.readFileSync(path.join(uixDir, "assets", scriptFile), "utf8"));
+    }
 
     // Trigger DOMContentLoaded
     const initEvent = new window.Event("DOMContentLoaded");
@@ -134,6 +141,10 @@ function main() {
         }
       }
 
+      if (step.action === "reset") {
+        document.getElementById("resetDefaults").click();
+      }
+
       // Verify expected values
       if (step.verify) {
         for (const [id, expected] of Object.entries(step.verify)) {
@@ -165,6 +176,8 @@ function main() {
         }
       }
 
+      stepResult.command = document.getElementById("cliPreview").textContent;
+      stepResult.copyDisabled = document.getElementById("copyCommand").disabled;
       stepResults.push(stepResult);
     }
 
@@ -174,6 +187,7 @@ function main() {
     };
 
     console.log(JSON.stringify(result, null, 2));
+    dom.window.close();
   } catch (e) {
     console.error(`Error: ${e.message}`);
     console.error(e.stack);

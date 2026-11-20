@@ -95,39 +95,6 @@
             </div>
 
             <div class="card" style="margin-top:20px">
-              <h3>Policy del grafo</h3>
-              <div class="form-grid three">
-                <!-- PARAM_DESC: Semantica degli archi nel grafo di conflitto. near_duplicate: archi tra asset simili per correlazione, rendimento e varianza. correlation_only: archi basati solo sulla correlazione. near_duplicate produce riduzioni più conservative. -->
-                <div class="field">
-                  <label for="edgeMode">Semantica degli archi <span class="param">--graph-edge-mode</span></label>
-                  <select id="edgeMode">
-                    <option value="near_duplicate">near_duplicate (default)</option>
-                    <option value="correlation_only">correlation_only</option>
-                  </select>
-                </div>
-                <!-- PARAM_DESC: Soglia di correlazione assoluta per creare un arco nel grafo. Valori più alti producono grafi più sparsi (meno archi). Range: 0-1. Default: 0.90. -->
-                <div class="field">
-                  <label for="correlationThreshold">Soglia correlazione <span class="param">--correlation-threshold</span></label>
-                  <input id="correlationThreshold" type="number" value="0.90" min="0" max="1" step="0.01">
-                  <p class="help">Default: 0.90</p>
-                  <p class="error"></p>
-                </div>
-                <!-- PARAM_DESC: Massima differenza relativa di rendimento atteso per considerare due asset near_duplicate. Attivo solo con edge_mode=near_duplicate. Valori più bassi sono più restrittivi. -->
-                <div class="field near-duplicate">
-                  <label for="returnDifference">Max diff. rendimento <span class="param">--near-duplicate-max-relative-return-difference</span></label>
-                  <input id="returnDifference" type="number" value="0.10" min="0" step="0.01">
-                  <p class="help">Default: 0.10</p>
-                </div>
-                <!-- PARAM_DESC: Massima differenza relativa di varianza per considerare due asset near_duplicate. Attivo solo con edge_mode=near_duplicate. Valori più bassi sono più restrittivi. -->
-                <div class="field near-duplicate">
-                  <label for="varianceDifference">Max diff. varianza <span class="param">--near-duplicate-max-relative-variance-difference</span></label>
-                  <input id="varianceDifference" type="number" value="0.10" min="0" step="0.01">
-                  <p class="help">Default: 0.10</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="card" style="margin-top:20px">
               <h3>Limiti di investimento e cardinalità</h3>
               <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
                 Definiscono la soglia minima/massima per asset selezionato (condizionale a δ=1) e il numero di asset da selezionare.
@@ -191,34 +158,81 @@
                 <p class="help">0 = baseline, 1 = single-pass, &gt;1 = multi-round</p>
                 <p class="error"></p>
               </div>
-              <!-- PARAM_DESC: Soglia minima di item nel dominio candidato. Se il dominio risultante è inferiore a questa soglia, la riduzione fallisce o attiva il recovery (se configurato). Non è una garanzia: il processo può produrre un dominio insufficiente. Default: 1. Attivo solo con riduzione (rounds > 0). -->
-              <div class="field">
-                <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
-                <input id="minItems" type="number" min="0" step="1" placeholder="Default: 1">
-                <p class="error"></p>
+            </div>
+
+            <div class="card graph-policy" id="graphPolicyCard" style="margin-top:20px">
+              <h3>Costruzione del grafo MWIS</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Questi parametri definiscono il grafo utilizzato per lo screening euristico.
+                Non modificano i vincoli del problema originale, ma possono influenzare la
+                qualità della soluzione ottenibile dopo la riduzione.
+              </p>
+              <p class="muted baseline-note" id="graphBaselineNote" style="font-size: 0.8rem; margin-bottom: 12px; display: none;">
+                <strong>Non utilizzata in modalità baseline.</strong>
+              </p>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Semantica degli archi nel grafo di conflitto. near_duplicate: archi tra asset simili per correlazione, rendimento e varianza. correlation_only: archi basati solo sulla correlazione. near_duplicate produce riduzioni più conservative. -->
+                <div class="field">
+                  <label for="edgeMode">Semantica degli archi <span class="param">--graph-edge-mode</span></label>
+                  <select id="edgeMode">
+                    <option value="near_duplicate">near_duplicate (default)</option>
+                    <option value="correlation_only">correlation_only</option>
+                  </select>
+                </div>
+                <!-- PARAM_DESC: Soglia di correlazione assoluta per creare un arco nel grafo. Valori più alti producono grafi più sparsi (meno archi). Range: 0-1. Default: 0.90. -->
+                <div class="field">
+                  <label for="correlationThreshold">Soglia correlazione <span class="param">--correlation-threshold</span></label>
+                  <input id="correlationThreshold" type="number" value="0.90" min="0" max="1" step="0.01">
+                  <p class="help">Default: 0.90</p>
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Massima differenza relativa di rendimento atteso per considerare due asset near_duplicate. Attivo solo con edge_mode=near_duplicate. Valori più bassi sono più restrittivi. -->
+                <div class="field near-duplicate">
+                  <label for="returnDifference">Max diff. rendimento <span class="param">--near-duplicate-max-relative-return-difference</span></label>
+                  <input id="returnDifference" type="number" value="0.10" min="0" step="0.01">
+                  <p class="help">Default: 0.10</p>
+                </div>
+                <!-- PARAM_DESC: Massima differenza relativa di varianza per considerare due asset near_duplicate. Attivo solo con edge_mode=near_duplicate. Valori più bassi sono più restrittivi. -->
+                <div class="field near-duplicate">
+                  <label for="varianceDifference">Max diff. varianza <span class="param">--near-duplicate-max-relative-variance-difference</span></label>
+                  <input id="varianceDifference" type="number" value="0.10" min="0" step="0.01">
+                  <p class="help">Default: 0.10</p>
+                </div>
               </div>
-              <!-- PARAM_DESC: Numero massimo di item nel dominio candidato. Limita superiormente la dimensione del dominio ridotto. Default: 60% del numero di asset. Attivo solo con riduzione (rounds > 0). -->
-              <div class="field">
-                <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
-                <input id="maxItems" type="number" min="0" step="1" placeholder="Default: 60% asset">
-                <p class="error"></p>
-              </div>
-              <!-- PARAM_DESC: Numero target di variabili binarie nel problema residuo dopo la riduzione. La pipeline cerca di raggiungere questo obiettivo. Default: 3. Attivo solo con riduzione (rounds > 0). -->
-              <div class="field">
-                <label for="targetBinary">Variabili binarie target <span class="param">--target-binary-variables</span></label>
-                <input id="targetBinary" type="number" min="0" step="1" placeholder="Default: 3">
-              </div>
-              <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Default: 0.1 (10%). Attivo solo con riduzione (rounds > 0). -->
-              <div class="field">
-                <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
-                <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" placeholder="Default: 0.1">
-              </div>
-              <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. Attivo sempre (anche in baseline). -->
-              <div class="field">
-                <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
-                <input id="endToEndBudget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
-                <p class="help">0 = nessun limite globale</p>
-                <p class="error"></p>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Dominio candidato e criteri di arresto</h3>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Soglia minima di item nel dominio candidato. Se il dominio risultante è inferiore a questa soglia, la riduzione fallisce o attiva il recovery (se configurato). Non è una garanzia: il processo può produrre un dominio insufficiente. Default: 1. Attivo solo con riduzione (rounds > 0). -->
+                <div class="field">
+                  <label for="minItems">Min item dominio <span class="param">--candidate-domain-min-items</span></label>
+                  <input id="minItems" type="number" min="0" step="1" placeholder="Default: 1">
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Numero massimo di item nel dominio candidato. Limita superiormente la dimensione del dominio ridotto. Default: 60% del numero di asset. Attivo solo con riduzione (rounds > 0). -->
+                <div class="field">
+                  <label for="maxItems">Max item dominio <span class="param">--candidate-domain-max-items</span></label>
+                  <input id="maxItems" type="number" min="0" step="1" placeholder="Default: 60% asset">
+                  <p class="error"></p>
+                </div>
+                <!-- PARAM_DESC: Numero target di variabili binarie nel problema residuo dopo la riduzione. La pipeline cerca di raggiungere questo obiettivo. Default: 3. Attivo solo con riduzione (rounds > 0). -->
+                <div class="field">
+                  <label for="targetBinary">Variabili binarie target <span class="param">--target-binary-variables</span></label>
+                  <input id="targetBinary" type="number" min="0" step="1" placeholder="Default: 3">
+                </div>
+                <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Default: 0.1 (10%). Attivo solo con riduzione (rounds > 0). -->
+                <div class="field">
+                  <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
+                  <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" placeholder="Default: 0.1">
+                </div>
+                <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. Attivo sempre (anche in baseline). -->
+                <div class="field">
+                  <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
+                  <input id="endToEndBudget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                  <p class="help">0 = nessun limite globale</p>
+                  <p class="error"></p>
+                </div>
               </div>
             </div>
 

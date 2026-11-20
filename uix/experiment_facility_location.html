@@ -34,7 +34,6 @@
           <button class="tab active" data-tab="experiment">01 · Esperimento</button>
           <button class="tab" data-tab="reduction">02 · Riduzione</button>
           <button class="tab" data-tab="solvers">03 · Solver</button>
-          <button class="tab" data-tab="graph">04 · Graph Policy</button>
         </nav>
 
         <form id="configForm" novalidate>
@@ -109,41 +108,103 @@
                 <p class="help">0 = baseline, 1 = single-pass, &gt;1 = multi-round</p>
                 <p class="error"></p>
               </div>
-              <!-- PARAM_DESC: Numero massimo di facility nel dominio candidato dopo la riduzione. Limita superiormente la dimensione del dominio ridotto. Default: numero totale di sedi nell'istanza. -->
-              <div class="field">
-                <label for="cap">Max item dominio <span class="param">--cap</span></label>
-                <input id="cap" type="number" min="1" step="1" placeholder="Default: #sedi">
-                <p class="help">Numero massimo di facility nel dominio candidato.</p>
+            </div>
+
+            <div class="card graph-policy" id="graphPolicyCard" style="margin-top:20px">
+              <h3>Costruzione del grafo MWIS</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Questi parametri definiscono il grafo utilizzato per lo screening euristico.
+                Non modificano i vincoli del problema originale, ma possono influenzare la
+                qualità della soluzione ottenibile dopo la riduzione.
+              </p>
+              <p class="muted baseline-note" id="graphBaselineNote" style="font-size: 0.8rem; margin-bottom: 12px; display: none;">
+                <strong>Non utilizzata in modalità baseline.</strong>
+              </p>
+
+              <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: var(--text-muted);">Pesi dei nodi</h4>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Peso della capacità nel calcolo dello score di ogni facility. Range: 0-1. Valori più alti privilegiano le facility con alta capacità. Lo score bilancia capacità utile (alpha) e costo proxy (1-alpha). Default: 0.5. -->
+                <div class="field">
+                  <label for="alpha">Alpha <span class="param">--alpha</span></label>
+                  <input id="alpha" type="number" min="0" max="1" step="0.01" value="0.5">
+                  <p class="help">Peso capacità nello score. Default: 0.5</p>
+                </div>
+                <!-- PARAM_DESC: Floor minimo dello score di ogni facility. Evita che facility con score basso abbiano peso nullo nel MWIS. Range: (0, 1]. Valori più alti uniformano i pesi tra facility. Default: 0.01. -->
+                <div class="field">
+                  <label for="epsilon">Epsilon <span class="param">--epsilon</span></label>
+                  <input id="epsilon" type="number" min="0" step="0.001" value="0.01">
+                  <p class="help">Floor dello score. Default: 0.01</p>
+                </div>
               </div>
-              <!-- PARAM_DESC: Budget end-to-end in secondi per l'intera esecuzione, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. -->
-              <div class="field">
-                <label for="budget">Budget end-to-end (s) <span class="param">--budget</span></label>
-                <input id="budget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
-                <p class="help">0 = nessun limite globale</p>
+
+              <h4 style="font-size: 0.9rem; margin-bottom: 8px; margin-top: 16px; color: var(--text-muted);">Criteri degli archi</h4>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Quota di domanda totale usata per costruire il profilo clienti di ogni facility. Il profilo include i clienti più economici fino a coprire questa frazione della domanda. Range: (0, 1]. Default: 0.5 (50% della domanda). -->
+                <div class="field">
+                  <label for="profileFraction">Profile fraction <span class="param">--profile-fraction</span></label>
+                  <input id="profileFraction" type="number" min="0" max="1" step="0.01" value="0.5">
+                  <p class="help">Quota profilo per overlap. Default: 0.5</p>
+                </div>
+                <!-- PARAM_DESC: Soglia minima di overlap pesato tra profili clienti per creare un arco nel grafo. Due facility sono connesse se condividono abbastanza clienti. Range: 0-1. Valori più alti producono grafi più sparsi. Default: 0.5. -->
+                <div class="field">
+                  <label for="overlapThreshold">Overlap threshold <span class="param">--overlap-threshold</span></label>
+                  <input id="overlapThreshold" type="number" min="0" max="1" step="0.01" value="0.5">
+                  <p class="help">Soglia overlap pesato per arco. Default: 0.5</p>
+                </div>
+                <!-- PARAM_DESC: Massima differenza relativa di capacità per creare un arco. Due facility sono connesse solo se hanno capacità simili (differenza <= soglia). Range: 0-1. Valori più bassi sono più restrittivi. Default: 0.25 (25%). -->
+                <div class="field">
+                  <label for="capacityDifference">Capacity difference <span class="param">--capacity-difference</span></label>
+                  <input id="capacityDifference" type="number" min="0" step="0.01" value="0.25">
+                  <p class="help">Max differenza relativa capacità. Default: 0.25</p>
+                </div>
               </div>
-              <!-- PARAM_DESC: Timeout massimo per ogni invocazione del solver classico. Il limite si riavvia ad ogni solve; non è cumulativo tra round o recovery. Un valore di 0 significa nessun limite per solve (il solver gira fino a completamento o esaurimento del budget end-to-end). Default: 60 secondi. -->
-              <div class="field">
-                <label for="classicalTimeLimit">Timeout classico (s) <span class="param">--classical-time-limit-seconds</span></label>
-                <input id="classicalTimeLimit" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
-                <p class="help">0 = nessun limite per solve</p>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Dominio candidato e criteri di arresto</h3>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Numero massimo di facility nel dominio candidato dopo la riduzione. Limita superiormente la dimensione del dominio ridotto. Default: numero totale di sedi nell'istanza. -->
+                <div class="field">
+                  <label for="cap">Max item dominio <span class="param">--cap</span></label>
+                  <input id="cap" type="number" min="1" step="1" placeholder="Default: #sedi">
+                  <p class="help">Numero massimo di facility nel dominio candidato.</p>
+                </div>
+                <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Default: 0.1 (10%). -->
+                <div class="field">
+                  <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
+                  <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" value="0.1">
+                  <p class="help">Default: 0.1</p>
+                </div>
+                <!-- PARAM_DESC: Numero di tentativi di recovery con retry_with_larger_domain. Se > 0, attiva automaticamente le policy di recovery su domain_too_small e infeasible. 0 = nessun recovery (le policy restano su fail). Richiede rounds >= 1 per essere attivo. -->
+                <div class="field">
+                  <label for="recoveryAttempts">Tentativi recovery <span class="param">--recovery-attempts</span></label>
+                  <input id="recoveryAttempts" type="number" min="0" step="1" value="0">
+                  <p class="help">Attiva retry_with_larger_domain se &gt; 0</p>
+                </div>
               </div>
-              <!-- PARAM_DESC: Seed per la generazione di numeri casuali. Usato per riproducibilità dell'esperimento, influenza il solver MIS e il solver classico. Default: 7. -->
-              <div class="field">
-                <label for="seed">Seed <span class="param">--seed</span></label>
-                <input id="seed" type="number" step="1" value="7">
-                <p class="help">Default: 7</p>
-              </div>
-              <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Default: 0.1 (10%). -->
-              <div class="field">
-                <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
-                <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" value="0.1">
-                <p class="help">Default: 0.1</p>
-              </div>
-              <!-- PARAM_DESC: Numero di tentativi di recovery con retry_with_larger_domain. Se > 0, attiva automaticamente le policy di recovery su domain_too_small e infeasible. 0 = nessun recovery (le policy restano su fail). Richiede rounds >= 1 per essere attivo. -->
-              <div class="field">
-                <label for="recoveryAttempts">Tentativi recovery <span class="param">--recovery-attempts</span></label>
-                <input id="recoveryAttempts" type="number" min="0" step="1" value="0">
-                <p class="help">Attiva retry_with_larger_domain se &gt; 0</p>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3>Budget e configurazione</h3>
+              <div class="form-grid three">
+                <!-- PARAM_DESC: Budget end-to-end in secondi per l'intera esecuzione, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. -->
+                <div class="field">
+                  <label for="budget">Budget end-to-end (s) <span class="param">--budget</span></label>
+                  <input id="budget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                  <p class="help">0 = nessun limite globale</p>
+                </div>
+                <!-- PARAM_DESC: Timeout massimo per ogni invocazione del solver classico. Il limite si riavvia ad ogni solve; non è cumulativo tra round o recovery. Un valore di 0 significa nessun limite per solve (il solver gira fino a completamento o esaurimento del budget end-to-end). Default: 60 secondi. -->
+                <div class="field">
+                  <label for="classicalTimeLimit">Timeout classico (s) <span class="param">--classical-time-limit-seconds</span></label>
+                  <input id="classicalTimeLimit" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                  <p class="help">0 = nessun limite per solve</p>
+                </div>
+                <!-- PARAM_DESC: Seed per la generazione di numeri casuali. Usato per riproducibilità dell'esperimento, influenza il solver MIS e il solver classico. Default: 7. -->
+                <div class="field">
+                  <label for="seed">Seed <span class="param">--seed</span></label>
+                  <input id="seed" type="number" step="1" value="7">
+                  <p class="help">Default: 7</p>
+                </div>
               </div>
             </div>
 
@@ -202,50 +263,6 @@
                   <input id="modelExport" type="checkbox">
                   <span class="slider"></span>
                 </label>
-              </div>
-            </div>
-          </section>
-
-          <!-- Tab 4: Graph Policy -->
-          <section class="tab-content" id="graph">
-            <div class="section-head">
-              <div>
-                <h2>Graph Policy</h2>
-                <p>Parametri per la costruzione del grafo di ridondanza tra facility.</p>
-              </div>
-              <span class="pill">--alpha, --epsilon, ...</span>
-            </div>
-
-            <div class="form-grid three">
-              <!-- PARAM_DESC: Peso della capacità nel calcolo dello score di ogni facility. Range: 0-1. Valori più alti privilegiano le facility con alta capacità. Lo score bilancia capacità utile (alpha) e costo proxy (1-alpha). Default: 0.5. -->
-              <div class="field">
-                <label for="alpha">Alpha <span class="param">--alpha</span></label>
-                <input id="alpha" type="number" min="0" max="1" step="0.01" value="0.5">
-                <p class="help">Peso capacità nello score. Default: 0.5</p>
-              </div>
-              <!-- PARAM_DESC: Floor minimo dello score di ogni facility. Evita che facility con score basso abbiano peso nullo nel MWIS. Range: (0, 1]. Valori più alti uniformano i pesi tra facility. Default: 0.01. -->
-              <div class="field">
-                <label for="epsilon">Epsilon <span class="param">--epsilon</span></label>
-                <input id="epsilon" type="number" min="0" step="0.001" value="0.01">
-                <p class="help">Floor dello score. Default: 0.01</p>
-              </div>
-              <!-- PARAM_DESC: Quota di domanda totale usata per costruire il profilo clienti di ogni facility. Il profilo include i clienti più economici fino a coprire questa frazione della domanda. Range: (0, 1]. Default: 0.5 (50% della domanda). -->
-              <div class="field">
-                <label for="profileFraction">Profile fraction <span class="param">--profile-fraction</span></label>
-                <input id="profileFraction" type="number" min="0" max="1" step="0.01" value="0.5">
-                <p class="help">Quota profilo per overlap. Default: 0.5</p>
-              </div>
-              <!-- PARAM_DESC: Soglia minima di overlap pesato tra profili clienti per creare un arco nel grafo. Due facility sono connesse se condividono abbastanza clienti. Range: 0-1. Valori più alti producono grafi più sparsi. Default: 0.5. -->
-              <div class="field">
-                <label for="overlapThreshold">Overlap threshold <span class="param">--overlap-threshold</span></label>
-                <input id="overlapThreshold" type="number" min="0" max="1" step="0.01" value="0.5">
-                <p class="help">Soglia overlap pesato per arco. Default: 0.5</p>
-              </div>
-              <!-- PARAM_DESC: Massima differenza relativa di capacità per creare un arco. Due facility sono connesse solo se hanno capacità simili (differenza <= soglia). Range: 0-1. Valori più bassi sono più restrittivi. Default: 0.25 (25%). -->
-              <div class="field">
-                <label for="capacityDifference">Capacity difference <span class="param">--capacity-difference</span></label>
-                <input id="capacityDifference" type="number" min="0" step="0.01" value="0.25">
-                <p class="help">Max differenza relativa capacità. Default: 0.25</p>
               </div>
             </div>
           </section>

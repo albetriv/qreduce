@@ -1121,6 +1121,14 @@ async function testPortfolioSRUpdateValues(fieldValues) {
   const hasRenderedContent = mathJaxCalls.typesetPromise.length > 0 && !!mathContent.querySelector('mjx-container');
   const visible = (id) => document.getElementById(id).style.display !== 'none';
 
+  // Read summary values
+  const summaryRunId = document.getElementById("summaryRunId");
+  const summaryAssets = document.getElementById("summaryAssets");
+  const summaryMode = document.getElementById("summaryMode");
+  const summaryReduction = document.getElementById("summaryReduction");
+  const summaryMis = document.getElementById("summaryMis");
+  const summaryClassical = document.getElementById("summaryClassical");
+
   return {
     success: true,
     hasMathContent: !!mathContent,
@@ -1137,8 +1145,15 @@ async function testPortfolioSRUpdateValues(fieldValues) {
     transformedSectorDetails: document.getElementById('mathTransformedSectorNote').textContent,
     reductionText: document.getElementById('mathReductionContent').textContent,
     valid: document.getElementById('validationBadge').textContent === 'Configurazione valida',
-    copyDisabled: document.querySelector('.command-actions .button.primary').disabled,
-    command: document.getElementById('commandPreview').textContent,
+    copyDisabled: document.getElementById('copyCommand').disabled,
+    command: document.getElementById('cliPreview').textContent,
+    // Summary panel values
+    summaryRunId: summaryRunId ? summaryRunId.textContent : null,
+    summaryAssets: summaryAssets ? summaryAssets.textContent : null,
+    summaryMode: summaryMode ? summaryMode.textContent : null,
+    summaryReduction: summaryReduction ? summaryReduction.textContent : null,
+    summaryMis: summaryMis ? summaryMis.textContent : null,
+    summaryClassical: summaryClassical ? summaryClassical.textContent : null,
   };
 }
 
@@ -1163,6 +1178,111 @@ async function testSROptionalFormulaLifecycle() {
   return { success: true, stages, typesetCalls: mathJaxCalls.typesetPromise.length,
     cardinalityHidden: document.getElementById('mathCardinalityBlock').style.display === 'none',
     sectorsHidden: document.getElementById('mathSectorBlock').style.display === 'none' };
+}
+
+/**
+ * Test SR summary panel: initial state, mode transitions, format switching, copy, and reset.
+ */
+async function testSRSummaryPanel(fieldValues) {
+  const { document, window } = loadPage('portfolio_sr');
+
+  // Capture initial state
+  const getState = () => ({
+    runId: document.getElementById('summaryRunId').textContent,
+    assets: document.getElementById('summaryAssets').textContent,
+    mode: document.getElementById('summaryMode').textContent,
+    reduction: document.getElementById('summaryReduction').textContent,
+    mis: document.getElementById('summaryMis').textContent,
+    classical: document.getElementById('summaryClassical').textContent,
+    valid: document.getElementById('validationBadge').textContent === 'Configurazione valida',
+    copyDisabled: document.getElementById('copyCommand').disabled,
+    validationInvalid: document.getElementById('validationStatus').classList.contains('invalid'),
+    validationTitle: document.getElementById('validationTitle').textContent,
+    validationText: document.getElementById('validationText').textContent,
+    command: document.getElementById('cliPreview').textContent,
+    format: document.querySelector('.format-selector button.active').dataset.format,
+  });
+
+  const initial = getState();
+
+  // Apply field values if provided
+  if (fieldValues && Object.keys(fieldValues).length > 0) {
+    setFieldValues(document, window, fieldValues);
+    await waitForRender(window);
+  }
+  const afterChange = getState();
+
+  const clipboardCalls = [];
+  const originalClipboard = window.navigator.clipboard;
+  window.navigator.clipboard = {
+    writeText: (text) => { clipboardCalls.push(text); return Promise.resolve(); },
+  };
+
+  // Test format switching
+  const multilineBtn = document.querySelector('.format-selector button[data-format="multiline"]');
+  multilineBtn.click();
+  await waitForRender(window);
+  const afterMultiline = getState();
+  document.getElementById('copyCommand').click();
+  await Promise.resolve();
+  const multilineCopies = clipboardCalls.slice();
+
+  const inlineBtn = document.querySelector('.format-selector button[data-format="inline"]');
+  inlineBtn.click();
+  await waitForRender(window);
+  const afterInline = getState();
+
+  // Test copy behavior (simulate clipboard)
+  const callsBeforeInline = clipboardCalls.length;
+  document.getElementById('copyCommand').click();
+  await Promise.resolve();
+  const inlineCopies = clipboardCalls.slice(callsBeforeInline);
+  const copiedText = inlineCopies[0] ?? null;
+
+  // Invalidate the same page after valid copies, then verify recovery via reset.
+  setFieldValues(document, window, { runId: '' });
+  await waitForRender(window);
+  const afterInvalid = getState();
+  const callsBeforeInvalid = clipboardCalls.length;
+  document.getElementById('copyCommand').click();
+  await Promise.resolve();
+  const callsAfterInvalid = clipboardCalls.length;
+
+  // Test reset
+  document.getElementById('resetDefaults').click();
+  await waitForRender(window);
+  const afterReset = getState();
+  const callsBeforeResetCopy = clipboardCalls.length;
+  document.getElementById('copyCommand').click();
+  await Promise.resolve();
+  const resetCopies = clipboardCalls.slice(callsBeforeResetCopy);
+  window.navigator.clipboard = originalClipboard;
+
+  // Exercise real transitions without reloading the DOM between states.
+  const roundTransitions = [];
+  for (const rounds of ['3', '-1', '0', '1']) {
+    setFieldValues(document, window, { maxRounds: rounds });
+    await waitForRender(window);
+    roundTransitions.push(getState());
+  }
+
+  return {
+    success: true,
+    initial,
+    afterChange,
+    afterMultiline,
+    afterInline,
+    afterReset,
+    afterInvalid,
+    multilineCopies,
+    inlineCopies,
+    resetCopies,
+    callsBeforeInvalid,
+    callsAfterInvalid,
+    roundTransitions,
+    copiedText,
+    copyMatchesPreview: copiedText === afterInline.command,
+  };
 }
 
 async function main() {
@@ -1192,6 +1312,9 @@ async function main() {
     switch (testType) {
       case "sr_formula_lifecycle":
         result = await testSROptionalFormulaLifecycle();
+        break;
+      case "sr_summary_panel":
+        result = await testSRSummaryPanel(jsonInput);
         break;
       case "risk_aversion":
         result = await testRiskAversion(jsonInput);

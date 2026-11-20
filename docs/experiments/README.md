@@ -125,6 +125,18 @@ I configuratori:
 - mostrano la formulazione matematica del problema configurato;
 - non verificano la disponibilità dei solver o l'esistenza dei file.
 
+### Configurazione del grafo di riduzione
+
+In tutti e tre i configuratori, la card **Costruzione del grafo MWIS** si trova
+nella tab **Riduzione**. Facility Location non ha una tab Graph Policy separata.
+Questi parametri definiscono lo screening euristico, non i vincoli del problema.
+
+In baseline i controlli del grafo sono disabilitati, i loro valori sono conservati
+e i relativi flag non vengono aggiunti al comando. Riattivando la riduzione,
+i valori tornano utilizzabili e vengono nuovamente validati. Nei portfolio le
+tolleranze di rendimento e varianza sono utilizzate soltanto in modalità
+`near_duplicate`; in `correlation_only` rimangono conservate ma inattive.
+
 ### Pannello formulazione matematica
 
 Ogni configuratore include un pannello espandibile che mostra:

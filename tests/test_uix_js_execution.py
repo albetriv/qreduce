@@ -24,7 +24,7 @@ def run_js_generator(configurator: str, field_values: dict) -> dict:
     """Run the JavaScript command generator and return the result.
 
     Args:
-        configurator: "portfolio" or "facility_location"
+        configurator: "portfolio", "portfolio_sr", or "facility_location"
         field_values: Dict of field IDs to values to set
 
     Returns:
@@ -417,18 +417,21 @@ class TestFacilityLocationJSValidation:
         assert result["isValid"] is False
 
     def test_invalid_alpha_out_of_range(self):
-        """Test that alpha > 1 is rejected."""
-        result = run_js_generator("facility_location", {"runId": "test001", "alpha": "1.5"})
+        """Test that alpha > 1 is rejected when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "alpha": "1.5"})
         assert result["isValid"] is False
 
     def test_invalid_epsilon_zero(self):
-        """Test that epsilon = 0 is rejected (must be > 0)."""
-        result = run_js_generator("facility_location", {"runId": "test001", "epsilon": "0"})
+        """Test that epsilon = 0 is rejected (must be > 0) when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "epsilon": "0"})
         assert result["isValid"] is False
 
     def test_invalid_overlap_threshold_out_of_range(self):
-        """Test that overlap threshold > 1 is rejected."""
-        result = run_js_generator("facility_location", {"runId": "test001", "overlapThreshold": "1.5"})
+        """Test that overlap threshold > 1 is rejected when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "overlapThreshold": "1.5"})
         assert result["isValid"] is False
 
 
@@ -460,11 +463,13 @@ class TestFacilityLocationJSCommandGeneration:
         assert parsed.instance == "data/custom/instance.txt"
 
     def test_all_graph_policy_params(self, facility_parser):
-        """Test that all graph policy params are included when changed."""
+        """Test that all graph policy params are included when changed and reduction is active."""
+        # Graph policy params only serialized when reduction is active (rounds > 0)
         result = run_js_generator(
             "facility_location",
             {
                 "runId": "test001",
+                "rounds": "1",
                 "alpha": "0.7",
                 "epsilon": "0.02",
                 "profileFraction": "0.6",
@@ -516,18 +521,21 @@ class TestFacilityLocationGraphPolicyLimits:
     """Test that facility_location graph policy limits match Python constraints."""
 
     def test_profile_fraction_zero_rejected(self):
-        """Test that profileFraction = 0 is rejected (must be > 0)."""
-        result = run_js_generator("facility_location", {"runId": "test001", "profileFraction": "0"})
+        """Test that profileFraction = 0 is rejected (must be > 0) when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "profileFraction": "0"})
         assert result["isValid"] is False
 
     def test_epsilon_above_one_rejected(self):
-        """Test that epsilon > 1 is rejected (must be <= 1)."""
-        result = run_js_generator("facility_location", {"runId": "test001", "epsilon": "2"})
+        """Test that epsilon > 1 is rejected (must be <= 1) when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "epsilon": "2"})
         assert result["isValid"] is False
 
     def test_capacity_difference_above_one_rejected(self):
-        """Test that capacityDifference > 1 is rejected (must be <= 1)."""
-        result = run_js_generator("facility_location", {"runId": "test001", "capacityDifference": "2"})
+        """Test that capacityDifference > 1 is rejected (must be <= 1) when reduction is active."""
+        # Graph policy validation only happens when reduction is active (rounds > 0)
+        result = run_js_generator("facility_location", {"runId": "test001", "rounds": "1", "capacityDifference": "2"})
         assert result["isValid"] is False
 
     def test_baseline_with_recovery_attempts_rejected(self):
@@ -539,12 +547,14 @@ class TestFacilityLocationGraphPolicyLimits:
         assert result["isValid"] is False
 
     def test_valid_boundary_values(self):
-        """Test that valid boundary values are accepted."""
+        """Test that valid boundary values are accepted when reduction is active."""
         # epsilon and profileFraction just above 0
+        # Graph policy validation only happens when reduction is active (rounds > 0)
         result = run_js_generator(
             "facility_location",
             {
                 "runId": "test001",
+                "rounds": "1",
                 "epsilon": "0.001",
                 "profileFraction": "0.001",
                 "alpha": "0",
@@ -553,6 +563,23 @@ class TestFacilityLocationGraphPolicyLimits:
             },
         )
         assert result["isValid"] is True
+
+    def test_baseline_ignores_invalid_graph_policy(self):
+        """Test that baseline mode (rounds=0) ignores invalid graph policy values."""
+        # In baseline, graph policy params are not validated (but still preserved in DOM)
+        result = run_js_generator(
+            "facility_location",
+            {
+                "runId": "test001",
+                "rounds": "0",
+                "epsilon": "0",  # Would be invalid if reduction was active
+                "profileFraction": "0",  # Would be invalid if reduction was active
+            },
+        )
+        assert result["isValid"] is True
+        # Graph params should NOT be in the command in baseline mode
+        assert "--epsilon" not in result["command"]
+        assert "--profile-fraction" not in result["command"]
 
 
 class TestPortfolioModeTransitions:

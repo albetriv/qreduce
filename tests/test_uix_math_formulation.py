@@ -746,3 +746,174 @@ class TestPortfolioSRMathPanel:
         assert "--asset-count 100" in result["command"]
         assert "--max-positions 10" in result["command"]
         assert "--max-reduction-rounds 2" in result["command"]
+
+    # ===== Summary panel tests =====
+
+    def test_summary_initial_state(self):
+        """Test that summary panel shows correct initial values."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {})
+        assert result["success"] is True
+        initial = result["initial"]
+        assert initial["runId"] == "sr_001"
+        assert initial["assets"] == "50"
+        assert initial["mode"] == "single pass"
+        assert initial["reduction"] == "1 round"
+        assert initial["mis"] == "local_greedy"
+        assert initial["classical"] == "scip"
+        assert initial["valid"] is True
+        assert initial["copyDisabled"] is False
+
+    def test_summary_updates_on_form_change(self):
+        """Test that summary updates when form fields change."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "runId": "test_run_123",
+            "assetCount": "75",
+            "maxRounds": "3",
+            "misSolver": "dwave_simulated_annealing",
+            "classicalSolver": "cplex",
+        })
+        assert result["success"] is True
+        after = result["afterChange"]
+        assert after["runId"] == "test_run_123"
+        assert after["assets"] == "75"
+        assert after["mode"] == "multi-round"
+        assert after["reduction"] == "3 rounds"
+        assert after["mis"] == "dwave_simulated_annealing"
+        assert after["classical"] == "cplex"
+        assert result["afterReset"]["classical"] == "scip"
+
+    @pytest.mark.parametrize("rounds,expected_mode,expected_reduction,expected_mis", [
+        ("0", "classical only", "0 rounds", "(non usato)"),
+        ("1", "single pass", "1 round", "local_greedy"),
+        ("5", "multi-round", "5 rounds", "local_greedy"),
+    ])
+    def test_summary_mode_transitions_valid(self, rounds, expected_mode, expected_reduction, expected_mis):
+        """Test mode transitions with valid round values."""
+        result = run_math_test("portfolio_sr", "update_values", {"maxRounds": rounds})
+        assert result["summaryMode"] == expected_mode
+        assert result["summaryReduction"] == expected_reduction
+        assert result["summaryMis"] == expected_mis
+
+    @pytest.mark.parametrize("rounds", ["", "-1", "1.5"])
+    def test_summary_mode_invalid_rounds(self, rounds):
+        """Test that invalid rounds show placeholder values, not baseline."""
+        result = run_math_test("portfolio_sr", "update_values", {"maxRounds": rounds})
+        assert result["summaryMode"] == "—"
+        assert result["summaryReduction"] == "—"
+        assert result["summaryMis"] == "—"
+        assert not result["valid"]
+        assert result["copyDisabled"]
+
+    def test_summary_mode_recovery_from_invalid_to_valid(self):
+        """Test recovery from invalid rounds to valid values."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {})
+        stages = result["roundTransitions"]
+        expected = [
+            ("multi-round", "3 rounds", "local_greedy", True),
+            ("—", "—", "—", False),
+            ("classical only", "0 rounds", "(non usato)", True),
+            ("single pass", "1 round", "local_greedy", True),
+        ]
+        assert len(stages) == len(expected)
+        for stage, (mode, reduction, mis, valid) in zip(stages, expected, strict=True):
+            assert stage["mode"] == mode
+            assert stage["reduction"] == reduction
+            assert stage["mis"] == mis
+            assert stage["valid"] is valid
+            assert stage["copyDisabled"] is not valid
+            assert stage["validationInvalid"] is not valid
+            assert stage["validationTitle"] == (
+                "Configurazione verificata" if valid else "Configurazione da correggere"
+            )
+            assert stage["validationText"] == (
+                "Puoi copiare il comando CLI." if valid
+                else "Correggi i messaggi in rosso prima di copiare."
+            )
+            assert stage["command"].startswith("Configurazione non valida") is not valid
+
+    def test_format_switch_multiline(self):
+        """Test that multiline format produces continuation lines."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "assetCount": "100",
+            "maxPositions": "20",
+        })
+        assert result["success"] is True
+        # After clicking multiline button
+        multiline_cmd = result["afterMultiline"]["command"]
+        assert " \\\n" in multiline_cmd, "Multiline command should have continuation"
+        assert result["afterMultiline"]["format"] == "multiline"
+
+    def test_format_switch_inline(self):
+        """Test that inline format has no continuation lines."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "assetCount": "100",
+        })
+        assert result["success"] is True
+        inline_cmd = result["afterInline"]["command"]
+        assert " \\\n" not in inline_cmd, "Inline command should not have continuation"
+        assert result["afterInline"]["format"] == "inline"
+
+    def test_copy_matches_preview(self):
+        """Test that copied text matches preview text."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "assetCount": "60",
+        })
+        assert result["success"] is True
+        assert result["copyMatchesPreview"] is True
+        assert result["copiedText"] is not None
+        assert result["inlineCopies"] == [result["afterInline"]["command"]]
+        assert result["multilineCopies"] == [result["afterMultiline"]["command"]]
+        assert "\\\n" in result["multilineCopies"][0]
+        assert result["resetCopies"] == [result["afterReset"]["command"]]
+
+    def test_copy_blocked_when_invalid(self):
+        """Test that copy is blocked when configuration is invalid."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {})
+        invalid = result["afterInvalid"]
+        assert invalid["copyDisabled"] is True
+        assert invalid["command"].startswith("Configurazione non valida")
+        assert invalid["validationInvalid"] is True
+        assert result["callsBeforeInvalid"] == 2
+        assert result["callsAfterInvalid"] == result["callsBeforeInvalid"]
+        assert len(result["resetCopies"]) == 1
+
+    def test_reset_restores_summary(self):
+        """Test that reset restores summary to default values."""
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "runId": "modified_run",
+            "assetCount": "100",
+            "maxRounds": "5",
+        })
+        assert result["success"] is True
+        # After reset, should be back to defaults
+        after = result["afterReset"]
+        assert after["runId"] == "sr_001"
+        assert after["assets"] == "50"
+        assert after["mode"] == "single pass"
+        assert after["reduction"] == "1 round"
+        assert after["valid"] is True
+        assert after["copyDisabled"] is False
+        assert after["validationInvalid"] is False
+        assert after["validationTitle"] == "Configurazione verificata"
+        assert after["validationText"] == "Puoi copiare il comando CLI."
+
+    def test_multiline_command_accepted_by_parser(self):
+        """Test that multiline command is accepted by Python CLI parser."""
+        import shlex
+
+        from qreduce.experiments.portfolio_sr.__main__ import _build_parser
+
+        result = run_math_test("portfolio_sr", "sr_summary_panel", {
+            "assetCount": "30",
+            "maxPositions": "10",
+            "maxRounds": "2",
+        })
+        assert result["success"] is True
+        multiline_cmd = result["afterMultiline"]["command"]
+        # Remove continuation characters for parsing
+        flat_cmd = multiline_cmd.replace("\\\n", " ")
+        tokens = shlex.split(flat_cmd)
+        args = _build_parser().parse_args(tokens[tokens.index("qreduce.experiments.portfolio_sr") + 1:])
+        assert args.asset_count == 30
+        assert args.max_positions == 10
+        assert args.max_reduction_rounds == 2

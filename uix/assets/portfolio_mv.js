@@ -143,34 +143,6 @@
       }
     }
 
-    // Correlation threshold must be finite number in [0, 1]
-    var corrThresh = C.number("correlationThreshold");
-    require(
-      "correlationThreshold",
-      isFiniteNumber(corrThresh) && corrThresh >= 0 && corrThresh <= 1,
-      "Il valore deve essere un numero fra 0 e 1."
-    );
-
-    // Near-duplicate params: validate only if near_duplicate mode is active
-    if (isNearDuplicateMode()) {
-      var returnDiff = C.number("returnDifference");
-      if (returnDiff !== null) {
-        require(
-          "returnDifference",
-          isFiniteNumber(returnDiff) && returnDiff >= 0,
-          "Inserisci un numero >= 0."
-        );
-      }
-      var varianceDiff = C.number("varianceDifference");
-      if (varianceDiff !== null) {
-        require(
-          "varianceDifference",
-          isFiniteNumber(varianceDiff) && varianceDiff >= 0,
-          "Inserisci un numero >= 0."
-        );
-      }
-    }
-
     // Investment bounds validation
     var lowerBound = C.number("lowerBound");
     var upperBound = C.number("upperBound");
@@ -246,6 +218,35 @@
     // Reduction-specific validations: only validate if reduction is active
     // When disabled, these fields' values are ignored (not serialized)
     if (reductionActive) {
+      // Graph policy validation: only when reduction is active
+      // Correlation threshold must be finite number in [0, 1]
+      var corrThresh = C.number("correlationThreshold");
+      require(
+        "correlationThreshold",
+        isFiniteNumber(corrThresh) && corrThresh >= 0 && corrThresh <= 1,
+        "Il valore deve essere un numero fra 0 e 1."
+      );
+
+      // Near-duplicate params: validate only if near_duplicate mode is active
+      if (isNearDuplicateMode()) {
+        var returnDiff = C.number("returnDifference");
+        if (returnDiff !== null) {
+          require(
+            "returnDifference",
+            isFiniteNumber(returnDiff) && returnDiff >= 0,
+            "Inserisci un numero >= 0."
+          );
+        }
+        var varianceDiff = C.number("varianceDifference");
+        if (varianceDiff !== null) {
+          require(
+            "varianceDifference",
+            isFiniteNumber(varianceDiff) && varianceDiff >= 0,
+            "Inserisci un numero >= 0."
+          );
+        }
+      }
+
       // Min/max items validation
       var minItems = C.number("minItems");
       var maxItems = C.number("maxItems");
@@ -390,29 +391,6 @@
       args.push({ flag: "--observation-count", value: observations });
     }
 
-    // Graph options - include if different from defaults
-    var edgeMode = C.value("edgeMode");
-    if (edgeMode !== "near_duplicate") {
-      args.push({ flag: "--graph-edge-mode", value: edgeMode });
-    }
-
-    var corrThresh = C.number("correlationThreshold");
-    if (corrThresh !== null && corrThresh !== 0.9) {
-      args.push({ flag: "--correlation-threshold", value: corrThresh });
-    }
-
-    // Near-duplicate params only matter for near_duplicate mode
-    if (isNearDuplicateMode()) {
-      var returnDiff = C.number("returnDifference");
-      if (returnDiff !== null && returnDiff !== 0.1) {
-        args.push({ flag: "--near-duplicate-max-relative-return-difference", value: returnDiff });
-      }
-      var varianceDiff = C.number("varianceDifference");
-      if (varianceDiff !== null && varianceDiff !== 0.1) {
-        args.push({ flag: "--near-duplicate-max-relative-variance-difference", value: varianceDiff });
-      }
-    }
-
     // Investment bounds (only if different from defaults)
     var lowerBound = C.number("lowerBound");
     if (lowerBound !== null && lowerBound !== 0.0) {
@@ -455,6 +433,29 @@
 
     // Reduction-specific params only when reduction is active
     if (reductionActive) {
+      // Graph options (only when reduction is active)
+      var edgeMode = C.value("edgeMode");
+      if (edgeMode !== "near_duplicate") {
+        args.push({ flag: "--graph-edge-mode", value: edgeMode });
+      }
+
+      var corrThresh = C.number("correlationThreshold");
+      if (corrThresh !== null && corrThresh !== 0.9) {
+        args.push({ flag: "--correlation-threshold", value: corrThresh });
+      }
+
+      // Near-duplicate params only matter for near_duplicate mode
+      if (isNearDuplicateMode()) {
+        var returnDiff = C.number("returnDifference");
+        if (returnDiff !== null && returnDiff !== 0.1) {
+          args.push({ flag: "--near-duplicate-max-relative-return-difference", value: returnDiff });
+        }
+        var varianceDiff = C.number("varianceDifference");
+        if (varianceDiff !== null && varianceDiff !== 0.1) {
+          args.push({ flag: "--near-duplicate-max-relative-variance-difference", value: varianceDiff });
+        }
+      }
+
       // Domain items
       var minItems = C.number("minItems");
       if (minItems !== null) {
@@ -542,6 +543,27 @@
     var dwaveSolver = isDwaveSolver();
     var nearDuplicate = isNearDuplicateMode();
 
+    // Graph policy controls: disabled in baseline mode
+    var graphPolicyCard = C.$("graphPolicyCard");
+    var graphBaselineNote = C.$("graphBaselineNote");
+    if (graphPolicyCard) {
+      // Show/hide baseline note
+      if (graphBaselineNote) {
+        graphBaselineNote.style.display = reductionActive ? "none" : "";
+      }
+      // Disable graph policy controls in baseline
+      graphPolicyCard.querySelectorAll("input, select").forEach(function (el) {
+        // Near-duplicate controls have additional condition
+        if (el.closest(".near-duplicate")) {
+          el.disabled = !reductionActive || !nearDuplicate;
+        } else {
+          el.disabled = !reductionActive;
+        }
+      });
+      // Visual dimming
+      graphPolicyCard.style.opacity = reductionActive ? "1" : "0.6";
+    }
+
     // D-Wave params: disabled if not D-Wave OR if baseline mode
     document.querySelectorAll(".dwave-only input").forEach(function (input) {
       input.disabled = !dwaveSolver || !reductionActive;
@@ -558,9 +580,11 @@
       embeddingSelect.value = "none";
     }
 
-    // Near-duplicate params: disabled if not near_duplicate mode
+    // Near-duplicate params outside graph card: disabled if not near_duplicate mode OR baseline
     document.querySelectorAll(".near-duplicate input").forEach(function (input) {
-      input.disabled = !nearDuplicate;
+      // Skip if already handled above (inside graph policy card)
+      if (input.closest(".graph-policy")) return;
+      input.disabled = !nearDuplicate || !reductionActive;
     });
 
     // Model export path: disabled if export not enabled

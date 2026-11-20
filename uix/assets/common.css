@@ -60,10 +60,16 @@ button {
   display: flex;
   gap: 15px;
   align-items: center;
+  min-width: 0;
+}
+
+.brand > div:last-child {
+  min-width: 0;
 }
 
 .logo {
   display: grid;
+  flex-shrink: 0;
   place-items: center;
   width: 47px;
   height: 47px;
@@ -145,6 +151,7 @@ h3 {
 
 /* Panel */
 .panel {
+  min-width: 0;
   border: 1px solid var(--line);
   background: linear-gradient(150deg, rgba(17, 35, 59, 0.98), rgba(9, 22, 39, 0.96));
   border-radius: 18px;
@@ -407,6 +414,7 @@ select:disabled {
 
 .summary h2 {
   margin-bottom: 2px;
+  overflow-wrap: anywhere;
 }
 
 .summary-header {
@@ -415,6 +423,10 @@ select:disabled {
   gap: 10px;
   align-items: flex-start;
   margin-bottom: 17px;
+}
+
+.summary-header > div {
+  min-width: 0;
 }
 
 /* Validation status */

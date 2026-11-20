@@ -5,7 +5,7 @@
  * Usage: node tests/uix_js_runner.js <configurator> <json_input>
  *
  * Where:
- *   configurator: "portfolio" or "facility_location"
+ *   configurator: "portfolio", "portfolio_sr", or "facility_location"
  *   json_input: JSON object with field values to set
  *
  * Output: JSON object with { command, isValid, errors }
@@ -19,7 +19,7 @@ function main() {
   const args = process.argv.slice(2);
   if (args.length < 2) {
     console.error("Usage: node uix_js_runner.js <configurator> <json_input>");
-    console.error('  configurator: "portfolio" or "facility_location"');
+    console.error('  configurator: "portfolio", "portfolio_sr", or "facility_location"');
     console.error("  json_input: JSON object with field values");
     process.exit(1);
   }
@@ -27,7 +27,7 @@ function main() {
   const configurator = args[0];
   const jsonInput = args[1];
 
-  if (!["portfolio", "facility_location"].includes(configurator)) {
+  if (!["portfolio", "portfolio_sr", "facility_location"].includes(configurator)) {
     console.error(`Invalid configurator: ${configurator}`);
     process.exit(1);
   }
@@ -45,6 +45,8 @@ function main() {
     const htmlFile =
       configurator === "portfolio"
         ? "experiment_portfolio_mv.html"
+        : configurator === "portfolio_sr"
+        ? "experiment_portfolio_sr.html"
         : "experiment_facility_location.html";
     const htmlPath = path.join(uixDir, htmlFile);
 
@@ -75,12 +77,21 @@ function main() {
     const commonJs = fs.readFileSync(path.join(uixDir, "assets", "common.js"), "utf8");
     window.eval(commonJs);
 
-    // Load specific script
-    const specificJs =
-      configurator === "portfolio"
-        ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
-        : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
-    window.eval(specificJs);
+    // Load specific script (portfolio_sr has inline JS, others have external files)
+    if (configurator === "portfolio_sr") {
+      // Evaluate only the application script in the existing, offline DOM.
+      document.querySelectorAll("script:not([src])").forEach((script) => {
+        if (script.textContent.includes("DOMContentLoaded")) {
+          window.eval(script.textContent);
+        }
+      });
+    } else {
+      const specificJs =
+        configurator === "portfolio"
+          ? fs.readFileSync(path.join(uixDir, "assets", "portfolio_mv.js"), "utf8")
+          : fs.readFileSync(path.join(uixDir, "assets", "facility_location.js"), "utf8");
+      window.eval(specificJs);
+    }
 
     // Trigger DOMContentLoaded to initialize the scripts
     const initEvent = new window.Event("DOMContentLoaded");
@@ -171,6 +182,7 @@ function main() {
     };
 
     console.log(JSON.stringify(result));
+    dom.window.close();
   } catch (e) {
     console.error(`Error: ${e.message}`);
     console.error(e.stack);

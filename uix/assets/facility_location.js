@@ -163,57 +163,60 @@
       );
     }
 
-    // Graph policy parameters validation - align with Python FacilityLocationGraphPolicy
-    // All must be in [0, 1], and epsilon/profile_fraction must be > 0
+    // Graph policy parameters validation - only when reduction is active
+    // Validation skipped in baseline mode since these params are not serialized
+    if (reductionActive) {
+      // All must be in [0, 1], and epsilon/profile_fraction must be > 0
 
-    // Alpha must be in [0, 1]
-    var alpha = C.number("alpha");
-    if (alpha !== null) {
-      require(
-        "alpha",
-        isFiniteNumber(alpha) && alpha >= 0 && alpha <= 1,
-        "Il valore deve essere un numero fra 0 e 1."
-      );
-    }
+      // Alpha must be in [0, 1]
+      var alpha = C.number("alpha");
+      if (alpha !== null) {
+        require(
+          "alpha",
+          isFiniteNumber(alpha) && alpha >= 0 && alpha <= 1,
+          "Il valore deve essere un numero fra 0 e 1."
+        );
+      }
 
-    // Epsilon must be in (0, 1] - must be positive
-    var epsilon = C.number("epsilon");
-    if (epsilon !== null) {
-      require(
-        "epsilon",
-        isFiniteNumber(epsilon) && epsilon > 0 && epsilon <= 1,
-        "Il valore deve essere un numero fra 0 (escluso) e 1."
-      );
-    }
+      // Epsilon must be in (0, 1] - must be positive
+      var epsilon = C.number("epsilon");
+      if (epsilon !== null) {
+        require(
+          "epsilon",
+          isFiniteNumber(epsilon) && epsilon > 0 && epsilon <= 1,
+          "Il valore deve essere un numero fra 0 (escluso) e 1."
+        );
+      }
 
-    // Profile fraction must be in (0, 1] - must be positive
-    var profileFraction = C.number("profileFraction");
-    if (profileFraction !== null) {
-      require(
-        "profileFraction",
-        isFiniteNumber(profileFraction) && profileFraction > 0 && profileFraction <= 1,
-        "Il valore deve essere un numero fra 0 (escluso) e 1."
-      );
-    }
+      // Profile fraction must be in (0, 1] - must be positive
+      var profileFraction = C.number("profileFraction");
+      if (profileFraction !== null) {
+        require(
+          "profileFraction",
+          isFiniteNumber(profileFraction) && profileFraction > 0 && profileFraction <= 1,
+          "Il valore deve essere un numero fra 0 (escluso) e 1."
+        );
+      }
 
-    // Overlap threshold must be in [0, 1]
-    var overlapThreshold = C.number("overlapThreshold");
-    if (overlapThreshold !== null) {
-      require(
-        "overlapThreshold",
-        isFiniteNumber(overlapThreshold) && overlapThreshold >= 0 && overlapThreshold <= 1,
-        "Il valore deve essere un numero fra 0 e 1."
-      );
-    }
+      // Overlap threshold must be in [0, 1]
+      var overlapThreshold = C.number("overlapThreshold");
+      if (overlapThreshold !== null) {
+        require(
+          "overlapThreshold",
+          isFiniteNumber(overlapThreshold) && overlapThreshold >= 0 && overlapThreshold <= 1,
+          "Il valore deve essere un numero fra 0 e 1."
+        );
+      }
 
-    // Capacity difference must be in [0, 1]
-    var capacityDifference = C.number("capacityDifference");
-    if (capacityDifference !== null) {
-      require(
-        "capacityDifference",
-        isFiniteNumber(capacityDifference) && capacityDifference >= 0 && capacityDifference <= 1,
-        "Il valore deve essere un numero fra 0 e 1."
-      );
+      // Capacity difference must be in [0, 1]
+      var capacityDifference = C.number("capacityDifference");
+      if (capacityDifference !== null) {
+        require(
+          "capacityDifference",
+          isFiniteNumber(capacityDifference) && capacityDifference >= 0 && capacityDifference <= 1,
+          "Il valore deve essere un numero fra 0 e 1."
+        );
+      }
     }
 
     return valid;
@@ -311,30 +314,32 @@
       args.push({ flag: "--model-export", value: true, isFlag: true });
     }
 
-    // Graph policy parameters - only include if different from defaults
-    var alpha = C.number("alpha");
-    if (alpha !== null && alpha !== 0.5) {
-      args.push({ flag: "--alpha", value: alpha });
-    }
+    // Graph policy parameters - only include when reduction is active
+    if (isReductionActive()) {
+      var alpha = C.number("alpha");
+      if (alpha !== null && alpha !== 0.5) {
+        args.push({ flag: "--alpha", value: alpha });
+      }
 
-    var epsilon = C.number("epsilon");
-    if (epsilon !== null && epsilon !== 0.01) {
-      args.push({ flag: "--epsilon", value: epsilon });
-    }
+      var epsilon = C.number("epsilon");
+      if (epsilon !== null && epsilon !== 0.01) {
+        args.push({ flag: "--epsilon", value: epsilon });
+      }
 
-    var profileFraction = C.number("profileFraction");
-    if (profileFraction !== null && profileFraction !== 0.5) {
-      args.push({ flag: "--profile-fraction", value: profileFraction });
-    }
+      var profileFraction = C.number("profileFraction");
+      if (profileFraction !== null && profileFraction !== 0.5) {
+        args.push({ flag: "--profile-fraction", value: profileFraction });
+      }
 
-    var overlapThreshold = C.number("overlapThreshold");
-    if (overlapThreshold !== null && overlapThreshold !== 0.5) {
-      args.push({ flag: "--overlap-threshold", value: overlapThreshold });
-    }
+      var overlapThreshold = C.number("overlapThreshold");
+      if (overlapThreshold !== null && overlapThreshold !== 0.5) {
+        args.push({ flag: "--overlap-threshold", value: overlapThreshold });
+      }
 
-    var capacityDifference = C.number("capacityDifference");
-    if (capacityDifference !== null && capacityDifference !== 0.25) {
-      args.push({ flag: "--capacity-difference", value: capacityDifference });
+      var capacityDifference = C.number("capacityDifference");
+      if (capacityDifference !== null && capacityDifference !== 0.25) {
+        args.push({ flag: "--capacity-difference", value: capacityDifference });
+      }
     }
 
     return C.buildCommand(base, args, format);
@@ -425,9 +430,39 @@
   }
 
   /**
+   * Update enabled/disabled state of fields based on current selections.
+   */
+  function updateEnabled() {
+    var reductionActive = isReductionActive();
+
+    // Graph policy controls: disabled in baseline mode
+    var graphPolicyCard = C.$("graphPolicyCard");
+    var graphBaselineNote = C.$("graphBaselineNote");
+    if (graphPolicyCard) {
+      // Show/hide baseline note
+      if (graphBaselineNote) {
+        graphBaselineNote.style.display = reductionActive ? "none" : "";
+      }
+      // Disable graph policy controls in baseline
+      graphPolicyCard.querySelectorAll("input, select").forEach(function (el) {
+        el.disabled = !reductionActive;
+      });
+      // Visual dimming
+      graphPolicyCard.style.opacity = reductionActive ? "1" : "0.6";
+    }
+
+    // MIS solver: disabled in baseline mode
+    var misSolverSelect = C.$("misSolver");
+    if (misSolverSelect) {
+      misSolverSelect.disabled = !reductionActive;
+    }
+  }
+
+  /**
    * Update UI with current state.
    */
   function update() {
+    updateEnabled();
     var isValid = validate();
 
     // Update preview

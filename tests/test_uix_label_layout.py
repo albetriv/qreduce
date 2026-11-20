@@ -49,6 +49,10 @@ console.log(JSON.stringify({
     && parseFloat(rule.style.getPropertyValue('min-height')) === 0),
   mobileIconOverride: mobileRules.some(rule =>
     rule.selectorText === '.field > .tooltip-wrapper'),
+  shrinkablePanels: [...document.querySelectorAll('.panel')]
+    .every(panel => computed(panel).minWidth === '0px'),
+  wrappingRunId: !document.getElementById('summaryRunId')
+    || computed(document.getElementById('summaryRunId')).overflowWrap === 'anywhere',
   unusedHeadingRule: css.includes('.label-text')
 }));
 dom.window.close();
@@ -67,7 +71,10 @@ dom.window.close();
     checks = json.loads(result.stdout)
     assert checks["labelCount"] > 0
     assert checks["flagCount"] > 0
-    for name in ("headings", "flags", "switches", "gridHeadings", "mobileHeightReset"):
+    for name in (
+        "headings", "flags", "switches", "gridHeadings", "mobileHeightReset",
+        "shrinkablePanels", "wrappingRunId",
+    ):
         assert checks[name], f"{configurator}: {name} failed"
     assert not checks["mobileIconOverride"]
     assert not checks["unusedHeadingRule"]
