@@ -21,7 +21,7 @@ un rapporto adimensionale.
 ### Trasformazione convessa
 
 Il problema non lineare viene trasformato in un QP convesso. Definendo
-`x_scale = 1/(μ' * x)`:
+`x_scale = 1/(μ^T x)` e `x_scaled = x_scale · x`:
 
 ```text
 minimize  x_scaled' * Σ * x_scaled

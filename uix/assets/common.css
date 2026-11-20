@@ -236,11 +236,25 @@ label {
   color: #dce9fa;
 }
 
+/* Reserve icon space only on field headings, never on switch labels. */
+.field > label {
+  padding-right: 26px;
+}
+
+/* Allow two name lines and two flag lines in adjacent desktop fields.
+   This is a minimum, not a fixed height: longer headings remain visible. */
+.form-grid > .field > label {
+  min-height: 3.9rem;
+}
+
+/* CLI flag (second line) - smaller, muted */
 label .param {
-  display: inline;
-  margin-left: 5px;
+  display: block;
+  margin: 0;
   color: #728ca9;
-  font: 600 0.7rem ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 600 0.68rem ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere; /* Prefer normal breaks; split long tokens only as needed. */
+  line-height: 1.4;
 }
 
 input,
@@ -821,9 +835,10 @@ details[open] .advanced-summary {
     padding: 10px 12px;
   }
 
-  .field > .tooltip-wrapper {
-    position: static;
-    display: inline;
+  /* A single-column form needs no shared heading-height reservation.
+     Keep the icon at the top right, with the same reserved space as desktop. */
+  .form-grid > .field > label {
+    min-height: 0;
   }
 }
 
