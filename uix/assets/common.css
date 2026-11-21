@@ -1092,6 +1092,9 @@ details[open] > .math-panel-summary::before {
 
 .math-legend-item dt {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+
+
   color: var(--accent);
   font-weight: 600;
   min-width: 40px;
@@ -1187,3 +1190,60 @@ details[open] > .math-panel-summary::before {
     min-width: auto;
   }
 }
+
+/* Local run comparison: chart geometry and report layout use the UIX theme. */
+.portfolio-tabs { flex-wrap: wrap; }
+#comparison .comparison-icon { width: 2.75rem; height: 2.75rem; flex: none; padding: 0; }
+.comparison-icon svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.comparison-icon:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.comparison-selectors { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 0.6rem; }
+.comparison-selectors select { min-width: 0; }
+#mathPanel[hidden] { display: none; }
+@media (max-width: 480px) {
+  .comparison-selectors { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+  #comparison-swap { justify-self: center; }
+  #comparison-swap svg { transform: rotate(90deg); }
+}
+#comparison-report {
+  --comparison-color-0: #48b5e3;
+  --comparison-color-1: #ec984f;
+  --comparison-color-2: #8dc364;
+  --comparison-color-3: #b58be0;
+  --comparison-color-4: #da8294;
+  overflow-wrap: anywhere;
+}
+.comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; margin-top: 1rem; }
+.comparison-grid > .card { min-width: 0; margin-top: 0; }
+.comparison-wide { grid-column: 1 / -1; }
+.comparison-card h3 { margin: 0 0 0.75rem; }
+.comparison-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 0.75rem 1rem; margin: 0.75rem 0; }
+.comparison-facts dt { color: var(--muted); font-size: 0.8rem; }
+.comparison-facts dd { margin: 0.2rem 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.comparison-verdict { color: var(--accent); font-weight: 750; }
+.comparison-note { color: var(--muted); font-size: 0.83rem; margin: 0.75rem 0 0; }
+.comparison-axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.75rem; }
+.comparison-axes > section { min-width: 0; border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.8rem; }
+#comparison-report h4, #comparison-report h5 { margin: 0.9rem 0 0.4rem; }
+.comparison-axes > section h4 { margin-top: 0; }
+#comparison-report li + li { margin-top: 0.3rem; }
+.comparison-technical { margin-top: 1rem; min-width: 0; }
+.comparison-technical summary { cursor: pointer; font-weight: 700; }
+.comparison-technical-body > section { border-top: 1px solid var(--line); margin-top: 1rem; padding-top: 1rem; }
+.comparison-technical-body h3 { color: var(--accent); margin-bottom: 0.75rem; }
+.comparison-technical-body details { margin-top: 0.75rem; padding: 0.65rem; border: 1px solid var(--line); border-radius: 0.5rem; }
+.comparison-table-wrap { overflow-x: auto; margin: 0.75rem 0; }
+.comparison-table-wrap table { border-collapse: collapse; width: 100%; min-width: 24rem; font-size: 0.85rem; }
+.comparison-table-wrap :is(th, td) { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.comparison-table-wrap thead { background: #183550; }
+.comparison-table-wrap tbody tr:nth-child(even) { background: rgba(130, 160, 190, 0.07); }
+.comparison-bar { display: flex; height: 1.5rem; overflow: hidden; border-radius: 0.3rem; background: var(--line); }
+.comparison-bar span { height: 100%; }
+.comparison-color-0 { background-color: var(--comparison-color-0); }
+.comparison-color-1 { background-color: var(--comparison-color-1); }
+.comparison-color-2 { background-color: var(--comparison-color-2); }
+.comparison-color-3 { background-color: var(--comparison-color-3); }
+.comparison-color-4 { background-color: var(--comparison-color-4); }
+.comparison-legend { list-style: none; padding: 0; }
+.comparison-legend li { display: flex; align-items: baseline; gap: 0.5rem; }
+.comparison-swatch { display: inline-block; flex: 0 0 0.8rem; height: 0.8rem; }
+.comparison-donut { width: 9rem; height: 9rem; border-radius: 50%; margin: 1rem 0; mask: radial-gradient(circle closest-side, transparent 39%, #000 41%); }

@@ -218,6 +218,30 @@ Con pagine `file://`, verificare la persistenza dopo la riapertura del browser;
 se lo storage non e disponibile, la UI segnala la modalita solo in memoria.
 Dettagli e procedura di verifica in [Configuratori HTML](docs/experiments/README.md#comandi-preferiti).
 
+Nel configuratore **Portfolio Mean–Variance**, la scheda **05 · Confronto**
+permette di scegliere **Baseline** e **Run di confronto** da due tendine di run ID,
+senza selezionare cartelle, avviare un server o rilanciare i solver. La dashboard mostra indicatori,
+grafici del dominio, motivi registrati per round, posizioni della baseline, tempi e
+un verdetto complessivo quando sono soddisfatte le condizioni di confrontabilita;
+in caso contrario ne indica i motivi. I dettagli tecnici sono espandibili e il report
+resta nella pagina, senza generazione o download Markdown. Le differenze descrivono
+i run osservati, non provano un effetto causale.
+
+Per creare il catalogo locale o aggiornarlo dopo aver aggiunto, rimosso o
+rigenerato dei run, eseguire dalla root del repository (con l'ambiente del progetto
+attivo), poi premere **↻ Aggiorna il catalogo dei run** nella scheda **Confronto**.
+Non occorre ricaricare la pagina; le selezioni restano valide finché i relativi
+run sono presenti nel catalogo.
+
+```powershell
+python -m qreduce.experiments.portfolio_mv.run_catalog
+```
+
+Il comando legge gli output già pubblicati in `outputs/portfolio_mv` e genera
+`outputs/portfolio_mv/run_catalog.js`, uno snapshot locale non tracciato da Git.
+Per requisiti dei file, stato delle verifiche e limiti del confronto si veda la
+[nota di implementazione](./docs/implementation/uix-portfolio-comparison-findings.md).
+
 ## Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:

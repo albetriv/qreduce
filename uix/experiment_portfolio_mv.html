@@ -25,11 +25,12 @@
 
     <div class="layout">
       <section class="panel main-panel" aria-label="Configurazione esperimento">
-        <nav class="tabs" aria-label="Sezioni di configurazione">
+        <nav class="tabs portfolio-tabs" aria-label="Sezioni Portfolio Media-Varianza">
           <button class="tab active" data-tab="experiment">01 · Esperimento</button>
           <button class="tab" data-tab="reduction">02 · Riduzione</button>
           <button class="tab" data-tab="solver">03 · Solver</button>
           <button class="tab" data-tab="export">04 · Export</button>
+          <button class="tab" type="button" data-tab="comparison" aria-controls="comparison">05 · Confronto</button>
         </nav>
 
         <form id="configForm" novalidate>
@@ -369,6 +370,32 @@
             </div>
           </section>
         </form>
+        <section class="tab-content" id="comparison" aria-labelledby="comparison-title">
+          <div class="section-head">
+            <div>
+              <h2 id="comparison-title">Impatto di QReduce</h2>
+              <p>Scegli due run dal catalogo locale. I dati rimangono sul tuo dispositivo.</p>
+            </div>
+            <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Aggiorna il catalogo dei run" aria-label="Aggiorna il catalogo dei run">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v5h-5 M20 9a8 8 0 1 0 0 6"/></svg>
+            </button>
+          </div>
+          <div class="comparison-selectors">
+            <div class="field">
+              <label for="comparison-a">Baseline</label>
+              <select id="comparison-a" disabled><option value="">Seleziona un run</option></select>
+            </div>
+            <button id="comparison-swap" class="button ghost comparison-icon" type="button" title="Inverti i run" aria-label="Inverti i run" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4 M20 16H4m4-4-4 4 4 4"/></svg>
+            </button>
+            <div class="field">
+              <label for="comparison-b">Run di confronto</label>
+              <select id="comparison-b" disabled><option value="">Seleziona un run</option></select>
+            </div>
+          </div>
+          <p id="comparison-status" class="help" role="status">Caricamento del catalogo locale…</p>
+          <div id="comparison-report"></div>
+        </section>
       </section>
 
       <!-- Sidebar -->
@@ -530,5 +557,7 @@
   <script src="assets/common.js"></script>
   <script src="assets/math_formulation.js"></script>
   <script src="assets/portfolio_mv.js"></script>
+  <script src="assets/comparison.js"></script>
+  <script src="assets/run_comparison_ui.js"></script>
 </body>
 </html>
