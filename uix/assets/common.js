@@ -682,6 +682,265 @@ var QReduceCommon = (function () {
     });
   }
 
+  /** Initialize per-configurator favorites without requiring a server. */
+  function setupFavorites(family, updateCallback) {
+    var form = $("configForm");
+    var host = document.querySelector("aside.summary");
+    if (!form || !host || $("favoritesPanel")) return;
+    var key = "qreduce.uix.favorites.v1." + family;
+    var storage = null;
+    var blocked = false;
+    var entries = [];
+    var panel = document.createElement("section");
+    panel.id = "favoritesPanel";
+    panel.className = "favorites";
+    panel.setAttribute("aria-labelledby", "favoritesTitle");
+    panel.innerHTML = '<h3 id="favoritesTitle">Comandi preferiti</h3>' +
+      '<p id="favoritesStorage" class="help" role="status"></p>' +
+      '<label for="favoriteName">Nome del preferito</label>' +
+      '<input id="favoriteName" maxlength="160" autocomplete="off">' +
+      '<div class="actions"><button type="button" class="button primary" id="saveFavorite">Salva</button></div>' +
+      '<label for="favoritesList">Preferiti salvati (ordine alfabetico)</label>' +
+      '<select id="favoritesList" size="5"></select>' +
+      '<div class="actions"><button type="button" class="button ghost" id="loadFavorite">Carica</button>' +
+      '<button type="button" class="button ghost" id="deleteFavorite">Cancella</button></div>' +
+      '<div class="actions"><button type="button" class="button ghost" id="exportFavorites">Esporta JSON</button>' +
+      '<button type="button" class="button ghost" id="importFavorites">Importa JSON</button></div>' +
+      '<input id="favoritesFile" type="file" accept=".json,application/json" hidden>' +
+      '<p id="favoritesMessage" class="help" role="status" aria-live="polite"></p>';
+    host.appendChild(panel);
+    var nameInput = $("favoriteName");
+    var list = $("favoritesList");
+    var fields = Array.from(form.querySelectorAll("input[id], select[id], textarea[id]"));
+    var fieldMap = new Map(fields.map(function (field) { return [field.id, field]; }));
+    nameInput.value = value("runId");
+
+    function message(text) { $("favoritesMessage").textContent = text; }
+    function storageStatus(text) { $("favoritesStorage").textContent = text; }
+    function normalized(name) { return name.trim().toLocaleLowerCase("it"); }
+    function envelope(items) {
+      return { application: "qreduce-uix-favorites", version: 1, family: family,
+        entries: items.slice().sort(function (a, b) { return a.name.localeCompare(b.name, "it", { sensitivity: "base", numeric: true }); }).map(function (item) {
+          var values = Object.create(null);
+          Object.keys(item.fields).sort().forEach(function (id) { values[id] = item.fields[id]; });
+          return { name: item.name, format: item.format, command: item.command, fields: values };
+        }) };
+    }
+    function validateArchive(data) {
+      if (!data || data.application !== "qreduce-uix-favorites" || data.version !== 1 ||
+          data.family !== family || !Array.isArray(data.entries) || data.entries.length > 1000) {
+        throw new Error("Formato, versione o configuratore incompatibile.");
+      }
+      var names = new Set();
+      return data.entries.map(function (item) {
+        if (!item || typeof item.name !== "string" || !item.name.trim() || item.name.length > 160 ||
+            !["inline", "multiline"].includes(item.format) || typeof item.command !== "string" ||
+            !item.fields || typeof item.fields !== "object" || Array.isArray(item.fields)) {
+          throw new Error("Preferito non valido.");
+        }
+        if (names.has(normalized(item.name))) throw new Error("Nomi duplicati nell'archivio.");
+        names.add(normalized(item.name));
+        // Exact field sets prevent silently loading obsolete configurations.
+        if (Object.keys(item.fields).length !== fields.length) {
+          throw new Error("Campi incompatibili con questa versione del configuratore.");
+        }
+        fields.forEach(function (field) {
+          if (!Object.prototype.hasOwnProperty.call(item.fields, field.id)) {
+            throw new Error("Campo mancante: " + field.id);
+          }
+          var saved = item.fields[field.id];
+          if (typeof saved !== (field.type === "checkbox" ? "boolean" : "string") ||
+              (field.tagName === "SELECT" && !Array.from(field.options).some(function (o) { return o.value === saved; })) ||
+              (field.readOnly && saved !== field.value)) {
+            throw new Error("Valore incompatibile: " + field.id);
+          }
+        });
+        return { name: item.name.trim(), format: item.format, command: item.command, fields: item.fields };
+      });
+    }
+    function refresh() {
+      var selected = list.value;
+      entries.sort(function (a, b) {
+        return a.name.localeCompare(b.name, "it", { sensitivity: "base", numeric: true });
+      });
+      list.replaceChildren();
+      entries.forEach(function (entry) {
+        var option = document.createElement("option");
+        option.value = entry.name;
+        option.textContent = entry.name;
+        list.appendChild(option);
+      });
+      if (!entries.length) {
+        var empty = document.createElement("option");
+        empty.textContent = "Nessun preferito salvato";
+        empty.disabled = true;
+        list.appendChild(empty);
+      }
+      list.value = selected;
+      selectionChanged();
+      $("exportFavorites").disabled = entries.length === 0;
+      syncSave();
+    }
+    function selectionChanged() {
+      var selected = entries.some(function (entry) { return entry.name === list.value; });
+      $("loadFavorite").disabled = !selected;
+      $("deleteFavorite").disabled = !selected;
+    }
+    function syncSave() {
+      $("saveFavorite").disabled = blocked || !nameInput.value.trim() || nameInput.value.length > 160 || $("copyCommand").disabled;
+    }
+    function commit(next, notice) {
+      if (blocked) return;
+      if (next.length > 1000) { message("Limite di 1000 preferiti."); return; }
+      var serialized = JSON.stringify(envelope(next));
+      if (new Blob([serialized]).size > 5 * 1024 * 1024) {
+        message("Modifica rifiutata: archivio oltre 5 MiB. Esporta i preferiti esistenti prima di ridurne il numero.");
+        return;
+      }
+      // Re-read before writing: never silently overwrite another window's edits.
+      if (storage) {
+        try {
+          var raw = storage.getItem(key);
+          var current = raw === null ? [] : validateArchive(JSON.parse(raw));
+          if (JSON.stringify(envelope(current)) !== JSON.stringify(envelope(entries))) {
+            message("Archivio modificato in un'altra finestra. Riapri la pagina prima di salvare.");
+            return;
+          }
+          storage.setItem(key, serialized);
+        } catch (error) {
+          storage = null;
+          storageStatus("Scrittura non riuscita: modifiche solo in memoria. Esporta prima di chiudere o ricaricare.");
+        }
+      }
+      entries = next;
+      refresh();
+      message(notice + (storage ? "" : " Solo in memoria: esporta per conservarli."));
+    }
+    var readableStorage = null;
+    try {
+      storage = window.localStorage;
+      readableStorage = storage;
+      var probe = key + ".probe." + Date.now() + Math.random();
+      try {
+        storage.setItem(probe, "ok");
+        if (storage.getItem(probe) !== "ok") throw new Error("Storage non disponibile");
+      } finally {
+        storage.removeItem(probe);
+      }
+      storageStatus("Archivio locale del browser, non sincronizzato. Con file:// verifica la persistenza dopo la riapertura; esporta una copia di sicurezza.");
+    } catch (error) {
+      storage = null;
+      storageStatus("Storage non disponibile: preferiti solo in memoria fino alla chiusura o al ricaricamento. Usa Esporta JSON.");
+    }
+    if (readableStorage) {
+      try {
+        var raw = readableStorage.getItem(key);
+        if (raw !== null) entries = validateArchive(JSON.parse(raw));
+      } catch (error) {
+        blocked = true;
+        storageStatus("Archivio illeggibile o incompatibile: nessun dato sovrascritto. " + error.message);
+        $("importFavorites").disabled = true;
+      }
+    }
+    nameInput.addEventListener("input", syncSave);
+    form.addEventListener("input", syncSave);
+    form.addEventListener("change", syncSave);
+    // Validation can also change after reset or a programmatic update.
+    var observer = new MutationObserver(syncSave);
+    observer.observe($("copyCommand"), { attributes: true, attributeFilter: ["disabled"] });
+    list.addEventListener("change", function () {
+      selectionChanged();
+      if (list.value) nameInput.value = list.value;
+      syncSave();
+    });
+    $("saveFavorite").addEventListener("click", function () {
+      updateCallback();
+      syncSave();
+      if ($("saveFavorite").disabled) return;
+      var name = nameInput.value.trim();
+      var existing = entries.find(function (item) { return normalized(item.name) === normalized(name); });
+      if (existing && !window.confirm('Sovrascrivere il preferito "' + existing.name + '"?')) return;
+      var values = Object.create(null);
+      fields.forEach(function (field) { values[field.id] = field.type === "checkbox" ? field.checked : field.value; });
+      var next = entries.filter(function (item) { return item !== existing; });
+      next.push({ name: name, fields: values, format: getFormat(), command: $("cliPreview").textContent });
+      commit(next, "Preferito salvato.");
+    });
+    $("loadFavorite").addEventListener("click", function () {
+      var entry = entries.find(function (item) { return item.name === list.value; });
+      if (!entry) return;
+      validateArchive(envelope([entry]));
+      Object.keys(entry.fields).forEach(function (id) {
+        var field = fieldMap.get(id);
+        if (field.type === "checkbox") field.checked = entry.fields[id];
+        else field.value = entry.fields[id];
+      });
+      document.querySelectorAll(".format-selector button").forEach(function (button) {
+        button.classList.toggle("active", button.dataset.format === entry.format);
+      });
+      updateCallback();
+      syncSave();
+      message("Configurazione caricata e comando rigenerato. Nessun comando eseguito.");
+    });
+    $("deleteFavorite").addEventListener("click", function () {
+      var selected = list.value;
+      if (!selected || !window.confirm('Cancellare il preferito "' + selected + '"?')) return;
+      commit(entries.filter(function (entry) { return entry.name !== selected; }), "Preferito cancellato.");
+    });
+    $("exportFavorites").addEventListener("click", function () {
+      var url = null;
+      var link = document.createElement("a");
+      try {
+        var blob = new Blob([JSON.stringify(envelope(entries))], { type: "application/json" });
+        url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = "qreduce-favorites-" + family + ".json";
+        document.body.appendChild(link);
+        link.click();
+        message("Download richiesto. Conserva il JSON fuori dal workspace; puo contenere percorsi locali.");
+      } catch (error) {
+        message("Esportazione non riuscita: " + error.message);
+      } finally {
+        link.remove();
+        if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }
+    });
+    $("importFavorites").addEventListener("click", function () { $("favoritesFile").click(); });
+    $("favoritesFile").addEventListener("change", function () {
+      var input = this;
+      var file = input.files[0];
+      if (!file || blocked) return;
+      if (file.size > 5 * 1024 * 1024) {
+        message("Importazione rifiutata: limite di 5 MiB.");
+        input.value = "";
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var imported = validateArchive(JSON.parse(reader.result));
+          var next = entries.slice();
+          imported.forEach(function (entry) {
+            var base = entry.name;
+            var suffix = 2;
+            while (next.some(function (item) { return normalized(item.name) === normalized(entry.name); })) {
+              entry.name = base.slice(0, 145) + " (" + suffix++ + ")";
+            }
+            next.push(entry);
+          });
+          if (next.length > 1000) throw new Error("Limite di 1000 preferiti.");
+          commit(next, "Importati " + imported.length + " preferiti.");
+        } catch (error) {
+          message("Importazione rifiutata: " + error.message);
+        }
+        input.value = "";
+      };
+      reader.onerror = function () { message("Impossibile leggere il file."); input.value = ""; };
+      reader.readAsText(file);
+    });
+    refresh();
+  }
+
   // Public API
   return {
     $: $,
@@ -699,6 +958,7 @@ var QReduceCommon = (function () {
     setupTabs: setupTabs,
     setupFormatSelector: setupFormatSelector,
     getFormat: getFormat,
+    setupFavorites: setupFavorites,
     setButtonsEnabled: setButtonsEnabled,
     extractParamDescription: extractParamDescription,
     extractSwitchDescription: extractSwitchDescription,

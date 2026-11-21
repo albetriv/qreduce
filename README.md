@@ -210,6 +210,14 @@ I configuratori includono un pannello espandibile con la formulazione
 matematica del problema configurato, renderizzata con MathJax quando
 disponibile.
 
+Nel pannello destro, **Comandi preferiti** permette di salvare, caricare e
+cancellare configurazioni con elenco alfabetico. I dati restano nel browser:
+nessun archivio viene creato nel workspace. Import/export JSON consente il
+trasferimento manuale tra browser e macchine, salvando il file fuori dal repository.
+Con pagine `file://`, verificare la persistenza dopo la riapertura del browser;
+se lo storage non e disponibile, la UI segnala la modalita solo in memoria.
+Dettagli e procedura di verifica in [Configuratori HTML](docs/experiments/README.md#comandi-preferiti).
+
 ## Notebook di visualizzazione
 
 I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:

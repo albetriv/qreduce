@@ -528,6 +528,7 @@
 
     // Initial update
     update();
+    C.setupFavorites("facility_location", update);
 
     // Initialize MathJax for formulation panel
     // Exclude dynamic elements (reduction section) from TeX source preservation

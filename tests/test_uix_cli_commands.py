@@ -10,6 +10,7 @@ that argparse accepts those commands.
 
 import argparse
 import shlex
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -437,15 +438,103 @@ class TestUIXFileStructure:
         assert file.exists(), "uix/assets/facility_location.js should exist"
 
 
+class CatalogParser(HTMLParser):
+    """Collect catalog links with their enclosing card or resources section."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.section = None
+        self.card = None
+        self.cards = []
+        self.resources = []
+        self.links = []
+        self.assets = []
+        self.active_link = None
+        self.nested_links = False
+
+    def handle_starttag(self, tag, attrs) -> None:
+        attrs = dict(attrs)
+        classes = attrs.get("class", "").split()
+        if tag == "link" and attrs.get("href"):
+            self.assets.append(attrs["href"])
+        if tag == "article" and "catalog-card" in classes:
+            self.card = []
+            self.cards.append(self.card)
+        if tag == "section" and "catalog-resources" in classes:
+            self.section = self.resources
+        if tag == "a":
+            if self.active_link is not None:
+                self.nested_links = True
+            link = [attrs.get("href"), ""]
+            self.links.append(link)
+            if self.card is not None:
+                self.card.append(link)
+            if self.section is not None:
+                self.section.append(link)
+            self.active_link = link
+
+    def handle_data(self, data) -> None:
+        if self.active_link is not None:
+            self.active_link[1] += data
+
+    def handle_endtag(self, tag) -> None:
+        if tag == "a":
+            self.active_link = None
+        elif tag == "article":
+            self.card = None
+        elif tag == "section":
+            self.section = None
+
+
 class TestUIXHtmlContent:
     """Test that HTML files have required content."""
 
-    def test_index_links_to_configurators(self) -> None:
-        """Test that index.html links to both configurators."""
+    def test_index_links_to_configurators_and_documentation(self) -> None:
+        """Configured families link to both resources; previews link only to docs."""
         index_file = Path(__file__).parent.parent / "uix" / "index.html"
-        content = index_file.read_text()
-        assert "experiment_portfolio_mv.html" in content, "index should link to portfolio_mv"
-        assert "experiment_facility_location.html" in content, "index should link to facility_location"
+        content = index_file.read_text(encoding="utf-8")
+        parser = CatalogParser()
+        parser.feed(content)
+        assert parser.cards == [
+            [["experiment_portfolio_mv.html", "Portfolio Media-Varianza"],
+             ["../docs/experiments/portfolio.md", "Documentazione"]],
+            [["experiment_portfolio_sr.html", "Portfolio Sharpe Ratio"],
+             ["../docs/experiments/portfolio-sr.md", "Documentazione"]],
+            [["experiment_facility_location.html", "Facility Location"],
+             ["../docs/experiments/facility-location.md", "Documentazione"]],
+            [["../docs/experiments/asset-liability-management.md", "Documentazione"]],
+            [["../docs/experiments/riassicurazione-passiva.md", "Documentazione"]],
+            [["../docs/experiments/cessione-crediti-deteriorati.md", "Documentazione"]],
+            [["../docs/experiments/pianificazione-audit-interni.md", "Documentazione"]],
+        ]
+        assert parser.resources == [
+            ["../docs/experiments/README.md", "Guida esperimenti"],
+            ["../README.md", "README progetto"],
+        ]
+        assert len(parser.links) == 12
+        assert not parser.nested_links
+        for href, _ in parser.links:
+            assert href and (index_file.parent / href).is_file(), href
+        for href in parser.assets:
+            assert (index_file.parent / href).is_file(), href
+        assert "Risorse comuni" in content
+        cards = [part.split("</article>")[0] for part in content.split('<article class="catalog-card">')[1:]]
+        preview_titles = [
+            "Asset Liability Management (ALM)",
+            "Riassicurazione passiva",
+            "Cessione di crediti deteriorati",
+            "Pianificazione degli audit interni",
+        ]
+        assert len(cards) == 7
+        for card, title, links in zip(cards[3:], preview_titles, parser.cards[3:], strict=True):
+            assert f"<h2>{title}</h2>" in card
+            assert '<p class="eyebrow">Famiglia sperimentale</p>' in card
+            assert '<span class="pill">anteprima · non eseguibile</span>' in card
+            assert "<button" not in card
+            doc_text = (index_file.parent / links[0][0]).read_text(encoding="utf-8")
+            assert doc_text.splitlines()[0] == f"# {title}"
+        reinsurance = next(card for card in cards if "<h2>Riassicurazione passiva</h2>" in card)
+        assert "Selezione di coperture per limitare le perdite da sinistri gravi" in reinsurance
 
     def test_portfolio_uses_unified_cli(self) -> None:
         """Test that portfolio configurator uses the unified CLI entry point."""

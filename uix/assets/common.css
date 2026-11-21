@@ -661,12 +661,13 @@ details[open] .advanced-summary {
 /* Catalog cards */
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 20px;
   margin-top: 28px;
 }
 
 .catalog-card {
+  position: relative;
   border: 1px solid var(--line);
   background: linear-gradient(150deg, rgba(17, 35, 59, 0.85), rgba(9, 22, 39, 0.9));
   border-radius: 14px;
@@ -686,6 +687,27 @@ details[open] .advanced-summary {
   margin-bottom: 8px;
 }
 
+.catalog-card-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.catalog-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.catalog-card-link:focus-visible {
+  outline: none;
+}
+
+.catalog-card-link:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .catalog-card p {
   color: var(--muted);
   font-size: 0.85rem;
@@ -694,6 +716,28 @@ details[open] .advanced-summary {
 
 .catalog-card .pill {
   margin-right: 6px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 18px;
+}
+
+.catalog-actions a {
+  position: relative;
+  z-index: 1;
+  color: var(--blue);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.catalog-actions a:focus-visible,
+.catalog-resources a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* Responsive */
@@ -1081,6 +1125,44 @@ details[open] > .math-panel-summary::before {
 .math-note strong {
   color: #dbe9fa;
 }
+
+/* Saved commands in the right-hand summary, including narrow screens. */
+.favorites {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.favorites label {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.favorites input:not([type="file"]),
+.favorites select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.favorites .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.favorites .actions .button { flex: 1 1 100px; }
+.favorites .help { margin: 0; overflow-wrap: anywhere; }
+.favorites select option { padding: 5px; }
+.favorites :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Responsive adjustments */
 @media (max-width: 680px) {

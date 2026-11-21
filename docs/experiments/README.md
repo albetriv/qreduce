@@ -99,8 +99,17 @@ L'architettura comune è descritta in
 | portfolio_sr        | completo      | [portfolio-sr.md](./portfolio-sr.md)     |
 | facility_location   | sperimentale  | [facility-location.md](./facility-location.md) |
 
-Ogni guida descrive: comandi CLI, parametri specifici, convenzioni dei run ID,
-posizione dei notebook, interpretazione dei risultati.
+Le guide delle famiglie disponibili descrivono comandi CLI, parametri specifici,
+convenzioni dei run ID, posizione dei notebook e interpretazione dei risultati.
+
+## Anteprime sperimentali non eseguibili
+
+Queste guide descrivono proposte di esperimenti, senza configuratore né CLI:
+
+- [Asset Liability Management (ALM)](./asset-liability-management.md)
+- [Riassicurazione passiva](./riassicurazione-passiva.md)
+- [Cessione di crediti deteriorati](./cessione-crediti-deteriorati.md)
+- [Pianificazione degli audit interni](./pianificazione-audit-interni.md)
 
 ## Configuratori HTML
 
@@ -114,8 +123,8 @@ da filesystem senza server.
 | [experiment_portfolio_sr.html](../../uix/experiment_portfolio_sr.html) | portfolio_sr |
 | [experiment_facility_location.html](../../uix/experiment_facility_location.html) | facility_location |
 
-Il catalogo [`uix/index.html`](../../uix/index.html) elenca tutti i
-configuratori disponibili.
+Il catalogo [`uix/index.html`](../../uix/index.html) elenca i configuratori
+disponibili e le anteprime con la rispettiva documentazione.
 
 I configuratori:
 - generano comandi CLI con sintassi Bash/Zsh;
@@ -124,6 +133,55 @@ I configuratori:
 - mostrano icone informative (ⓘ) con descrizioni dei parametri;
 - mostrano la formulazione matematica del problema configurato;
 - non verificano la disponibilità dei solver o l'esistenza dei file.
+
+### Comandi preferiti
+
+Nel pannello destro di ciascun configuratore, **Comandi preferiti** offre:
+
+- nome obbligatorio, suggerito inizialmente dall'ID del run, e **Salva** per
+  configurazioni valide; un nome gia presente richiede conferma di sovrascrittura;
+- elenco alfabetico (con ordinamento naturale dei numeri), **Carica** e
+  **Cancella**, con conferma di cancellazione;
+- **Esporta JSON** e **Importa JSON**, relativi al configuratore corrente.
+
+Il salvataggio conserva campi, checkbox, valori temporaneamente disabilitati,
+formato inline/multilinea e comando. Carica ripristina la configurazione e
+rigenera il comando con validazione, riepilogo e formule correnti: non esegue
+comandi. Nessun preferito e caricato automaticamente; Ripristina default non
+cancella l'archivio.
+
+La persistenza usa `localStorage`, non cookie, server o file nel workspace.
+Non e sincronizzata tra Chrome, Firefox, profili o macchine. Su `file://`
+il comportamento dipende dal browser: mantenere una copia esportata, anche
+prima di spostare gli HTML o cancellare i dati del browser.
+Il test iniziale di scrittura/rilettura non garantisce persistenza tra sessioni.
+Se lo storage e indisponibile o una scrittura fallisce, un avviso indica che
+le modifiche restano solo in memoria fino a chiusura/ricaricamento: esportarle.
+Archivi illeggibili/incompatibili non vengono sovrascritti; modifiche rilevate
+da un'altra finestra richiedono di riaprire la pagina prima di salvare.
+
+Il JSON include identificatore applicazione, versione (1), famiglia e preferiti.
+L'import valida tutti i dati prima di applicarli e rifiuta versioni/famiglie,
+campi o opzioni incompatibili senza modifiche parziali. I duplicati vengono
+rinominati con suffissi `(2)`, `(3)`, ecc., senza eliminare quelli esistenti.
+Limiti: nomi di 160 caratteri, 1000 preferiti, archivio e file importati di 5 MiB.
+Se la scrittura non e disponibile ma i dati sono leggibili, i preferiti esistenti
+restano consultabili ed esportabili.
+L'export richiede un download del browser: scegliere una destinazione fuori
+dal workspace, eventualmente sincronizzata. Il file puo contenere percorsi
+locali e altri valori configurati; condividerlo consapevolmente.
+
+**Verifica manuale in Chrome e Firefox**, separatamente, in profili normali:
+
+1. Aprire lo stesso HTML via `file://`, salvare due configurazioni con nomi
+   in ordine inverso e verificare l'elenco alfabetico.
+2. Cambiare campi e formato, caricare un preferito e verificare comando,
+   riepilogo, controlli dipendenti e formule. Annullare/confermare una cancellazione.
+3. Chiudere completamente il browser, riaprire lo stesso HTML e verificare
+   la presenza dei preferiti. Non confondere questa prova con il controllo iniziale.
+4. Esportare fuori dal workspace, importare nell'altro browser e verificare
+   il ripristino; importare nuovamente e controllare i suffissi dei duplicati.
+5. Ripetere per tutti i configuratori; provare JSON errati e di altra famiglia.
 
 ### Configurazione del grafo di riduzione
 

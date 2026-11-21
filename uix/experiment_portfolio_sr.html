@@ -702,6 +702,7 @@
       // Register button handlers (using addEventListener for jsdom compatibility)
       if (copyBtn) copyBtn.addEventListener('click', copyCommand);
       if (resetBtn) resetBtn.addEventListener('click', resetDefaults);
+      C.setupFavorites("portfolio_sr", update);
     });
 
     // Make risk-free rate read-only and disabled

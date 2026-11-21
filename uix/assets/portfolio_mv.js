@@ -868,6 +868,7 @@
 
     // Initial update
     update();
+    C.setupFavorites("portfolio_mv", update);
 
     // Initialize MathJax for formulation panel
     // Exclude dynamic elements (cardinality, reduction) from TeX source preservation

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Catalogo dei configuratori per esperimenti QReduce.">
+  <meta name="description" content="Catalogo dei configuratori e delle anteprime degli esperimenti QReduce.">
   <title>QReduce | Catalogo esperimenti</title>
   <link rel="stylesheet" href="assets/common.css">
 </head>
@@ -15,62 +15,120 @@
         <div>
           <p class="eyebrow">Experiment configurators</p>
           <h1>QReduce</h1>
-          <p class="muted" style="margin:0">Seleziona una famiglia di esperimenti per configurare e generare il comando CLI.</p>
+          <p class="muted" style="margin:0">Apri un configuratore per generare il comando CLI o esplora le anteprime.</p>
         </div>
       </div>
     </header>
 
     <div class="notice" style="max-width: 800px;">
-      <strong>Nota:</strong> Queste pagine generano comandi CLI da eseguire nel terminale con Poetry.
+      <strong>Nota:</strong> Solo i configuratori disponibili generano comandi CLI da eseguire nel terminale con Poetry.
       Non avviano direttamente gli esperimenti e non verificano la disponibilità dei solver nel tuo ambiente.
       Esegui i comandi dalla root del repository con l'ambiente Poetry configurato.
     </div>
 
     <div class="catalog-grid">
-      <a href="experiment_portfolio_mv.html" class="catalog-card">
+      <article class="catalog-card">
         <p class="eyebrow">Famiglia principale</p>
-        <h2>Portfolio Media-Varianza</h2>
+        <h2><a class="catalog-card-link" href="experiment_portfolio_mv.html">Portfolio Media-Varianza</a></h2>
         <p>
           Ottimizzazione media-varianza con portfolio sintetico. Supporta baseline classica,
           single-pass e multi-round con recovery. Avversione al rischio configurabile.
         </p>
         <span class="pill">qreduce.experiments.portfolio_mv</span>
         <span class="pill">completo</span>
-      </a>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/portfolio.md">Documentazione</a>
+        </div>
+      </article>
 
-      <a href="experiment_portfolio_sr.html" class="catalog-card">
+      <article class="catalog-card">
         <p class="eyebrow">Famiglia dimostrativa</p>
-        <h2>Portfolio Sharpe Ratio</h2>
+        <h2><a class="catalog-card-link" href="experiment_portfolio_sr.html">Portfolio Sharpe Ratio</a></h2>
         <p>
           Massimizzazione Sharpe ratio con dati reali S&P500. Vincoli settoriali e cardinalità
           facoltativa. Trasformazione in QP convesso.
         </p>
         <span class="pill">qreduce.experiments.portfolio_sr</span>
         <span class="pill">completo</span>
-      </a>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/portfolio-sr.md">Documentazione</a>
+        </div>
+      </article>
 
-      <a href="experiment_facility_location.html" class="catalog-card">
+      <article class="catalog-card">
         <p class="eyebrow">Famiglia sperimentale</p>
-        <h2>Facility Location</h2>
+        <h2><a class="catalog-card-link" href="experiment_facility_location.html">Facility Location</a></h2>
         <p>
           Capacitated facility location con istanze OR-Library. Richiede file di istanza locale.
           Stato sperimentale, escluso dal wheel.
         </p>
         <span class="pill">qreduce.experiments.facility_location</span>
         <span class="pill">sperimentale</span>
-      </a>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/facility-location.md">Documentazione</a>
+        </div>
+      </article>
+
+      <article class="catalog-card">
+        <p class="eyebrow">Famiglia sperimentale</p>
+        <h2>Asset Liability Management (ALM)</h2>
+        <p>
+          Selezione e dimensionamento di swap per coprire il rischio di tasso su un bilancio sintetico.
+          Confronto tra catalogo completo e ridotto con QReduce.
+        </p>
+        <span class="pill">anteprima · non eseguibile</span>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/asset-liability-management.md">Documentazione</a>
+        </div>
+      </article>
+
+      <article class="catalog-card">
+        <p class="eyebrow">Famiglia sperimentale</p>
+        <h2>Riassicurazione passiva</h2>
+        <p>
+          Selezione di coperture per limitare le perdite da sinistri gravi entro un budget di premi.
+          Confronto tra catalogo completo e ridotto con QReduce.
+        </p>
+        <span class="pill">anteprima · non eseguibile</span>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/riassicurazione-passiva.md">Documentazione</a>
+        </div>
+      </article>
+
+      <article class="catalog-card">
+        <p class="eyebrow">Famiglia sperimentale</p>
+        <h2>Cessione di crediti deteriorati</h2>
+        <p>
+          Selezione di offerte per lotti di crediti deteriorati, senza cedere due volte lo stesso credito.
+          Confronto tra catalogo completo e ridotto con QReduce.
+        </p>
+        <span class="pill">anteprima · non eseguibile</span>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/cessione-crediti-deteriorati.md">Documentazione</a>
+        </div>
+      </article>
+
+      <article class="catalog-card">
+        <p class="eyebrow">Famiglia sperimentale</p>
+        <h2>Pianificazione degli audit interni</h2>
+        <p>
+          Selezione degli interventi per coprire le aree di rischio prioritarie con meno giornate di audit.
+          Confronto tra catalogo completo e ridotto con QReduce.
+        </p>
+        <span class="pill">anteprima · non eseguibile</span>
+        <div class="catalog-actions">
+          <a href="../docs/experiments/pianificazione-audit-interni.md">Documentazione</a>
+        </div>
+      </article>
     </div>
 
-    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);">
-      <h3 style="color: var(--muted); font-size: 0.85rem; margin-bottom: 12px;">Risorse</h3>
+    <section class="catalog-resources" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);">
+      <h2 style="color: var(--muted); font-size: 0.85rem; margin-bottom: 12px;">Risorse comuni</h2>
       <ul style="list-style: none; padding: 0; margin: 0; display: flex; gap: 24px; flex-wrap: wrap;">
         <li><a href="../docs/experiments/README.md" style="color: var(--blue); text-decoration: none; font-size: 0.85rem;">Guida esperimenti</a></li>
-        <li><a href="../docs/experiments/portfolio.md" style="color: var(--blue); text-decoration: none; font-size: 0.85rem;">Documentazione portfolio media-varianza</a></li>
-        <li><a href="../docs/experiments/portfolio-sr.md" style="color: var(--blue); text-decoration: none; font-size: 0.85rem;">Documentazione portfolio SR</a></li>
-        <li><a href="../docs/experiments/facility-location.md" style="color: var(--blue); text-decoration: none; font-size: 0.85rem;">Documentazione facility location</a></li>
         <li><a href="../README.md" style="color: var(--blue); text-decoration: none; font-size: 0.85rem;">README progetto</a></li>
       </ul>
-    </div>
+    </section>
   </main>
 </body>
 </html>
