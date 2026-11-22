@@ -27,6 +27,7 @@ function launch(store = new Map(), mode = "normal") {
   } });
   w.confirm = () => true;
   w.eval(common);
+  w.eval(fs.readFileSync(path.join(root, "assets", "solver_info.js"), "utf8"));
   if (family === "portfolio_sr") {
     w.document.querySelectorAll("script:not([src])").forEach(script => {
       if (script.textContent.includes("DOMContentLoaded")) w.eval(script.textContent);

@@ -640,6 +640,59 @@ var QReduceCommon = (function () {
       }
     });
 
+    // Initialize existing static tooltip wrappers (not created from PARAM_DESC)
+    var existingWrappers = document.querySelectorAll(".tooltip-wrapper");
+    existingWrappers.forEach(function (wrapper) {
+      var button = wrapper.querySelector(".info-icon");
+      var tooltip = wrapper.querySelector(".tooltip");
+      if (!button || !tooltip) return;
+
+      // Skip if already initialized (has click handler)
+      if (button.dataset.tooltipInit) return;
+      button.dataset.tooltipInit = "true";
+
+      // Click pins/unpins tooltip
+      button.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleTooltipClick(tooltip);
+        button.setAttribute("aria-expanded", pinnedTooltip === tooltip ? "true" : "false");
+      });
+
+      // Enter and Space activate button
+      button.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleTooltipClick(tooltip);
+          button.setAttribute("aria-expanded", pinnedTooltip === tooltip ? "true" : "false");
+        }
+      });
+
+      // Hover opens tooltip (temporary)
+      wrapper.addEventListener("mouseenter", function () {
+        handleTooltipHoverFocus(tooltip, wrapper);
+      });
+
+      // Mouse leave closes if not pinned
+      wrapper.addEventListener("mouseleave", function () {
+        setTimeout(function () {
+          handleTooltipLeave(tooltip, wrapper, button);
+        }, 50);
+      });
+
+      // Focus opens tooltip (temporary)
+      button.addEventListener("focus", function () {
+        handleTooltipHoverFocus(tooltip, wrapper);
+      });
+
+      // Blur closes if not pinned
+      button.addEventListener("blur", function () {
+        setTimeout(function () {
+          handleTooltipLeave(tooltip, wrapper, button);
+        }, 100);
+      });
+    });
+
     // Process regular fields
     var fields = document.querySelectorAll(".field");
     fields.forEach(function (field) {

@@ -183,7 +183,7 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     await writeCatalog([...entries, added]);
     refresh.click();
     await waitFor(() => !refresh.disabled);
-    assert.match(status.textContent, /Catalogo aggiornato\. Confronto pronto/);
+    assert.match(status.textContent, /Catalogo ricaricato dal disco\. Confronto pronto/);
     assert.deepEqual([a.value, b.value], [baseline, 'second-id']);
     assert.ok([...a.options].some(option => option.value === 'new-id'));
     await writeCatalog([entries[0], added]);
@@ -199,7 +199,7 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     await fs.unlink(catalogPath);
     refresh.click();
     await waitFor(() => !refresh.disabled);
-    assert.match(status.textContent, /Catalogo locale non disponibile/);
+    assert.match(status.textContent, /Catalogo locale non trovato o non valido/);
     assert.ok(a.disabled && b.disabled);
     await writeCatalog(entries);
     refresh.click();

@@ -434,6 +434,8 @@
    */
   function updateEnabled() {
     var reductionActive = isReductionActive();
+    var dwaveSolver = C.value("misSolver") === "dwave_simulated_annealing";
+    var greedySolver = C.value("misSolver") === "local_greedy";
 
     // Graph policy controls: disabled in baseline mode
     var graphPolicyCard = C.$("graphPolicyCard");
@@ -456,6 +458,48 @@
     if (misSolverSelect) {
       misSolverSelect.disabled = !reductionActive;
     }
+
+    // MIS params card: show appropriate section based on solver and mode
+    var dwaveParamsSection = C.$("dwaveParams");
+    var greedyParamsSection = C.$("greedyParams");
+    C.$("misParamsCard").hidden = !reductionActive;
+
+    if (!reductionActive) {
+      // Baseline mode: show notice, hide all params
+      if (dwaveParamsSection) dwaveParamsSection.style.display = "none";
+      if (greedyParamsSection) greedyParamsSection.style.display = "none";
+    } else {
+      // Reduction active: show params for selected solver
+      if (dwaveParamsSection) dwaveParamsSection.style.display = dwaveSolver ? "" : "none";
+      if (greedyParamsSection) greedyParamsSection.style.display = greedySolver ? "" : "none";
+    }
+
+    // Update dynamic solver info panels
+    updateSolverInfoPanels(reductionActive);
+  }
+
+  /**
+   * Update the dynamic solver info panels based on current selections.
+   * @param {boolean} reductionActive - Whether reduction is active
+   */
+  function updateSolverInfoPanels(reductionActive) {
+    // Check if solver info module is available
+    if (typeof QReduceSolverInfo === "undefined") {
+      return;
+    }
+
+    var misSolverId = C.value("misSolver");
+    var classicalSolverId = C.value("solver");
+
+    // Render MIS solver info panel
+    // Note: facility_location has no embedding profile option
+    QReduceSolverInfo.renderMisPanel("misSolverInfoContainer", misSolverId, {
+      reductionActive: reductionActive,
+      embeddingProfile: null
+    });
+
+    // Render classical solver info panel (always visible)
+    QReduceSolverInfo.renderClassicalPanel("classicalSolverInfoContainer", classicalSolverId);
   }
 
   /**

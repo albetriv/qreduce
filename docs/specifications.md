@@ -94,7 +94,7 @@ implementazione.
 | Adapter annealing/BQM D-Wave Ocean remoto | opzionale; Leap Hybrid o QPU restano adapter distinti con capability, credenziali, device ed embedding dichiarati |
 | Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale; contratto predisposto |
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
-| Backend MIS locale `pasqal_local` | opzionale: Pulser/QuTiP, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
+| Backend MIS locale `pasqal_local` | Pulser/QuTiP nel gruppo `experiments`, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
 | QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
 
 La configurazione deve rifiutare esplicitamente un ID backend non noto. Un ID noto
@@ -1660,3 +1660,21 @@ tempo end-to-end, status, fattibilita` e post-check, obiettivo/bound/gap quando
 disponibili e misura della perdita rispetto a un riferimento classico. Gli esiti
 infeasible, failure e post-check failed devono essere conservati e inclusi nella
 valutazione.
+### Tracciamento di repair e completamento MWIS
+
+Il completamento classico è disabilitato per default. Per abilitarlo occorrono
+`completion_enabled=true` e una policy esplicita: `greedy_by_weight`,
+`greedy_by_degree` o `greedy_weight_degree`. Policy sconosciute e combinazioni
+incoerenti del flag con `disabled` sono errori di configurazione.
+
+Il repair rimuove nodi in conflitto; il completamento aggiunge nodi compatibili.
+I candidate record distinguono `raw_delta`, `repaired_delta`, `completed_delta`,
+le azioni e le energie delle due trasformazioni. `repair_status` non descrive
+il completamento. Quest'ultimo non è una certificazione di ottimalità MWIS.
+
+Dopo le trasformazioni, vettori uguali costituiscono un unico candidato per
+la selezione diversificata, anche con distanza minima zero. Le occorrenze
+vengono sommate e `source_raw_sample_ids` conserva l'unione delle sorgenti.
+I record delle sorgenti non rappresentative riportano
+`duplicate_after_processing`; non occupano ulteriori slot. Le occorrenze di
+un risultato trasformato non sono nuove misure del backend.

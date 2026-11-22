@@ -701,8 +701,8 @@ class TestPortfolioEmbeddingSelector:
         # Default value should not be emitted
         assert "--mis-embedding-profile" not in result["command"]
 
-    def test_embedding_reset_when_solver_changes(self):
-        """Test that embedding profile resets to 'none' when switching to local_greedy.
+    def test_embedding_not_emitted_for_other_solver(self):
+        """Test that the retained profile is omitted for local_greedy.
 
         When the solver is not dwave_simulated_annealing, embedding profile
         should be ignored and not emitted.
@@ -810,8 +810,8 @@ class TestPortfolioEmbeddingDOMTransitions:
         except json.JSONDecodeError:
             pytest.fail(f"Invalid JSON output: {result.stdout}")
 
-    def test_embedding_resets_when_solver_changes_to_local_greedy(self):
-        """Test DOM transition: D-Wave + pegasus -> local_greedy resets to none + disabled."""
+    def test_embedding_retained_when_solver_changes_to_local_greedy(self):
+        """Switching away disables embedding without discarding the selected profile."""
         steps = [
             # Step 1: Set up initial state with D-Wave and hardware embedding
             {
@@ -825,11 +825,17 @@ class TestPortfolioEmbeddingDOMTransitions:
                     "embeddingProfile": {"value": "pegasus_p16", "disabled": False},
                 },
             },
-            # Step 2: Change solver to local_greedy - embedding should reset
+            # Step 2: Disable, but preserve the profile for a return to D-Wave.
             {
                 "set": {"misSolver": "local_greedy"},
                 "verify": {
-                    "embeddingProfile": {"value": "none", "disabled": True},
+                    "embeddingProfile": {"value": "pegasus_p16", "disabled": True},
+                },
+            },
+            {
+                "set": {"misSolver": "dwave_simulated_annealing"},
+                "verify": {
+                    "embeddingProfile": {"value": "pegasus_p16", "disabled": False},
                 },
             },
         ]
@@ -837,8 +843,8 @@ class TestPortfolioEmbeddingDOMTransitions:
         result = self.run_transition_test(steps)
         assert result["success"], f"Transition test failed: {result}"
 
-    def test_embedding_resets_when_reduction_disabled(self):
-        """Test DOM transition: reduction enabled + pegasus -> maxRounds=0 resets to none + disabled."""
+    def test_embedding_retained_when_reduction_disabled(self):
+        """Baseline disables embedding and reduction restores the retained selection."""
         steps = [
             # Step 1: Set up initial state with D-Wave and hardware embedding
             {
@@ -852,11 +858,17 @@ class TestPortfolioEmbeddingDOMTransitions:
                     "embeddingProfile": {"value": "zephyr_z12", "disabled": False},
                 },
             },
-            # Step 2: Disable reduction - embedding should reset
+            # Step 2: Baseline retains the inactive profile.
             {
                 "set": {"maxRounds": "0"},
                 "verify": {
-                    "embeddingProfile": {"value": "none", "disabled": True},
+                    "embeddingProfile": {"value": "zephyr_z12", "disabled": True},
+                },
+            },
+            {
+                "set": {"maxRounds": "2"},
+                "verify": {
+                    "embeddingProfile": {"value": "zephyr_z12", "disabled": False},
                 },
             },
         ]
@@ -1161,3 +1173,153 @@ class TestPortfolioSRPasqalBackend:
             },
         )
         assert result["isValid"] is False
+
+
+
+class TestSolverInfoPanelDOMTransitions:
+    """Test that solver info panels are shown/hidden correctly based on selected backend.
+
+    These tests verify the DOM state of the solver info panel containers after
+    changing solver selections and reduction mode.
+    """
+
+    def run_transition_test(self, configurator: str, steps: list) -> dict:
+        """Run a sequence of DOM changes and verify state transitions."""
+        runner_path = Path(__file__).parent / "uix_transition_runner.js"
+        if not runner_path.exists():
+            pytest.skip("uix_transition_runner.js not found")
+
+        try:
+            subprocess.run(
+                ["node", "--version"],
+                capture_output=True,
+                timeout=5,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pytest.skip("Node.js not available")
+
+        result = subprocess.run(
+            ["node", str(runner_path), configurator, json.dumps(steps)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            if "Cannot find module" in result.stderr and "jsdom" in result.stderr:
+                pytest.skip("jsdom not installed")
+            pytest.fail(f"Transition runner failed: {result.stderr}")
+
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            pytest.fail(f"Invalid JSON output: {result.stdout}")
+
+    def test_mis_params_hidden_in_baseline_portfolio_mv(self):
+        """Test that MIS param sections are hidden when reduction is disabled (baseline mode)."""
+        steps = [
+            # Step 1: Enable reduction with D-Wave - dwaveParams should be visible
+            {
+                "set": {
+                    "runId": "panel_test",
+                    "maxRounds": "1",
+                    "misSolver": "dwave_simulated_annealing",
+                },
+                "verify": {
+                    "dwaveParams": {"display": ""},  # Visible (not hidden)
+                    "pasqalParams": {"display": "none"},
+                    "greedyParams": {"display": "none"},
+                    "misBaselineNotice": {"exists": False},
+                },
+            },
+            # Step 2: Disable reduction - all params hidden, notice shown
+            {
+                "set": {"maxRounds": "0"},
+                "verify": {
+                    "dwaveParams": {"display": "none"},
+                    "pasqalParams": {"display": "none"},
+                    "greedyParams": {"display": "none"},
+                    "misBaselineNotice": {"display": ""},  # Visible
+                },
+            },
+        ]
+
+        result = self.run_transition_test("portfolio", steps)
+        assert result["success"], f"Transition test failed: {result}"
+
+    def test_mis_params_switch_between_solvers(self):
+        """Test that switching MIS solver shows only the relevant param section."""
+        steps = [
+            # Step 1: Start with greedy
+            {
+                "set": {
+                    "runId": "solver_switch_test",
+                    "maxRounds": "1",
+                    "misSolver": "local_greedy",
+                },
+                "verify": {
+                    "dwaveParams": {"display": "none"},
+                    "greedyParams": {"display": ""},
+                },
+            },
+            # Step 2: Switch to D-Wave
+            {
+                "set": {"misSolver": "dwave_simulated_annealing"},
+                "verify": {
+                    "dwaveParams": {"display": ""},
+                    "greedyParams": {"display": "none"},
+                },
+            },
+            # Step 3: Switch to Pasqal
+            {
+                "set": {"misSolver": "pasqal_local"},
+                "verify": {
+                    "dwaveParams": {"display": "none"},
+                    "pasqalParams": {"display": ""},
+                    "greedyParams": {"display": "none"},
+                },
+            },
+        ]
+
+        result = self.run_transition_test("portfolio", steps)
+        assert result["success"], f"Transition test failed: {result}"
+
+    def test_facility_location_mis_params_toggle(self):
+        """Test that facility_location shows correct MIS params (no Pasqal option)."""
+        steps = [
+            # Step 1: Reduction with greedy
+            {
+                "set": {
+                    "runId": "fl_panel_test",
+                    "rounds": "1",
+                    "misSolver": "local_greedy",
+                },
+                "verify": {
+                    "dwaveParams": {"display": "none"},
+                    "greedyParams": {"display": ""},
+                    "misBaselineNotice": {"exists": False},
+                },
+            },
+            # Step 2: Switch to D-Wave
+            {
+                "set": {"misSolver": "dwave_simulated_annealing"},
+                "verify": {
+                    "dwaveParams": {"display": ""},
+                    "greedyParams": {"display": "none"},
+                },
+            },
+            # Step 3: Switch to baseline
+            {
+                "set": {"rounds": "0"},
+                "verify": {
+                    "dwaveParams": {"display": "none"},
+                    "greedyParams": {"display": "none"},
+                    "misBaselineNotice": {"display": ""},
+                },
+            },
+        ]
+
+        result = self.run_transition_test("facility_location", steps)
+        assert result["success"], f"Transition test failed: {result}"

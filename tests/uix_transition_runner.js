@@ -80,6 +80,12 @@ function main() {
     const commonJs = fs.readFileSync(path.join(uixDir, "assets", "common.js"), "utf8");
     window.eval(commonJs);
 
+    // Load solver_info.js for all configurators
+    const solverInfoPath = path.join(uixDir, "assets", "solver_info.js");
+    if (fs.existsSync(solverInfoPath)) {
+      window.eval(fs.readFileSync(solverInfoPath, "utf8"));
+    }
+
     if (configurator === "portfolio_sr") {
       document.querySelectorAll("script:not([src])").forEach((script) => {
         if (script.textContent.includes("DOMContentLoaded")) {
@@ -112,15 +118,34 @@ function main() {
       return true;
     }
 
-    // Helper to get field state
-    function getFieldState(id) {
-      const el = document.getElementById(id);
-      if (!el) return { exists: false };
+    // CSS selectors allow assertions about containment as well as unique IDs.
+    const rememberedNodes = new Map();
+    function findNodes(id) {
+      return document.querySelectorAll(id.startsWith("css:") ? id.slice(4) : `[id="${id}"]`);
+    }
 
+    function getFieldState(id) {
+      const nodes = findNodes(id);
+      const el = nodes[0];
+      if (!el) return { exists: false, count: 0, visible: false };
+      let visible = true;
+      for (let ancestor = el; ancestor; ancestor = ancestor.parentElement) {
+        const style = window.getComputedStyle(ancestor);
+        if (ancestor.hidden || style.display === "none" || style.visibility === "hidden") {
+          visible = false;
+          break;
+        }
+      }
       return {
         exists: true,
+        count: nodes.length,
+        visible,
+        text: el.textContent.replace(/\s+/g, " ").trim(),
+        attributes: Object.fromEntries(Array.from(el.attributes, attr => [attr.name, attr.value])),
+        sameNode: rememberedNodes.has(id) && rememberedNodes.get(id) === el,
         value: el.type === "checkbox" ? el.checked : el.value,
         disabled: el.disabled,
+        display: el.style.display,
       };
     }
 
@@ -144,6 +169,9 @@ function main() {
       if (step.action === "reset") {
         document.getElementById("resetDefaults").click();
       }
+      if (step.action === "saveFavorite" || step.action === "loadFavorite") {
+        document.getElementById(step.action).click();
+      }
 
       // Verify expected values
       if (step.verify) {
@@ -152,14 +180,18 @@ function main() {
           let match = false;
 
           if (expected && typeof expected === "object") {
-            // Expected is an object with value and/or disabled
-            match = state.exists;
-            if (match && "value" in expected) {
-              match = match && state.value === expected.value;
-            }
-            if (match && "disabled" in expected) {
-              match = match && state.disabled === expected.disabled;
-            }
+            match = Object.entries(expected).every(([key, value]) => {
+              if (key === "includes" || key === "excludes") {
+                const fragments = Array.isArray(value) ? value : [value];
+                return state.exists && fragments.every(fragment =>
+                  key === "includes" ? state.text.includes(fragment) : !state.text.includes(fragment));
+              }
+              if (key === "attributes") {
+                return state.exists && Object.entries(value).every(([name, attribute]) =>
+                  (state.attributes[name] ?? null) === attribute);
+              }
+              return state[key] === value;
+            });
           } else {
             // Expected is just a value
             match = state.exists && state.value === expected;
@@ -174,6 +206,12 @@ function main() {
 
           if (!match) allSuccess = false;
         }
+      }
+
+      for (const id of step.remember || []) {
+        const node = findNodes(id)[0];
+        if (!node) throw new Error(`Cannot remember missing node: ${id}`);
+        rememberedNodes.set(id, node);
       }
 
       stepResult.command = document.getElementById("cliPreview").textContent;

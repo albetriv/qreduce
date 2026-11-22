@@ -62,3 +62,19 @@ Dataset esterni, benchmark pubblici e formati di export di terze parti richiedon
 - [M08 - Riduzione multi-round e recovery](08-multi-round-reduction-and-recovery.md)
 - [M09 - Pipeline unificata e baseline](09-unified-pipeline-and-classical-baseline.md)
 - [README](../../README.md)
+## Analisi portfolio MV / Pasqal 2D
+
+`notebooks/experiments/portfolio_mv/001_mwis_pasqal_2d.ipynb` offre una
+presentazione artifact-only organizzata come il percorso MIS portfolio 2D:
+selezione ID e round, incompatibilità, MWIS, layout e congruenza, impulso,
+campionamento, trasformazioni dei candidati e allocazioni finali.
+
+Le funzioni in `src/qreduce/notebooks/portfolio_mv.py` riusano il loader con
+verifica degli hash e l'analisi portfolio esistenti. Non ricostruiscono grafi per
+baseline prive di compilazione. Gli archi geometrici sono ricalcolati dalle
+coordinate e dal raggio persistiti; missing/extra e differenze dal record
+salvato sono espliciti. La congruenza a soglia non certifica l'Hamiltoniana.
+Le frequenze usano tutte le occorrenze raw, non solo i bitstring mostrati.
+Il confronto finanziario è separato dal peso MWIS e richiede identità del
+problema e adozione/postcheck. Non sono disponibili nuove simulazioni,
+ottimizzazione variazionale o job remoti da questo notebook.

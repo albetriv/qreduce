@@ -264,11 +264,15 @@
           table(['Dato del round ' + fmt(round.index), 'Valore'], [
             ['Nodi del grafo effettivo', round.graph?.nodes], ['Archi del grafo effettivo', round.graph?.edges],
             ['Backend', round.backend?.id], ['Provider', round.backend?.provider], ['Modalità', round.backend?.mode], ['Dispositivo', round.backend?.device],
+            ['Presolve esatto applicato', round.audit?.presolve], ['Codifica dei pesi', round.audit?.weightEncoding],
+            ['Strategia impulso', round.audit?.pulseStrategy], ['Minimi fisici indipendenti', round.audit?.physicalIndependent],
             ['Candidati registrati', candidates?.length], ['Candidati usati', selected?.length], ['Campioni usati', Array.isArray(round.usedSamples) ? round.usedSamples.length : null],
             ['Stato candidati usati', selected ? selected.map(c => fmt(c.repair_status)).join(', ') || 'Nessuno' : null],
             ['Dimensioni candidati selezionati', selected ? selected.map(c => fmt(c.num_selected)).join(', ') || 'Nessuno' : null],
             ['Archi violati prima della riparazione', selected ? selected.map(c => fmt(c.num_violated_edges_before_repair)).join(', ') || 'Nessuno' : null],
             ['Riparazioni registrate', selected ? selected.map(c => Array.isArray(c.repair_actions) ? c.repair_actions.length : missing).join(', ') || 'Nessuno' : null],
+            ['Completamento classico applicato', selected ? selected.map(c => fmt(c.completion_applied)).join(', ') || 'Nessuno' : null],
+            ['Aggiunte classiche registrate', selected ? selected.map(c => Array.isArray(c.completion_actions) ? c.completion_actions.length : missing).join(', ') || 'Nessuno' : null],
             ['Asset mantenuti', Array.isArray(round.retained) ? round.retained.length : null], ['Rapporto di riduzione', round.reductionRatio], ['Motivo arresto', round.terminalReason]
           ], parent);
           if (round.reasons) table(['Decisione', 'Motivo registrato', 'Numero asset', 'Asset'], round.reasons.map(g => [g.decision, g.reason, g.itemIds.length, g.itemIds.join(', ')]), parent);

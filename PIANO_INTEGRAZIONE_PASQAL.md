@@ -76,7 +76,7 @@ Usare le release più recenti non prerelease al momento dell'implementazione,
 senza supportare API legacy. Baseline verificata su PyPI il 21 novembre 2026:
 `pulser`, `pulser-core` e `pulser-simulation` **1.10.1** (17 novembre 2026);
 per la Fase 2, `pasqal-cloud` **0.24.0**. Per il locale dichiarare
-`pulser-simulation` come dipendenza opzionale: include `pulser-core` senza
+`pulser-simulation` nel gruppo `experiments`: include `pulser-core` senza
 installare l'SDK cloud. Aggiungere `pasqal-cloud` solo per il remoto.
 
 Su Windows/Python 3.12, risolvere e fissare le dipendenze opzionali nel lock

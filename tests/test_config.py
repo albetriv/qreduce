@@ -409,3 +409,26 @@ def test_validate_timeout_value_rejects_non_numeric_types() -> None:
 
     error = validate_timeout_value(None, "budget")
     assert error is not None
+
+
+@pytest.mark.parametrize("enabled,policy", [
+    (True, "disabled"), (False, "greedy_by_weight"), (True, "unknown"),
+    ("false", "disabled"), (True, []),
+])
+def test_completion_configuration_rejects_inconsistent_or_unknown_policy(enabled, policy):
+    config = make_config()
+    options = replace(config.mis_execution, completion_enabled=enabled, completion_policy_id=policy)
+    assert not validate_resolved_run_config(replace(config, mis_execution=options)).is_valid
+
+
+def test_completion_configuration_json_preserves_opt_in():
+    import json
+
+    config = make_config()
+    config = replace(config, mis_execution=replace(config.mis_execution,
+                     completion_enabled=True, completion_policy_id="greedy_by_weight"))
+    payload = json.loads(config.to_canonical_json())
+    options = MISExecutionOptions(**payload["mis_execution"])
+    assert options.completion_enabled is True
+    assert options.completion_policy_id == "greedy_by_weight"
+    assert validate_resolved_run_config(replace(config, mis_execution=options)).is_valid

@@ -1,8 +1,27 @@
 """Provider-neutral execution of the canonical MWIS reduction problem."""
 
+from qreduce.solving.mwis.audit import (
+    FinalDomainAudit,
+    IndependenceStatus,
+    MaximalityStatus,
+    MWISAuditSummary,
+    OptimalityClaim,
+    RawSampleAudit,
+    ValidatedCandidateAudit,
+    WeightEncodingMode,
+)
 from qreduce.solving.mwis.compilation import (
     MISExecutionAdapter,
     validate_compilation_request,
+)
+from qreduce.solving.mwis.completion import (
+    CompletionPolicy,
+    CompletionPolicyId,
+    CompletionResult,
+    complete_candidate,
+    compute_maximality_gap,
+    default_completion_policy,
+    greedy_weight_completion_policy,
 )
 from qreduce.solving.mwis.contracts import (
     BackendReportedScoreKind,
@@ -16,9 +35,34 @@ from qreduce.solving.mwis.contracts import (
     MISNormalizationResult,
     RawMISSample,
 )
+from qreduce.solving.mwis.geometry_diagnostics import (
+    EnergyComparison,
+    GeometryDiagnostics,
+    InteractionClassification,
+    PairInteraction,
+    compare_physical_vs_canonical,
+    diagnose_geometry_fidelity,
+)
 from qreduce.solving.mwis.normalization import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
+)
+from qreduce.solving.mwis.presolve import (
+    PresolveReason,
+    PresolveResult,
+    PresolveStatus,
+    presolve_to_raw_sample,
+    try_presolve,
+)
+from qreduce.solving.mwis.pulse_strategy import (
+    PulseStrategyConfig,
+    PulseStrategyDiagnostics,
+    PulseStrategyId,
+    build_pulse_sequence,
+    default_linear_sweep_config,
+    default_smoothed_annealing_config,
+    diagnose_pulse_strategy,
+    legacy_constant_config,
 )
 from qreduce.solving.mwis.registry import (
     MISSolverRegistry,
@@ -29,7 +73,15 @@ from qreduce.solving.mwis.registry import (
 __all__ = [
     "BackendReportedScoreKind",
     "CompiledMISJob",
+    "CompletionPolicy",
+    "CompletionPolicyId",
+    "CompletionResult",
     "DeduplicationResult",
+    "EnergyComparison",
+    "FinalDomainAudit",
+    "GeometryDiagnostics",
+    "IndependenceStatus",
+    "InteractionClassification",
     "MISBackendRequest",
     "MISBackendResult",
     "MISCompilationRequest",
@@ -38,10 +90,36 @@ __all__ = [
     "MISExecutionAdapter",
     "MISNormalizationResult",
     "MISSolverRegistry",
+    "MWISAuditSummary",
+    "MaximalityStatus",
+    "OptimalityClaim",
+    "PairInteraction",
+    "PresolveReason",
+    "PresolveResult",
+    "PresolveStatus",
+    "PulseStrategyConfig",
+    "PulseStrategyDiagnostics",
+    "PulseStrategyId",
     "RawMISSample",
+    "RawSampleAudit",
     "UnknownMISSolverError",
+    "ValidatedCandidateAudit",
+    "WeightEncodingMode",
+    "build_pulse_sequence",
     "builtin_mis_solver_registry",
+    "compare_physical_vs_canonical",
+    "complete_candidate",
+    "compute_maximality_gap",
     "deduplicate_raw_mis_samples",
+    "default_completion_policy",
+    "default_linear_sweep_config",
+    "default_smoothed_annealing_config",
+    "diagnose_geometry_fidelity",
+    "diagnose_pulse_strategy",
+    "greedy_weight_completion_policy",
+    "legacy_constant_config",
     "normalize_backend_result",
+    "presolve_to_raw_sample",
+    "try_presolve",
     "validate_compilation_request",
 ]

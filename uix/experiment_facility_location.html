@@ -252,6 +252,32 @@
               </div>
             </div>
 
+            <!-- MIS Backend Parameters Card -->
+            <div class="card" id="misParamsCard" style="margin-top:20px">
+              <h3>Parametri backend MIS</h3>
+
+              <!-- D-Wave info (no configurable parameters in facility_location) -->
+              <div id="dwaveParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem;">
+                  <code>dwave_simulated_annealing</code>: campionamento classico locale via Ocean SDK.
+                  Parametri avanzati (num_reads, num_sweeps, embedding) non disponibili in questo configuratore.
+                </p>
+              </div>
+
+              <!-- Greedy has no configurable parameters -->
+              <div id="greedyParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem;">
+                  <code>local_greedy</code> non ha parametri configurabili.
+                </p>
+              </div>
+            </div>
+
+            <!-- Dynamic MIS solver info panel container -->
+            <div id="misSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
+
+            <!-- Dynamic classical solver info panel container -->
+            <div id="classicalSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
+
             <div class="card" style="margin-top: 20px;">
               <!-- PARAM_DESC: Abilita l'esportazione del modello residuo (dopo la riduzione) o del modello completo (in baseline) nella directory del run. Utile per debug, analisi offline o risoluzione con altri solver. Il file viene scritto automaticamente nella directory del run. -->
               <div class="switch-row">
@@ -420,6 +446,7 @@
 
   <script src="assets/common.js"></script>
   <script src="assets/math_formulation.js"></script>
+  <script src="assets/solver_info.js"></script>
   <script src="assets/facility_location.js"></script>
 </body>
 </html>

@@ -96,6 +96,7 @@
     var valid = true;
     var form = C.$("configForm");
     C.clearErrors(form);
+    C.$("endToEndBudget").setAttribute("aria-invalid", "false");
 
     function require(id, condition, message) {
       if (!condition) {
@@ -354,6 +355,7 @@
         var budgetForPasqal = C.number("endToEndBudget");
         var pasqalBudgetError = C.$("pasqalBudgetError");
         if (budgetForPasqal !== 0) {
+          C.$("endToEndBudget").setAttribute("aria-invalid", "true");
           if (pasqalBudgetError) {
             pasqalBudgetError.style.display = "";
           }
@@ -596,6 +598,8 @@
   function updateEnabled() {
     var reductionActive = isReductionActive();
     var dwaveSolver = isDwaveSolver();
+    var pasqalSolver = isPasqalSolver();
+    var greedySolver = C.value("misSolver") === "local_greedy";
     var nearDuplicate = isNearDuplicateMode();
 
     // Graph policy controls: disabled in baseline mode
@@ -619,6 +623,27 @@
       graphPolicyCard.style.opacity = reductionActive ? "1" : "0.6";
     }
 
+    // MIS params card: show appropriate section based on solver and mode
+    var misParamsCard = C.$("misParamsCard");
+    var dwaveParamsSection = C.$("dwaveParams");
+    var pasqalParamsSection = C.$("pasqalParams");
+    var greedyParamsSection = C.$("greedyParams");
+    C.$("misParamsCard").hidden = !reductionActive;
+
+    if (misParamsCard) {
+      if (!reductionActive) {
+        // Baseline mode: show notice, hide all params
+        if (dwaveParamsSection) dwaveParamsSection.style.display = "none";
+        if (pasqalParamsSection) pasqalParamsSection.style.display = "none";
+        if (greedyParamsSection) greedyParamsSection.style.display = "none";
+      } else {
+        // Reduction active: show params for selected solver
+        if (dwaveParamsSection) dwaveParamsSection.style.display = dwaveSolver ? "" : "none";
+        if (pasqalParamsSection) pasqalParamsSection.style.display = pasqalSolver ? "" : "none";
+        if (greedyParamsSection) greedyParamsSection.style.display = greedySolver ? "" : "none";
+      }
+    }
+
     // D-Wave params: disabled if not D-Wave OR if baseline mode
     document.querySelectorAll(".dwave-only input").forEach(function (input) {
       input.disabled = !dwaveSolver || !reductionActive;
@@ -629,11 +654,7 @@
       select.disabled = !dwaveSolver || !reductionActive;
     });
 
-    // Reset embedding profile to "none" when switching to incompatible state
-    var embeddingSelect = C.$("embeddingProfile");
-    if (embeddingSelect && (!dwaveSolver || !reductionActive)) {
-      embeddingSelect.value = "none";
-    }
+    // Keep inactive values for a later return; serialization excludes them.
 
     // Near-duplicate params outside graph card: disabled if not near_duplicate mode OR baseline
     document.querySelectorAll(".near-duplicate input").forEach(function (input) {
@@ -671,21 +692,36 @@
     });
 
     // Pasqal params: disabled if not Pasqal OR if baseline mode
-    var pasqalSolver = isPasqalSolver();
-    var pasqalParamsCard = C.$("pasqalParamsCard");
-    if (pasqalParamsCard) {
-      pasqalParamsCard.style.opacity = (pasqalSolver && reductionActive) ? "1" : "0.5";
-      pasqalParamsCard.style.display = ""; // Always show, but dimmed when inactive
-    }
     document.querySelectorAll(".pasqal-only input").forEach(function (input) {
       input.disabled = !pasqalSolver || !reductionActive;
     });
 
-    // Reset Pasqal shots to default when switching away
-    var pasqalShotsInput = C.$("pasqalShots");
-    if (pasqalShotsInput && (!pasqalSolver || !reductionActive)) {
-      // Don't reset value, just disable - user may switch back
+    // Update dynamic solver info panels
+    updateSolverInfoPanels(reductionActive);
+  }
+
+  /**
+   * Update the dynamic solver info panels based on current selections.
+   * @param {boolean} reductionActive - Whether reduction is active
+   */
+  function updateSolverInfoPanels(reductionActive) {
+    // Check if solver info module is available
+    if (typeof QReduceSolverInfo === "undefined") {
+      return;
     }
+
+    var misSolverId = C.value("misSolver");
+    var classicalSolverId = C.value("classicalSolver");
+    var embeddingProfile = C.value("embeddingProfile");
+
+    // Render MIS solver info panel
+    QReduceSolverInfo.renderMisPanel("misSolverInfoContainer", misSolverId, {
+      reductionActive: reductionActive,
+      embeddingProfile: embeddingProfile
+    });
+
+    // Render classical solver info panel (always visible)
+    QReduceSolverInfo.renderClassicalPanel("classicalSolverInfoContainer", classicalSolverId);
   }
 
   /**

@@ -97,7 +97,9 @@ classical_solver_id = "scip"          # oppure "cplex"
 Il catalogo iniziale contiene:
 - **MWIS**: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local` (opt-in)
 
-Per Pulser/QuTiP locale, installare con `poetry install --with pasqal`.
+Il gruppo `experiments` include anche `pulser-simulation` per Pulser/QuTiP
+locale: installare con `poetry install --with experiments`. Non è più necessario
+un gruppo `pasqal` separato.
 Nelle CLI portfolio MV e SR selezionare `--mis-solver-id pasqal_local`, con
 `--max-end-to-end-runtime-seconds=0` e, facoltativamente, `--pasqal-shots 100`
 (valore predefinito). Il backend accetta al massimo 12 nodi, non richiede
@@ -212,6 +214,14 @@ Ogni parametro ha un'icona informativa (ⓘ) che mostra una descrizione al
 passaggio del mouse o con focus/tocco. Le descrizioni documentano scopo,
 effetto e condizioni d'uso di ciascun parametro.
 
+Nella scheda Solver, parametri e informazioni MIS sono contestuali al backend
+selezionato; gli avvisi di embedding compaiono solo con un profilo attivo.
+In baseline il MIS non è utilizzato, mentre le informazioni del solver classico
+restano disponibili. Cambiare backend o disattivare la riduzione conserva i
+valori inattivi senza includerli nel comando. I pannelli descrivono requisiti,
+non verificano SDK installati o licenze. Gli errori bloccanti sono associati ai
+campi da correggere, incluso il budget end-to-end per Pasqal.
+
 I configuratori includono un pannello espandibile con la formulazione
 matematica del problema configurato, renderizzata con MathJax quando
 disponibile.
@@ -273,3 +283,25 @@ Le fonti autorevoli sono:
 
 Questo README riassume le capacita` utilizzabili e le istruzioni operative del
 repository; non sostituisce le specifiche ne` la documentazione tecnica.
+
+### Post-processing dei candidati MWIS
+
+Il completamento greedy è un'opzione classica esplicita, disabilitata per
+default: impostare insieme `completion_enabled=true` e
+`completion_policy_id="greedy_by_weight"` (oppure `greedy_by_degree` o
+`greedy_weight_degree`). Il repair resta indipendente da questa opzione.
+Gli artefatti distinguono campione originale, riparazione e completamento;
+i candidati finali uguali vengono aggregati prima della selezione.
+Il confronto UI mostra le aggiunte classiche separatamente dalle riparazioni.
+
+### Notebook portfolio MV: MWIS e Pasqal 2D
+
+Il notebook `notebooks/experiments/portfolio_mv/001_mwis_pasqal_2d.ipynb`
+analizza i run salvati senza avviare solver o simulatori. Impostare `RUN_ID`,
+`BASELINE_RUN_ID` (opzionale) e `ROUND_INDEX` nella cella di configurazione.
+Mostra correlazioni e incompatibilità, grafo MWIS, coordinate Pasqal, congruenza
+degli archi geometrici, diagnostiche fisiche, selezioni raw Pulser, candidati e
+cap del dominio, quindi le allocazioni finali a confronto con la baseline.
+La logica è in `src/qreduce/notebooks/portfolio_mv.py`. Il confronto delle
+allocazioni richiede lo stesso problema originale e soluzioni adottate con
+postcheck superato; l'enumerazione MWIS è diagnostica e limitata esplicitamente.

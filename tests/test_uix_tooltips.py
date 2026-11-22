@@ -45,6 +45,7 @@ PORTFOLIO_PARAMS = [
     "numReads",
     "numSweeps",
     "embeddingProfile",
+    "pasqalShots",
     "modelExport",
     "modelExportPath",
 ]

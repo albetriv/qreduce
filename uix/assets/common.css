@@ -1196,6 +1196,9 @@ details[open] > .math-panel-summary::before {
 #comparison .comparison-icon { width: 2.75rem; height: 2.75rem; flex: none; padding: 0; }
 .comparison-icon svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .comparison-icon:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.comparison-refresh-wrapper { display: flex; align-items: center; gap: 0.5rem; }
+.comparison-refresh-wrapper .tooltip-wrapper { position: relative; }
+.comparison-refresh-wrapper .info-icon { width: 20px; height: 20px; font-size: 11px; }
 .comparison-selectors { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 0.6rem; }
 .comparison-selectors select { min-width: 0; }
 #mathPanel[hidden] { display: none; }
@@ -1247,3 +1250,93 @@ details[open] > .math-panel-summary::before {
 .comparison-legend li { display: flex; align-items: baseline; gap: 0.5rem; }
 .comparison-swatch { display: inline-block; flex: 0 0 0.8rem; height: 0.8rem; }
 .comparison-donut { width: 9rem; height: 9rem; border-radius: 50%; margin: 1rem 0; mask: radial-gradient(circle closest-side, transparent 39%, #000 41%); }
+
+/* ============================================================================
+   Solver Information Panels
+   ============================================================================ */
+
+/* Container for dynamic solver info panels */
+.solver-info-container {
+  margin-top: 20px;
+}
+
+/* Base panel styling */
+.solver-info-panel {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border-left: 4px solid var(--blue);
+  background: rgba(66, 153, 225, 0.08);
+}
+
+.solver-info-panel:first-child {
+  margin-top: 0;
+}
+
+.solver-info-panel h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 12px 0;
+}
+
+/* Info panel (default) */
+.solver-info-info {
+  border-left-color: var(--blue);
+  background: rgba(66, 153, 225, 0.08);
+}
+
+.solver-info-info h3 {
+  color: #72b6ff;
+}
+
+/* Warning panel */
+.solver-info-warning {
+  border-left-color: var(--warning);
+  background: rgba(236, 201, 75, 0.08);
+}
+
+.solver-info-warning h3 {
+  color: var(--warning);
+}
+
+/* Baseline notice */
+.solver-info-baseline {
+  border-left-color: var(--muted);
+  background: rgba(136, 153, 177, 0.08);
+}
+
+.solver-info-baseline p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* List styling */
+.solver-info-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.solver-info-list li {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.solver-info-list li:last-child {
+  margin-bottom: 0;
+}
+
+.solver-info-list code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.pasqal-budget-error { color: var(--danger); font-size: 0.8rem; }

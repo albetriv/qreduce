@@ -270,7 +270,11 @@
                 <!-- PARAM_DESC: Timeout totale end-to-end in secondi. -->
                 <div class="field">
                   <label for="maxRuntime">Timeout totale (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
-                  <input id="maxRuntime" type="number" min="0" step="1" value="120">
+                  <input id="maxRuntime" type="number" min="0" step="1" value="120" aria-describedby="pasqalBudgetError" aria-invalid="false">
+                  <p class="pasqal-budget-error" role="status" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
+                    Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
+                    L'emulatore locale non può garantire una scadenza temporale.
+                  </p>
                   <p class="help">Default: 120</p>
                 </div>
               </div>
@@ -333,60 +337,68 @@
               </div>
             </div>
 
-            <div class="card dwave-params" style="margin-top:20px">
-              <h3>Parametri D-Wave</h3>
-              <div class="form-grid">
-                <!-- PARAM_DESC: Numero di letture per D-Wave simulated annealing. -->
-                <div class="field">
-                  <label for="misNumReads">Num reads <span class="param">--mis-num-reads</span></label>
-                  <input id="misNumReads" type="number" min="1" step="1" placeholder="Default D-Wave">
+            <!-- MIS Backend Parameters Card -->
+            <div class="card" id="misParamsCard" style="margin-top:20px">
+              <h3>Parametri backend MIS</h3>
+
+              <!-- D-Wave specific parameters -->
+              <div id="dwaveParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                  Parametri per <code>--mis-solver-id dwave_simulated_annealing</code>.
+                </p>
+                <div class="form-grid">
+                  <!-- PARAM_DESC: Numero di letture per D-Wave simulated annealing. -->
+                  <div class="field dwave-only">
+                    <label for="misNumReads">Num reads <span class="param">--mis-num-reads</span></label>
+                    <input id="misNumReads" type="number" min="1" step="1" placeholder="Default D-Wave">
+                  </div>
+                  <!-- PARAM_DESC: Numero di sweeps per D-Wave simulated annealing. -->
+                  <div class="field dwave-only">
+                    <label for="misNumSweeps">Num sweeps <span class="param">--mis-num-sweeps</span></label>
+                    <input id="misNumSweeps" type="number" min="1" step="1" placeholder="Default D-Wave">
+                  </div>
+                  <!-- PARAM_DESC: Profilo embedding per D-Wave. -->
+                  <div class="field dwave-only">
+                    <label for="embeddingProfile">Embedding profile <span class="param">--mis-embedding-profile</span></label>
+                    <select id="embeddingProfile">
+                      <option value="">none (default)</option>
+                      <option value="pegasus_p16">pegasus_p16</option>
+                      <option value="zephyr_z12">zephyr_z12</option>
+                    </select>
+                  </div>
                 </div>
-                <!-- PARAM_DESC: Numero di sweeps per D-Wave simulated annealing. -->
-                <div class="field">
-                  <label for="misNumSweeps">Num sweeps <span class="param">--mis-num-sweeps</span></label>
-                  <input id="misNumSweeps" type="number" min="1" step="1" placeholder="Default D-Wave">
+              </div>
+
+              <!-- Pasqal specific parameters -->
+              <div id="pasqalParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                  Parametri per <code>--mis-solver-id pasqal_local</code>.
+                  Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
+                </p>
+                <div class="form-grid">
+                  <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Default: 100. -->
+                  <div class="field pasqal-only">
+                    <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
+                    <input id="pasqalShots" type="number" min="1" step="1" value="100">
+                    <p class="help">Numero di misure. Default: 100.</p>
+                    <p class="error"></p>
+                  </div>
                 </div>
-                <!-- PARAM_DESC: Profilo embedding per D-Wave. -->
-                <div class="field">
-                  <label for="embeddingProfile">Embedding profile <span class="param">--mis-embedding-profile</span></label>
-                  <select id="embeddingProfile">
-                    <option value="">none (default)</option>
-                    <option value="pegasus_p16">pegasus_p16</option>
-                    <option value="zephyr_z12">zephyr_z12</option>
-                  </select>
-                </div>
+              </div>
+
+              <!-- Greedy has no configurable parameters -->
+              <div id="greedyParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem;">
+                  <code>local_greedy</code> non ha parametri configurabili.
+                </p>
               </div>
             </div>
 
-            <div class="card pasqal-params" id="pasqalParamsCard" style="margin-top:20px">
-              <h3>Parametri Pasqal</h3>
-              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
-                Attivi solo con <code>--mis-solver-id pasqal_local</code>.
-                Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
-              </p>
-              <div class="form-grid">
-                <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Default: 100. -->
-                <div class="field pasqal-only">
-                  <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
-                  <input id="pasqalShots" type="number" min="1" step="1" value="100">
-                  <p class="help">Numero di misure. Default: 100.</p>
-                  <p class="error"></p>
-                </div>
-              </div>
-              <div class="notice warning pasqal-warning" style="margin-top: 12px;">
-                <strong>Limiti del backend locale:</strong>
-                <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.85rem;">
-                  <li>Massimo 12 nodi nel grafo effettivo (limite dell'emulatore, non fisico).</li>
-                  <li>La ricerca del layout può fallire; non è garantita la compilazione di ogni grafo.</li>
-                  <li>I pesi MWIS sono valutati classicamente; i campioni non certificano ottimalità.</li>
-                  <li>Richiede <code>poetry install --with pasqal</code>.</li>
-                </ul>
-              </div>
-              <p class="error pasqal-budget-error" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
-                Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
-                L'emulatore locale non può garantire una scadenza temporale.
-              </p>
-            </div>
+            <!-- Dynamic MIS solver info panel container -->
+            <div id="misSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
+
+            <!-- Dynamic classical solver info panel container -->
+            <div id="classicalSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
 
             <div class="card" style="margin-top:20px">
               <h3>Export modello</h3>
@@ -666,6 +678,7 @@
 
   <script src="assets/common.js"></script>
   <script src="assets/math_formulation.js"></script>
+  <script src="assets/solver_info.js"></script>
   <script>
     // Alias for common utilities
     var C = QReduceCommon;
@@ -774,6 +787,8 @@
     function updateEnabled() {
       const reduction = isReductionActive();
       const dwave = isDwaveSolver();
+      const pasqal = isPasqalSolver();
+      const greedy = $('misSolver').value === 'local_greedy';
       const nearDup = isNearDuplicateMode();
 
       // Graph policy controls: disabled in baseline mode
@@ -804,18 +819,30 @@
         f.querySelectorAll('input').forEach(i => i.disabled = !nearDup || !reduction);
       });
 
-      // D-Wave params
-      document.querySelectorAll('.dwave-params input, .dwave-params select').forEach(el => {
+      // MIS params card: show appropriate section based on solver and mode
+      var dwaveParamsSection = $('dwaveParams');
+      var pasqalParamsSection = $('pasqalParams');
+      var greedyParamsSection = $('greedyParams');
+      $('misParamsCard').hidden = !reduction;
+
+      if (!reduction) {
+        // Baseline mode: show notice, hide all params
+        if (dwaveParamsSection) dwaveParamsSection.style.display = 'none';
+        if (pasqalParamsSection) pasqalParamsSection.style.display = 'none';
+        if (greedyParamsSection) greedyParamsSection.style.display = 'none';
+      } else {
+        // Reduction active: show params for selected solver
+        if (dwaveParamsSection) dwaveParamsSection.style.display = dwave ? '' : 'none';
+        if (pasqalParamsSection) pasqalParamsSection.style.display = pasqal ? '' : 'none';
+        if (greedyParamsSection) greedyParamsSection.style.display = greedy ? '' : 'none';
+      }
+
+      // D-Wave params: disabled if not D-Wave OR if baseline mode
+      document.querySelectorAll('.dwave-only input, .dwave-only select').forEach(el => {
         el.disabled = !dwave || !reduction;
       });
-      document.querySelector('.dwave-params').style.opacity = (dwave && reduction) ? '1' : '0.5';
 
-      // Pasqal params
-      const pasqal = isPasqalSolver();
-      var pasqalParamsCard = $('pasqalParamsCard');
-      if (pasqalParamsCard) {
-        pasqalParamsCard.style.opacity = (pasqal && reduction) ? '1' : '0.5';
-      }
+      // Pasqal params: disabled if not Pasqal OR if baseline mode
       document.querySelectorAll('.pasqal-only input').forEach(el => {
         el.disabled = !pasqal || !reduction;
       });
@@ -825,6 +852,32 @@
       const recoveryEnabled = rounds.valid && rounds.value > 1;
       $('recoveryInfeasible').disabled = !recoveryEnabled;
       $('maxRecovery').disabled = !recoveryEnabled;
+
+      // Update dynamic solver info panels
+      updateSolverInfoPanels(reduction);
+    }
+
+    /**
+     * Update the dynamic solver info panels based on current selections.
+     */
+    function updateSolverInfoPanels(reductionActive) {
+      // Check if solver info module is available
+      if (typeof QReduceSolverInfo === 'undefined') {
+        return;
+      }
+
+      var misSolverId = $('misSolver').value;
+      var classicalSolverId = $('classicalSolver').value;
+      var embeddingProfile = $('embeddingProfile').value;
+
+      // Render MIS solver info panel
+      QReduceSolverInfo.renderMisPanel('misSolverInfoContainer', misSolverId, {
+        reductionActive: reductionActive,
+        embeddingProfile: embeddingProfile
+      });
+
+      // Render classical solver info panel (always visible)
+      QReduceSolverInfo.renderClassicalPanel('classicalSolverInfoContainer', classicalSolverId);
     }
 
     // Share parsing between validation and mathematical presentation.
@@ -854,6 +907,7 @@
     function validate() {
       let valid = true;
       clearErrors(form);
+      $('maxRuntime').setAttribute('aria-invalid', 'false');
 
       // Run ID required
       if (!$('runId').value.trim()) {
@@ -914,6 +968,7 @@
           var budgetForPasqal = readNumber('maxRuntime', 0, Infinity, false, true);
           var pasqalBudgetError = $('pasqalBudgetError');
           if (budgetForPasqal.value !== 0) {
+            $('maxRuntime').setAttribute('aria-invalid', 'true');
             if (pasqalBudgetError) {
               pasqalBudgetError.style.display = '';
             }
@@ -1355,7 +1410,7 @@
       $('randomSeed').value = '';
       $('upperBound').value = DEFAULTS.upperBound;
       $('maxPositions').value = '';
-      $('riskFreeRate').value = DEFAULTS.riskFreeRate;
+      setupRiskFreeFixed();
       $('sectorMin').value = '';
       $('sectorMax').value = '';
       $('edgeMode').value = DEFAULTS.edgeMode;

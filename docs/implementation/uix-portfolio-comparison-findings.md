@@ -1,5 +1,20 @@
 # UIX portfolio comparison: inspection and test handoff
 
+## Contextual solver panels (22 November 2026)
+
+The three configurators share `uix/assets/solver_info.js`. MIS descriptions and
+embedding warnings follow the active backend; baseline has a single notice.
+Classical descriptions remain available in baseline. Hidden backend values are
+retained but omitted from commands. Rendering is cached per container and relevant
+state to avoid rebuilding live regions on unrelated form edits. The Pasqal budget
+error is attached to the budget field with accessible description and invalid state.
+Pulser installation now uses the `experiments` dependency group.
+
+DOM regression coverage is in `tests/test_uix_solver_context.py`, including
+same-DOM transitions, reset/favorite restoration, stable nodes, unique notices,
+budget errors and full portfolio CLI validation. Native-browser layout and screen
+reader verification remain separate from jsdom checks.
+
 `PIANO_UIX_IMPATTO_QREDUCE.md` supersedes the presentation in
 `PIANO_UIX_CONFRONTO_RUN.md`. The current **Impatto di QReduce** panel presents
 an in-page dashboard and expandable technical details. It has no Markdown

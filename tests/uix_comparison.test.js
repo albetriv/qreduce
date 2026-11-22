@@ -271,3 +271,19 @@ test('dashboard verdict, zero denominators, inversion and unknown domains', asyn
   assert.ok(report.dashboard.verdict.reasons.includes('invalid_solution'));
 });
 
+
+
+test('round adapter exposes presolve and physical provenance without inventing legacy facts', async () => {
+  const files = synthetic();
+  change(files, 'run_result.json', r => { r.round_results = [{round_index: 0,
+    mis_compilation_result: {compiled_job: {effective_backend_id: 'presolve_exact',
+      effective_provider_id: 'qreduce', provider_payload: {presolve_applied: true,
+        weight_encoding_mode: 'not_applicable', physical_vs_canonical: {all_ground_states_independent: false}}}},
+    candidate_records: [{completion_applied: true, completion_actions: ['added_item:a'], repair_status: 'valid_without_repair'}]}]; });
+  const round = adaptPortfolio(await importRun(files)).reduction.rounds[0];
+  assert.equal(round.audit.presolve, true);
+  assert.equal(round.audit.physicalIndependent, false);
+  assert.equal(round.audit.weightEncoding, 'not_applicable');
+  assert.equal(round.candidates[0].completion_applied, true);
+  assert.equal(round.backend.provider, 'qreduce');
+});

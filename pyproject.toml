@@ -12,9 +12,6 @@ dependencies = [
 ]
 
 [dependency-groups]
-pasqal = [
-    "pulser-simulation (==1.10.1)",
-]
 dev = [
     "pytest (>=8.0)",
     "ruff (>=0.8)",
@@ -26,6 +23,7 @@ notebooks = [
     "pandas (>=2.2,<4)",
 ]
 experiments = [
+    "pulser-simulation (==1.10.1)",
     "numpy (>=2,<3)",
     "cplex (>=22.2.0.0,<23.0.0.0)",
     "dwave-samplers (>=1.7,<2)",
@@ -35,9 +33,6 @@ experiments = [
     "dwave-system (>=1.20,<2)",
     "minorminer (>=0.2.15,<1)",
 ]
-
-[tool.poetry.group.pasqal]
-optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -97,6 +92,11 @@ ignore = [
 # Questi metodi implementano un'interfaccia di serializzazione uniforme
 "src/qreduce/domains/contracts.py" = ["D102"]
 "src/qreduce/solving/mwis/contracts.py" = ["D102"]
+"src/qreduce/solving/mwis/audit.py" = ["D102"]
+"src/qreduce/solving/mwis/presolve.py" = ["D102"]
+"src/qreduce/solving/mwis/pulse_strategy.py" = ["D102"]
+"src/qreduce/solving/mwis/completion.py" = ["D102"]
+"src/qreduce/solving/mwis/geometry_diagnostics.py" = ["D102"]
 "src/qreduce/solving/residual/contracts.py" = ["D102"]
 "src/qreduce/pipeline/single_pass.py" = ["D102"]
 "src/qreduce/solving/residual/model.py" = ["D102"]

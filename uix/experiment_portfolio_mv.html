@@ -230,7 +230,11 @@
                 <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. Attivo sempre (anche in baseline). -->
                 <div class="field">
                   <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>
-                  <input id="endToEndBudget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)">
+                  <input id="endToEndBudget" type="number" min="0" step="1" placeholder="Default: 60 (0 = illimitato)" aria-describedby="pasqalBudgetError" aria-invalid="false">
+                  <p class="pasqal-budget-error" role="status" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
+                    Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
+                    L'emulatore locale non può garantire una scadenza temporale.
+                  </p>
                   <p class="help">0 = nessun limite globale</p>
                   <p class="error"></p>
                 </div>
@@ -277,7 +281,7 @@
             </div>
 
             <div class="form-grid three">
-              <!-- PARAM_DESC: Backend per risolvere il problema MWIS (Maximum Weight Independent Set). local_greedy: algoritmo greedy locale, veloce ma approssimato. dwave_simulated_annealing: simulated annealing D-Wave, più lento ma potenzialmente migliore. pasqal_local: emulazione locale Pulser/QuTiP (richiede poetry install --with pasqal), limite 12 nodi, nessuna garanzia di layout o ottimalità. Usato solo con riduzione (rounds > 0). -->
+              <!-- PARAM_DESC: Backend per risolvere il problema MWIS (Maximum Weight Independent Set). local_greedy: algoritmo greedy locale, veloce ma approssimato. dwave_simulated_annealing: simulated annealing D-Wave, più lento ma potenzialmente migliore. pasqal_local: emulazione locale Pulser/QuTiP (richiede poetry install --with experiments), limite 12 nodi, nessuna garanzia di layout o ottimalità. Usato solo con riduzione (rounds > 0). -->
               <div class="field">
                 <label for="misSolver">Backend MIS <span class="param">--mis-solver-id</span></label>
                 <select id="misSolver">
@@ -303,64 +307,69 @@
               </div>
             </div>
 
-            <div class="card" style="margin-top:20px">
-              <h3>Parametri D-Wave</h3>
-              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
-                Attivi solo con <code>--mis-solver-id dwave_simulated_annealing</code>.
-              </p>
-              <div class="form-grid">
-                <!-- PARAM_DESC: Numero di letture (campionamenti) per D-Wave simulated annealing. Più letture possono migliorare la qualità della soluzione ma aumentano il tempo. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
-                <div class="field dwave-only">
-                  <label for="numReads">num_reads <span class="param">--mis-num-reads</span></label>
-                  <input id="numReads" type="number" min="1" step="1" placeholder="Opzionale">
+            <!-- MIS Backend Parameters Card -->
+            <div class="card" id="misParamsCard" style="margin-top:20px">
+              <h3>Parametri backend MIS</h3>
+
+              <!-- D-Wave specific parameters -->
+              <div id="dwaveParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                  Parametri per <code>--mis-solver-id dwave_simulated_annealing</code>.
+                </p>
+                <div class="form-grid">
+                  <!-- PARAM_DESC: Numero di letture (campionamenti) per D-Wave simulated annealing. Più letture possono migliorare la qualità della soluzione ma aumentano il tempo. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
+                  <div class="field dwave-only">
+                    <label for="numReads">num_reads <span class="param">--mis-num-reads</span></label>
+                    <input id="numReads" type="number" min="1" step="1" placeholder="Opzionale">
+                  </div>
+                  <!-- PARAM_DESC: Numero di sweep per D-Wave simulated annealing. Più sweep permettono una migliore esplorazione dello spazio delle soluzioni. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
+                  <div class="field dwave-only">
+                    <label for="numSweeps">num_sweeps <span class="param">--mis-num-sweeps</span></label>
+                    <input id="numSweeps" type="number" min="1" step="1" placeholder="Opzionale">
+                  </div>
+                  <!-- PARAM_DESC: Profilo di embedding locale per vincolare il campionamento a una topologia hardware-like. Nessuno: campionamento BQM logico diretto (default). Pegasus P16: topologia Pegasus m=16. Zephyr Z12: topologia Zephyr m=12. Simula vincoli di connettività hardware senza QPU reale o credenziali. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
+                  <div class="field dwave-only">
+                    <label for="embeddingProfile">Profilo embedding locale <span class="param">--mis-embedding-profile</span></label>
+                    <select id="embeddingProfile">
+                      <option value="none">Nessuno (default)</option>
+                      <option value="pegasus_p16">Pegasus P16</option>
+                      <option value="zephyr_z12">Zephyr Z12</option>
+                    </select>
+                    <p class="help">Campionamento classico con vincoli topologici, non simulazione quantistica.</p>
+                  </div>
                 </div>
-                <!-- PARAM_DESC: Numero di sweep per D-Wave simulated annealing. Più sweep permettono una migliore esplorazione dello spazio delle soluzioni. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
-                <div class="field dwave-only">
-                  <label for="numSweeps">num_sweeps <span class="param">--mis-num-sweeps</span></label>
-                  <input id="numSweeps" type="number" min="1" step="1" placeholder="Opzionale">
+              </div>
+
+              <!-- Pasqal specific parameters -->
+              <div id="pasqalParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                  Parametri per <code>--mis-solver-id pasqal_local</code>.
+                  Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
+                </p>
+                <div class="form-grid">
+                  <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Determina quanti campioni vengono estratti dalla sequenza emulata. Più shot possono migliorare la statistica ma aumentano il tempo. Attivo solo con mis-solver-id=pasqal_local e riduzione attiva. Default: 100. -->
+                  <div class="field pasqal-only">
+                    <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
+                    <input id="pasqalShots" type="number" min="1" step="1" value="100">
+                    <p class="help">Numero di misure. Default: 100.</p>
+                    <p class="error"></p>
+                  </div>
                 </div>
-                <!-- PARAM_DESC: Profilo di embedding locale per vincolare il campionamento a una topologia hardware-like. Nessuno: campionamento BQM logico diretto (default). Pegasus P16: topologia Pegasus m=16. Zephyr Z12: topologia Zephyr m=12. Simula vincoli di connettività hardware senza QPU reale o credenziali. Attivo solo con mis-solver-id=dwave_simulated_annealing e riduzione attiva. -->
-                <div class="field dwave-only">
-                  <label for="embeddingProfile">Profilo embedding locale <span class="param">--mis-embedding-profile</span></label>
-                  <select id="embeddingProfile">
-                    <option value="none">Nessuno (default)</option>
-                    <option value="pegasus_p16">Pegasus P16</option>
-                    <option value="zephyr_z12">Zephyr Z12</option>
-                  </select>
-                  <p class="help">Campionamento classico con vincoli topologici, non simulazione quantistica.</p>
-                </div>
+              </div>
+
+              <!-- Greedy has no configurable parameters -->
+              <div id="greedyParams" style="display: none;">
+                <p class="muted" style="font-size: 0.8rem;">
+                  <code>local_greedy</code> non ha parametri configurabili.
+                </p>
               </div>
             </div>
 
-            <div class="card pasqal-params" id="pasqalParamsCard" style="margin-top:20px">
-              <h3>Parametri Pasqal</h3>
-              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
-                Attivi solo con <code>--mis-solver-id pasqal_local</code>.
-                Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
-              </p>
-              <div class="form-grid">
-                <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Determina quanti campioni vengono estratti dalla sequenza emulata. Più shot possono migliorare la statistica ma aumentano il tempo. Attivo solo con mis-solver-id=pasqal_local e riduzione attiva. Default: 100. -->
-                <div class="field pasqal-only">
-                  <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
-                  <input id="pasqalShots" type="number" min="1" step="1" value="100">
-                  <p class="help">Numero di misure. Default: 100.</p>
-                  <p class="error"></p>
-                </div>
-              </div>
-              <div class="notice warning pasqal-warning" style="margin-top: 12px;">
-                <strong>Limiti del backend locale:</strong>
-                <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.85rem;">
-                  <li>Massimo 12 nodi nel grafo effettivo (limite dell'emulatore, non fisico).</li>
-                  <li>La ricerca del layout può fallire; non è garantita la compilazione di ogni grafo.</li>
-                  <li>I pesi MWIS sono valutati classicamente; i campioni non certificano ottimalità.</li>
-                  <li>Richiede <code>poetry install --with pasqal</code>.</li>
-                </ul>
-              </div>
-              <p class="error pasqal-budget-error" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
-                Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
-                L'emulatore locale non può garantire una scadenza temporale.
-              </p>
-            </div>
+            <!-- Dynamic MIS solver info panel container -->
+            <div id="misSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
+
+            <!-- Dynamic classical solver info panel container -->
+            <div id="classicalSolverInfoContainer" class="solver-info-container" aria-live="polite"></div>
           </section>
 
           <!-- Tab 4: Export -->
@@ -407,9 +416,15 @@
               <h2 id="comparison-title">Impatto di QReduce</h2>
               <p>Scegli due run dal catalogo locale. I dati rimangono sul tuo dispositivo.</p>
             </div>
-            <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Ricarica il catalogo dal disco (non lo rigenera; usa il comando Python per aggiornarlo)" aria-label="Ricarica il catalogo dal disco">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v5h-5 M20 9a8 8 0 1 0 0 6"/></svg>
-            </button>
+            <div class="comparison-refresh-wrapper">
+              <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Ricarica il catalogo dal disco" aria-label="Ricarica il catalogo dal disco">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v5h-5 M20 9a8 8 0 1 0 0 6"/></svg>
+              </button>
+              <span class="tooltip-wrapper">
+                <button type="button" class="info-icon" aria-label="Informazioni sul catalogo" aria-expanded="false">i</button>
+                <span class="tooltip" role="tooltip">Questo pulsante ricarica il catalogo già presente su disco. Per aggiungere nuovi run al catalogo, esegui prima:<br><code style="display:block;margin-top:6px;font-size:0.78rem;">poetry run python -m qreduce.experiments.portfolio_mv.run_catalog</code></span>
+              </span>
+            </div>
           </div>
           <div class="comparison-selectors">
             <div class="field">
@@ -587,6 +602,7 @@
 
   <script src="assets/common.js"></script>
   <script src="assets/math_formulation.js"></script>
+  <script src="assets/solver_info.js"></script>
   <script src="assets/portfolio_mv.js"></script>
   <script src="assets/comparison.js"></script>
   <script src="assets/run_comparison_ui.js"></script>

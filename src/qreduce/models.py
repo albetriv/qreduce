@@ -69,6 +69,8 @@ class MISExecutionOptions:
     provider_parameters: Mapping[str, object] = field(default_factory=dict)
     compilation_parameters: Mapping[str, object] = field(default_factory=dict)
     requested_device_id: str | None = None
+    completion_enabled: bool = False
+    completion_policy_id: str = "disabled"
 
     def __post_init__(self) -> None:
         """Freeze provider and compilation parameters so the resolved request cannot be mutated."""

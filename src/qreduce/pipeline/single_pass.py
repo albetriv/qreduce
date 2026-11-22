@@ -23,7 +23,8 @@ from qreduce.domains import (
 from qreduce.logging_context import logging_context
 from qreduce.models import ResolvedRunConfig, RunResult
 from qreduce.mwis import CanonicalMWISProblem, build_mwis_qubo, qubo_to_ising
-from qreduce.mwis.energy import qubo_energy
+from qreduce.mwis.energy import ising_energy, qubo_energy
+from qreduce.mwis.ising import delta_to_spin
 from qreduce.mwis.validation import validate_binary_selection
 from qreduce.pipeline.classical_execution import (
     evaluate_domain_metrics,
@@ -42,6 +43,11 @@ from qreduce.solving.mwis import (
     builtin_mis_solver_registry,
     deduplicate_raw_mis_samples,
     normalize_backend_result,
+)
+from qreduce.solving.mwis.completion import (
+    CompletionPolicy,
+    CompletionPolicyId,
+    complete_candidate,
 )
 from qreduce.solving.residual import (
     ClassicalSolveRequest,
@@ -80,12 +86,28 @@ class CandidateRecord:
     candidate_rank_key: tuple[object, ...] | None = None
     selection_status: str = "not_selected"
     rejection_reason: str | None = None
+    completion_applied: bool = False
+    completion_actions: tuple[str, ...] = ()
+    completion_policy_id: str | None = None
+    energy_after_completion: float | None = None
+    completion_runtime_seconds: float | None = None
+    source_raw_sample_ids: tuple[str, ...] = ()
+    raw_delta: tuple[int, ...] = ()
+    repaired_delta: tuple[int, ...] | None = None
+    completed_delta: tuple[int, ...] | None = None
+    occurrence_count: int | None = None
 
     def __post_init__(self) -> None:
         if not self.candidate_id.strip() or not self.raw_sample_id.strip():
             raise ValueError("Candidate IDs cannot be blank.")
         object.__setattr__(self, "selected_item_ids", tuple(self.selected_item_ids))
         object.__setattr__(self, "repair_actions", tuple(self.repair_actions))
+        object.__setattr__(self, "completion_actions", tuple(self.completion_actions))
+        object.__setattr__(self, "source_raw_sample_ids", tuple(self.source_raw_sample_ids))
+        object.__setattr__(self, "raw_delta", tuple(self.raw_delta))
+        for name in ("repaired_delta", "completed_delta"):
+            if getattr(self, name) is not None:
+                object.__setattr__(self, name, tuple(getattr(self, name)))
         if self.candidate_rank_key is not None:
             object.__setattr__(self, "candidate_rank_key", tuple(self.candidate_rank_key))
 
@@ -440,9 +462,16 @@ def _execute_reduction_round(
     valid_samples = _valid_or_repaired_samples(
         canonical_problem, deduplicated.samples, config
     )
+    unique_candidates = deduplicate_raw_mis_samples(valid_samples, max(1, len(valid_samples))).samples
     selected_samples, selection_rejection_reasons = _select_diverse_samples_with_audit(
-        valid_samples, config
+        unique_candidates, config
     )
+    representative_ids = {sample.raw_sample_id for sample in unique_candidates}
+    selection_rejection_reasons = {
+        **selection_rejection_reasons,
+        **{sample.raw_sample_id: "duplicate_after_processing" for sample in valid_samples
+           if sample.raw_sample_id not in representative_ids},
+    }
     candidate_records = _candidate_records(
         canonical_problem,
         deduplicated.samples,
@@ -1190,7 +1219,12 @@ def _valid_or_repaired_samples(
     samples: tuple[RawMISSample, ...],
     config: ResolvedRunConfig,
 ) -> tuple[RawMISSample, ...]:
-    """Return structurally valid samples, repairing invalid samples only when enabled."""
+    """Return structurally valid samples, repairing invalid samples only when enabled.
+
+    If completion is enabled, valid samples are further processed to become
+    maximal independent sets. Completion is applied AFTER repair, only to
+    samples that are (or have become) valid independent sets.
+    """
     valid_samples: list[RawMISSample] = []
     for sample in samples:
         if sample.is_independent_set:
@@ -1201,7 +1235,51 @@ def _valid_or_repaired_samples(
             )
             if repaired is not None:
                 valid_samples.append(repaired)
+
+    # Apply optional completion to transform valid samples into maximal independent sets
+    if config.mis_execution.completion_enabled:
+        policy = _build_completion_policy(config)
+        completed_samples: list[RawMISSample] = []
+        for sample in valid_samples:
+            completed = _complete_sample(problem, sample, policy)
+            completed_samples.append(completed)
+        return tuple(completed_samples)
+
     return tuple(valid_samples)
+
+
+def _build_completion_policy(config: ResolvedRunConfig) -> CompletionPolicy:
+    """Build a CompletionPolicy from the resolved config."""
+    policy_id_str = config.mis_execution.completion_policy_id
+    policy_id = CompletionPolicyId(policy_id_str)
+
+    return CompletionPolicy(
+        policy_id=policy_id,
+        enabled=config.mis_execution.completion_enabled,
+        tie_breaker="node_id",  # Deterministic
+    )
+
+
+def _complete_sample(
+    problem: CanonicalMWISProblem,
+    sample: RawMISSample,
+    policy: CompletionPolicy,
+) -> RawMISSample:
+    """Apply completion to a valid sample and update its metadata."""
+    result = complete_candidate(problem.graph, sample.delta, policy)
+
+    completed = _recomputed_sample(problem, sample, result.completed_delta)
+    return replace(completed, raw_backend_metadata={
+        **sample.raw_backend_metadata,
+        "qreduce_completion": {
+            "policy_id": policy.policy_id.value,
+            "input_delta": list(sample.delta),
+            "nodes_added": list(result.nodes_added),
+            "runtime_seconds": result.runtime_seconds,
+            "input_energy": sample.canonical_qubo_energy,
+            "is_maximal": result.is_maximal,
+        },
+    })
 
 
 def _candidate_records(
@@ -1215,6 +1293,7 @@ def _candidate_records(
 ) -> tuple[CandidateRecord, ...]:
     """Describe every deduplicated sample, including invalid and non-selected outcomes."""
     valid_by_id = {sample.raw_sample_id: sample for sample in valid_samples}
+    valid_by_id.update({sample.raw_sample_id: sample for sample in selected_samples})
     selected_ids = {sample.raw_sample_id for sample in selected_samples}
     records: list[CandidateRecord] = []
     for index, sample in enumerate(unique_samples):
@@ -1272,14 +1351,16 @@ def _candidate_record(
         if processed_sample is not None
         else ()
     )
-    was_repaired = processed_sample is not None and processed_sample.delta != raw_sample.delta
+    completion = processed_sample.raw_backend_metadata.get("qreduce_completion", {}) if processed_sample else {}
+    before_completion = tuple(completion.get("input_delta", processed_sample.delta)) if processed_sample else ()
+    was_repaired = processed_sample is not None and before_completion != raw_sample.delta
     repair_actions = (
         tuple(
             f"removed_item:{node_id}"
             for node_id, raw_value, processed_value in zip(
                 problem.graph.node_ids,
                 raw_sample.delta,
-                processed_sample.delta,
+                before_completion,
                 strict=True,
             )
             if raw_value == 1 and processed_value == 0
@@ -1304,7 +1385,7 @@ def _candidate_record(
         selected_item_ids=selected_item_ids,
         raw_energy=raw_sample.canonical_qubo_energy,
         energy_recomputed_after_repair=(
-            processed_sample.canonical_qubo_energy if was_repaired else None
+            qubo_energy(problem.qubo, before_completion) if was_repaired else None
         ),
         selection_weight=(
             processed_sample.selection_weight if processed_sample is not None else None
@@ -1313,6 +1394,16 @@ def _candidate_record(
         num_violated_edges_before_repair=raw_sample.num_violated_edges or 0,
         repair_status=repair_status,
         repair_actions=repair_actions,
+        completion_applied=bool(completion.get("nodes_added")),
+        completion_actions=tuple(f"added_item:{node}" for node in completion.get("nodes_added", ())),
+        completion_policy_id=completion.get("policy_id"),
+        completion_runtime_seconds=completion.get("runtime_seconds"),
+        energy_after_completion=processed_sample.canonical_qubo_energy if completion else None,
+        source_raw_sample_ids=processed_sample.source_raw_sample_ids if processed_sample else raw_sample.source_raw_sample_ids,
+        raw_delta=raw_sample.delta,
+        repaired_delta=before_completion if processed_sample else None,
+        completed_delta=processed_sample.delta if completion else None,
+        occurrence_count=processed_sample.occurrence_count if processed_sample else raw_sample.occurrence_count,
         candidate_rank_key=(
             _candidate_rank_key(processed_sample) if processed_sample is not None else None
         ),
@@ -1425,6 +1516,7 @@ def _recomputed_sample(
         sample,
         delta=delta,
         canonical_qubo_energy=qubo_energy(problem.qubo, delta),
+        canonical_ising_energy=ising_energy(problem.ising, delta_to_spin(delta)),
         selection_weight=validation.selection_weight,
         num_selected=validation.num_selected,
         is_independent_set=validation.is_independent_set,

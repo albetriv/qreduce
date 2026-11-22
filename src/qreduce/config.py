@@ -96,6 +96,13 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     issues: list[ValidationIssue] = []
     reduction = config.reduction
     execution = config.mis_execution
+    completion_policies = {"disabled", "greedy_by_weight", "greedy_by_degree", "greedy_weight_degree"}
+    if not isinstance(execution.completion_enabled, bool):
+        _add_issue(issues, "invalid_boolean", "mis_execution.completion_enabled", "Completion flag must be a boolean.")
+    if not isinstance(execution.completion_policy_id, str) or execution.completion_policy_id not in completion_policies:
+        _add_issue(issues, "unknown_policy", "mis_execution.completion_policy_id", "Unknown completion policy.")
+    elif isinstance(execution.completion_enabled, bool) and execution.completion_enabled == (execution.completion_policy_id == "disabled"):
+        _add_issue(issues, "inconsistent_policy", "mis_execution.completion_policy_id", "Completion flag and policy must agree; enable with a non-disabled policy.")
     classical = config.classical_solve
 
     if classical.model_export_enabled and (
@@ -110,12 +117,13 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     _require_nonempty(issues, "schema_version", config.schema_version)
     _require_nonempty(issues, "run_identity.run_id", config.run_identity.run_id)
     _require_nonempty(issues, "mis_solver_id", config.mis_solver_id)
-    if execution.requested_device_id is not None:
-        if not isinstance(execution.requested_device_id, str) or not execution.requested_device_id.strip():
-            _add_issue(
-                issues, "blank_value", "mis_execution.requested_device_id",
-                "Device ID must be a non-blank string.",
-            )
+    if execution.requested_device_id is not None and (
+        not isinstance(execution.requested_device_id, str) or not execution.requested_device_id.strip()
+    ):
+        _add_issue(
+            issues, "blank_value", "mis_execution.requested_device_id",
+            "Device ID must be a non-blank string.",
+        )
     _require_nonempty(
         issues, "classical_solve.classical_solver_id", classical.classical_solver_id
     )

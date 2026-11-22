@@ -77,6 +77,12 @@ function main() {
     const commonJs = fs.readFileSync(path.join(uixDir, "assets", "common.js"), "utf8");
     window.eval(commonJs);
 
+    // Load solver_info.js for all configurators
+    const solverInfoPath = path.join(uixDir, "assets", "solver_info.js");
+    if (fs.existsSync(solverInfoPath)) {
+      window.eval(fs.readFileSync(solverInfoPath, "utf8"));
+    }
+
     // Load specific script (portfolio_sr has inline JS, others have external files)
     if (configurator === "portfolio_sr") {
       // Evaluate only the application script in the existing, offline DOM.
