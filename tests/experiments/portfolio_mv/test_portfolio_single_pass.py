@@ -727,6 +727,7 @@ def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_pro
     class RecordingMIS(LocalGreedyMISBackend):
         def compile(self, problem, request):
             observed["compile"] = request.round_index
+            observed["device"] = request.requested_device_id
             return super().compile(problem, request)
 
         def solve(self, job, request):
@@ -749,6 +750,7 @@ def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_pro
     config = make_config()
     config = replace(
         config, mis_solver_id="recording",
+        mis_execution=replace(config.mis_execution, requested_device_id="test-device"),
         classical_solve=replace(config.classical_solve, classical_solver_id="recording"),
     )
     result = _execute_reduction_round_with_counts(
@@ -756,7 +758,7 @@ def test_internal_round_index_reaches_backends_and_fixing_manifest(portfolio_pro
         config, mis_solver_registry=mis_registry, classical_solver_registry=classical_registry,
         _round_index=3,
     )
-    assert observed == {"compile": 3, "mis": 3, "classical": 3}
+    assert observed == {"compile": 3, "device": "test-device", "mis": 3, "classical": 3}
     assert result.fixing_manifest is not None
     assert result.fixing_manifest.round_index == 3
 

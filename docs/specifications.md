@@ -94,6 +94,7 @@ implementazione.
 | Adapter annealing/BQM D-Wave Ocean remoto | opzionale; Leap Hybrid o QPU restano adapter distinti con capability, credenziali, device ed embedding dichiarati |
 | Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale; contratto predisposto |
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
+| Backend MIS locale `pasqal_local` | opzionale: Pulser/QuTiP, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
 | QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
 
 La configurazione deve rifiutare esplicitamente un ID backend non noto. Un ID noto
@@ -789,7 +790,8 @@ Il vettore binario deve essere validato rispetto al `node_order` serializzato ne
 Il progetto prevede almeno:
 
 ```text
-backend MIS built-in local_greedy e dwave_simulated_annealing, selezionati da ID esplicito
+backend MIS built-in local_greedy, dwave_simulated_annealing e pasqal_local,
+selezionati da ID esplicito
 un exact MIS/QUBO solver per diagnostica su istanze piccole
 la rappresentazione e i contratti provider-agnostic definiti in questa sezione
 ```
@@ -1581,7 +1583,7 @@ QReduce soddisfa i criteri di accettazione quando:
 2. Il framework esegue il percorso completo `graph -> MIS -> candidate domain -> restricted classical solve -> post-check`.
 3. Il kernel non dipende da SDK, provider, QPU, simulatore o formato di job specifico e la rappresentazione MWIS canonica e` serializzabile.
 4. La pipeline risolve senza registry del chiamante i cataloghi built-in MIS
-   `local_greedy` e `dwave_simulated_annealing`; accetta inoltre registry MIS
+   `local_greedy`, `dwave_simulated_annealing` e `pasqal_local`; accetta inoltre registry MIS
    espliciti per estendere il catalogo con backend compatibili, senza rendere i
    relativi SDK una dipendenza core.
 5. Il backend exact e` disponibile solo per test diagnostici piccoli.
@@ -1607,7 +1609,7 @@ esplicita, seguita dall'aggiornamento di queste specifiche e della roadmap.
 
 Tra queste idee rientrano:
 
-- implementazione di ulteriori adapter per D-Wave Leap Hybrid e QPU, IBM Quantum/Qiskit, AWS Braket, Pasqal/Pulser e altri provider;
+- implementazione di ulteriori adapter per D-Wave Leap Hybrid e QPU, IBM Quantum/Qiskit, AWS Braket, Pasqal Cloud/QPU e altri provider;
 - ulteriori esperimenti di portfolio o di altri domini, oltre agli esperimenti dimostrativi gia` previsti, e selezione automatica di backend, device e simulatori compatibili per classe di istanze;
 - politiche di graph construction apprese o data-driven;
 - integrazione con certificate di presolve e reduced-cost fixing;

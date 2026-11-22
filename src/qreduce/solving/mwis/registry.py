@@ -47,9 +47,11 @@ def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
         DWaveSimulatedAnnealingMISBackend,
     )
     from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
+    from qreduce.solving.mwis.pasqal_local_backend import PasqalLocalMISBackend
     from qreduce.solving.solver_ids import BuiltinMISSolverId
 
     return {
         BuiltinMISSolverId.LOCAL_GREEDY: LocalGreedyMISBackend,
         BuiltinMISSolverId.DWAVE_SIMULATED_ANNEALING: DWaveSimulatedAnnealingMISBackend,
+        BuiltinMISSolverId.PASQAL_LOCAL: PasqalLocalMISBackend,
     }

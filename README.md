@@ -95,7 +95,13 @@ classical_solver_id = "scip"          # oppure "cplex"
 ```
 
 Il catalogo iniziale contiene:
-- **MWIS**: `local_greedy`, `dwave_simulated_annealing`
+- **MWIS**: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local` (opt-in)
+
+Per Pulser/QuTiP locale, installare con `poetry install --with pasqal`.
+Nelle CLI portfolio MV e SR selezionare `--mis-solver-id pasqal_local`, con
+`--max-end-to-end-runtime-seconds=0` e, facoltativamente, `--pasqal-shots 100`
+(valore predefinito). Il backend accetta al massimo 12 nodi, non richiede
+credenziali e non esegue job cloud. I pesi MWIS sono valutati dalla pipeline.
 - **Classico residuo**: `cplex`, `scip`
 
 Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non

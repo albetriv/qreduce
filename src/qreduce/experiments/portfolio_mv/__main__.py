@@ -186,7 +186,7 @@ Examples:
     solver_group = parser.add_argument_group("Solver options")
     solver_group.add_argument(
         "--mis-solver-id",
-        choices=("local_greedy", "dwave_simulated_annealing"),
+        choices=("local_greedy", "dwave_simulated_annealing", "pasqal_local"),
         default="local_greedy",
         help="MIS solver ID. Default: local_greedy.",
     )
@@ -203,6 +203,7 @@ Examples:
         "A value of 0 means no per-solve limit (solver runs until completion "
         "or end-to-end budget exhaustion). Default: 60.0.",
     )
+    solver_group.add_argument("--pasqal-shots", type=int, help="Pasqal local shots (default: 100).")
     solver_group.add_argument(
         "--mis-num-reads",
         type=int,
@@ -286,6 +287,12 @@ Examples:
 
 def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     """Validate argument combinations."""
+    if args.pasqal_shots is not None and (args.mis_solver_id != "pasqal_local" or args.pasqal_shots < 1):
+        parser.error("--pasqal-shots requires pasqal_local and a positive integer")
+    if (args.mis_solver_id == "pasqal_local" and args.max_reduction_rounds != 0
+            and args.max_end_to_end_runtime_seconds != 0):
+        parser.error("pasqal_local requires --max-end-to-end-runtime-seconds=0; "
+                     "the local emulator cannot enforce a deadline")
     if args.model_export_path and not args.model_export:
         parser.error("--model-export-path requires --model-export")
 
@@ -462,6 +469,7 @@ def main() -> int:
         classical_solver_id=args.classical_solver_id,
         classical_time_limit_seconds=args.classical_time_limit_seconds,
         mis_num_reads=args.mis_num_reads,
+        pasqal_shots=args.pasqal_shots,
         mis_num_sweeps=args.mis_num_sweeps,
         mis_embedding_profile=args.mis_embedding_profile,
         model_export_enabled=args.model_export,

@@ -59,6 +59,7 @@ EXPERIMENT_ID = "sharpe_portfolio"
 def _build_mis_execution_options(
     *,
     mis_num_reads: int | None = None,
+    pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     mis_solver_id: str = "local_greedy",
@@ -105,10 +106,20 @@ def _build_mis_execution_options(
             )
         compilation_parameters["embedding_profile"] = mis_embedding_profile
 
+    max_distinct_samples = 1
+    if pasqal_shots is not None and mis_solver_id != "pasqal_local":
+        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local'.")
+    if mis_solver_id == "pasqal_local":
+        shots = 100 if pasqal_shots is None else pasqal_shots
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots < 1:
+            raise ValueError("pasqal_shots must be a positive integer.")
+        provider_parameters["shots"] = shots
+        max_distinct_samples = shots
+
     return MISExecutionOptions(
         requested_solution_count=1,
-        random_seed=17,
-        max_distinct_samples=1,
+        random_seed=None if mis_solver_id == "pasqal_local" else 17,
+        max_distinct_samples=max_distinct_samples,
         repair_enabled=False,
         repair_max_iterations=0,
         minimum_candidate_jaccard_distance=0.0,
@@ -211,6 +222,7 @@ def run_sharpe_portfolio_experiment(
     classical_solver_id: str = "scip",
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
+    pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     # Reduction configuration
@@ -244,6 +256,7 @@ def run_sharpe_portfolio_experiment(
         classical_solver_id: Classical solver ID ("scip" or "cplex").
         classical_time_limit_seconds: Per-solve time limit. None=default (60s), 0=no limit.
         mis_num_reads: D-Wave num_reads parameter.
+        pasqal_shots: Local Pasqal shot count.
         mis_num_sweeps: D-Wave num_sweeps parameter.
         mis_embedding_profile: D-Wave embedding profile.
         reduction_policy: Reduction policy configuration.
@@ -298,6 +311,7 @@ def run_sharpe_portfolio_experiment(
     # Build execution options
     mis_execution = _build_mis_execution_options(
         mis_num_reads=mis_num_reads,
+        pasqal_shots=pasqal_shots,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
         mis_solver_id=mis_solver_id,
@@ -369,6 +383,7 @@ def run_sharpe_portfolio_from_inputs(
     classical_solver_id: str = "scip",
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
+    pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     model_export_enabled: bool = False,
@@ -388,6 +403,7 @@ def run_sharpe_portfolio_from_inputs(
         classical_solver_id: Classical solver ID.
         classical_time_limit_seconds: Per-solve time limit. None=default, 0=no limit.
         mis_num_reads: D-Wave num_reads parameter.
+        pasqal_shots: Local Pasqal shot count.
         mis_num_sweeps: D-Wave num_sweeps parameter.
         mis_embedding_profile: D-Wave embedding profile.
         model_export_enabled: Whether to export the classical model.
@@ -407,6 +423,7 @@ def run_sharpe_portfolio_from_inputs(
     # Build execution options
     mis_execution = _build_mis_execution_options(
         mis_num_reads=mis_num_reads,
+        pasqal_shots=pasqal_shots,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
         mis_solver_id=mis_solver_id,

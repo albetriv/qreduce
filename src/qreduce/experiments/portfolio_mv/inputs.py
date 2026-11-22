@@ -131,6 +131,7 @@ def build_synthetic_portfolio_inputs(
     classical_solver_id: str = "scip",
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
+    pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     lower_bound: float = 0.0,
@@ -156,6 +157,7 @@ def build_synthetic_portfolio_inputs(
             completion or end-to-end budget exhaustion). If None, uses the
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
+        pasqal_shots: Local Pasqal shot count; defaults to 100 for Pasqal.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
             Constrains sampling to hardware-like topology without QPU access.
@@ -228,7 +230,9 @@ def build_synthetic_portfolio_inputs(
         lambda_edge_policy=LambdaEdgePolicy("standard", "1", 2.0),
         allow_noncertifying_penalty=False,
         mis_solver_id=mis_solver_id,
-        mis_execution=MISExecutionOptions(1, 17, 1, False, 0, 0.0, 20),
+        mis_execution=MISExecutionOptions(
+            1, None if mis_solver_id == "pasqal_local" else 17, 1, False, 0, 0.0, 20
+        ),
         classical_solve=ClassicalSolveOptions(
             classical_solver_id=classical_solver_id,
             time_limit_seconds=resolved_time_limit,
@@ -244,6 +248,15 @@ def build_synthetic_portfolio_inputs(
         ),
         run_identity=RunIdentity(run_id),
     )
+    if pasqal_shots is not None and mis_solver_id != "pasqal_local":
+        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local'.")
+    if mis_solver_id == "pasqal_local":
+        shots = 100 if pasqal_shots is None else pasqal_shots
+        _require_positive_int(shots, "pasqal_shots")
+        config = replace(config, mis_execution=replace(
+            config.mis_execution, max_distinct_samples=shots, provider_parameters={"shots": shots}
+        ))
+
     if mis_num_reads is not None or mis_num_sweeps is not None:
         if mis_solver_id != "dwave_simulated_annealing":
             raise ValueError(

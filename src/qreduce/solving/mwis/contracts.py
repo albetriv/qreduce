@@ -95,6 +95,9 @@ class CompiledMISJob:
     # Serialized embedded BQM for hardware profiles (None for software profiles)
     # Format: dimod.BinaryQuadraticModel.to_serializable() output
     embedded_bqm_serialized: Mapping[str, object] | None = None
+    provider_payload_type: str | None = None
+    provider_payload_version: int | None = None
+    provider_payload: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         _require_nonempty(self.compiled_job_id, "compiled_job_id")
@@ -105,6 +108,13 @@ class CompiledMISJob:
         if tuple(self.node_order) != self.compiled_problem.graph.node_ids:
             raise MWISValidationError("node_order_mismatch", "node_order", "Job order must match compiled problem.")
         object.__setattr__(self, "node_order", tuple(self.node_order))
+        payload_parts = (self.provider_payload_type, self.provider_payload_version, self.provider_payload)
+        if any(value is not None for value in payload_parts):
+            if any(value is None for value in payload_parts):
+                raise ValueError("Provider payload type, version and payload must be supplied together.")
+            _require_nonempty(self.provider_payload_type, "provider_payload_type")
+            _require_positive_int(self.provider_payload_version, "provider_payload_version")
+            object.__setattr__(self, "provider_payload", MappingProxyType(dict(self.provider_payload)))
         object.__setattr__(
             self,
             "effective_compilation_parameters",

@@ -47,6 +47,7 @@ def run_portfolio_experiment(
     classical_solver_id: str = "scip",
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
+    pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     model_export_enabled: bool = False,
@@ -88,6 +89,7 @@ def run_portfolio_experiment(
             completion or end-to-end budget exhaustion). If None, uses the
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
+        pasqal_shots: Local Pasqal shot count.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
             Constrains sampling to hardware-like topology without QPU access.
@@ -127,6 +129,7 @@ def run_portfolio_experiment(
         classical_solver_id=classical_solver_id,
         classical_time_limit_seconds=classical_time_limit_seconds,
         mis_num_reads=mis_num_reads,
+        pasqal_shots=pasqal_shots,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
         lower_bound=lower_bound,

@@ -347,6 +347,7 @@ def _execute_reduction_round(
             requested_backend_family=capabilities.backend_family,
             requested_execution_mode=capabilities.execution_mode,
             required_problem_form=required_problem_form,
+            requested_device_id=config.mis_execution.requested_device_id,
             compilation_parameters=effective_compilation_parameters,
         ),
         )

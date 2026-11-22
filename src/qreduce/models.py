@@ -68,6 +68,7 @@ class MISExecutionOptions:
     compilation_time_limit_seconds: float | None = None
     provider_parameters: Mapping[str, object] = field(default_factory=dict)
     compilation_parameters: Mapping[str, object] = field(default_factory=dict)
+    requested_device_id: str | None = None
 
     def __post_init__(self) -> None:
         """Freeze provider and compilation parameters so the resolved request cannot be mutated."""

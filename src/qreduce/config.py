@@ -110,6 +110,12 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     _require_nonempty(issues, "schema_version", config.schema_version)
     _require_nonempty(issues, "run_identity.run_id", config.run_identity.run_id)
     _require_nonempty(issues, "mis_solver_id", config.mis_solver_id)
+    if execution.requested_device_id is not None:
+        if not isinstance(execution.requested_device_id, str) or not execution.requested_device_id.strip():
+            _add_issue(
+                issues, "blank_value", "mis_execution.requested_device_id",
+                "Device ID must be a non-blank string.",
+            )
     _require_nonempty(
         issues, "classical_solve.classical_solver_id", classical.classical_solver_id
     )
