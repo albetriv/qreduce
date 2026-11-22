@@ -74,6 +74,42 @@ def portfolio_parser():
     return build_portfolio_parser()
 
 
+class TestPortfolioMisCandidates:
+    """Exercise the exposed aggregation parameter through the actual UI."""
+
+    @pytest.mark.parametrize("format_name", ["inline", "multiline"])
+    @pytest.mark.parametrize("candidate_count", ["", "1", "5"])
+    def test_command(self, format_name, candidate_count):
+        result = run_js_generator("portfolio", {
+            "numSourceMisCandidates": candidate_count, "_format": format_name,
+        })
+        assert result["isValid"], result
+        assert not result["copyDisabled"]
+        command = result["command"].replace("\\\n", " ")
+        tokens = shlex.split(command)
+        assert tokens.count("--num-source-mis-candidates") == bool(candidate_count)
+        if candidate_count:
+            index = tokens.index("--num-source-mis-candidates")
+            assert tokens[index + 1] == candidate_count
+
+    @pytest.mark.parametrize("candidate_count", ["0", "-1", "1.5", "abc"])
+    def test_invalid_value_blocks_copy(self, candidate_count):
+        fields = {"numSourceMisCandidates": candidate_count}
+        if candidate_count == "abc":
+            fields["_badInput"] = "numSourceMisCandidates"
+        result = run_js_generator("portfolio", fields)
+        assert not result["isValid"]
+        assert result["copyDisabled"]
+        assert result["errors"]["numSourceMisCandidates"]
+
+    def test_reset_omits_flag(self):
+        result = run_js_generator("portfolio", {
+            "numSourceMisCandidates": "5", "_action": "reset",
+        })
+        assert result["currentValues"]["numSourceMisCandidates"] == ""
+        assert "--num-source-mis-candidates" not in result["command"]
+
+
 @pytest.fixture
 def facility_parser():
     """Return the facility location CLI parser by extracting from run.py.
@@ -1216,6 +1252,41 @@ class TestSolverInfoPanelDOMTransitions:
             return json.loads(result.stdout)
         except json.JSONDecodeError:
             pytest.fail(f"Invalid JSON output: {result.stdout}")
+
+    def test_candidate_count_baseline_and_backend_transitions(self):
+        """Baseline preserves the value but ignores its validation and flag."""
+        steps = [
+            {"set": {"numSourceMisCandidates": "5"}, "verify": {
+                "numSourceMisCandidates": {"disabled": False},
+                "cliPreview": {"includes": "--num-source-mis-candidates 5"},
+            }},
+            {"set": {"maxRounds": "0"}, "verify": {
+                "numSourceMisCandidates": {"disabled": True, "value": "5"},
+                "cliPreview": {"excludes": "--num-source-mis-candidates"},
+                "copyCommand": {"disabled": False},
+            }},
+            {"set": {"numSourceMisCandidates": "0"}, "verify": {
+                "copyCommand": {"disabled": False},
+            }},
+            {"set": {"maxRounds": "1"}, "verify": {
+                "numSourceMisCandidates": {"disabled": False, "value": "0"},
+                "copyCommand": {"disabled": True},
+            }},
+            {"set": {"numSourceMisCandidates": "5"}, "verify": {
+                "copyCommand": {"disabled": False},
+            }},
+        ]
+        for backend in ["dwave_simulated_annealing", "pasqal_local", "local_greedy"]:
+            steps.append({"set": {"misSolver": backend}, "verify": {
+                "numSourceMisCandidates": {"disabled": False, "value": "5"},
+                "cliPreview": {"includes": "--num-source-mis-candidates 5"},
+            }})
+        steps.append({"action": "reset", "verify": {
+            "numSourceMisCandidates": {"value": "", "disabled": False},
+            "cliPreview": {"excludes": "--num-source-mis-candidates"},
+        }})
+        result = self.run_transition_test("portfolio", steps)
+        assert result["success"], result
 
     def test_mis_params_hidden_in_baseline_portfolio_mv(self):
         """Test that MIS param sections are hidden when reduction is disabled (baseline mode)."""

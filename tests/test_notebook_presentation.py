@@ -26,7 +26,7 @@ def test_display_vertical_formats_nested_values(monkeypatch: pytest.MonkeyPatch)
             [
         {"campo": "solver", "valore": "scip"},
         {"campo": "parameters", "valore": '{\n  "threads": 1\n}'},
-        {"campo": "selected", "valore": '[\n  "asset-a",\n  "asset-c"\n]'},
+        {"campo": "selected", "valore": '["asset-a", "asset-c"]'},
             ],
             None,
         )
@@ -80,3 +80,21 @@ def test_display_records_rejects_blank_record_label() -> None:
     """The record identifier column must have a meaningful name."""
     with pytest.raises(ValueError, match="record_label"):
         presentation.display_records([], record_label=" ")
+
+
+def test_vertical_html_preserves_full_vectors_and_escapes_content(monkeypatch):
+    pytest.importorskip("pandas")
+    from IPython import display as ipython_display
+
+    displayed = []
+    monkeypatch.setattr(ipython_display, "display", displayed.append)
+    nodes = [f"asset-{i:03d}" for i in range(12)]
+    presentation.display_vertical({"node_order": nodes, "delta": [1, 0] * 6,
+                                   "unsafe": "<script>alert(1)</script>"})
+    html = displayed[0].data
+    assert all(node in html for node in nodes)
+    assert "[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]" in html
+    assert "..." not in html
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert "white-space: pre-wrap" in html

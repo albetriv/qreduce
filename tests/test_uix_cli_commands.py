@@ -140,6 +140,24 @@ class TestPortfolioCLICommands:
         assert args.min_reduction_ratio == 0.15
         assert args.max_end_to_end_runtime_seconds == 120
 
+    def test_num_source_mis_candidates(self, parser: argparse.ArgumentParser) -> None:
+        """Test num-source-mis-candidates parameter."""
+        cmd = (
+            "--run-id multicand001 "
+            "--num-source-mis-candidates 5"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.num_source_mis_candidates == 5
+
+    def test_num_source_mis_candidates_default(
+        self, parser: argparse.ArgumentParser
+    ) -> None:
+        """Test that num-source-mis-candidates defaults to None (CLI) / 1 (backend)."""
+        cmd = "--run-id multicand002"
+        args = parser.parse_args(shlex.split(cmd))
+        # CLI default is None; the backend applies default 1 when needed
+        assert args.num_source_mis_candidates is None
+
     def test_graph_policy_params(self, parser: argparse.ArgumentParser) -> None:
         """Test all graph policy parameters."""
         cmd = (

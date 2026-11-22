@@ -100,7 +100,9 @@ def test_all_plots_without_display_or_backend():
     try:
         assert plot_mwis_graph(view) is not None
         assert plot_pasqal_geometry(view) is not None
-        assert plot_sampling(view, 1) is not None
+        _, axes = plot_sampling(view, 2)
+        assert [text.get_text() for text in axes[0].texts] == ["2 asset", "2 asset"]
+        assert [bar.get_height() for bar in axes[0].patches] == [8, 2]
         assert plot_allocations(view) is not None
     finally:
         plt.close("all")
@@ -116,7 +118,8 @@ def test_notebook_code_is_presentation_only():
         if cell["cell_type"] == "code":
             tree = ast.parse("".join(cell["source"]))
             assert not any(isinstance(node, (ast.FunctionDef, ast.ClassDef)) for node in ast.walk(tree))
-            assert cell["outputs"] == []
+            # Saved tables and plots are presentation, not business logic.
+            assert not any(output["output_type"] == "error" for output in cell["outputs"])
 
 
 def test_loader_rejects_traversal(tmp_path):

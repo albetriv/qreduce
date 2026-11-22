@@ -719,6 +719,9 @@
       classicalTimeout: 60,
     };
 
+    // Favorites control object (assigned during initialization)
+    var favoritesControl = null;
+
     // DOM elements
     const form = document.getElementById('configForm');
     const preview = document.getElementById('cliPreview');
@@ -746,7 +749,7 @@
       // Register button handlers (using addEventListener for jsdom compatibility)
       if (copyBtn) copyBtn.addEventListener('click', copyCommand);
       if (resetBtn) resetBtn.addEventListener('click', resetDefaults);
-      C.setupFavorites("portfolio_sr", update);
+      favoritesControl = C.setupFavorites("portfolio_sr", update);
     });
 
     // Make risk-free rate read-only and disabled
@@ -1432,6 +1435,10 @@
       $('pasqalShots').value = '100';
       $('modelExport').checked = false;
       $('modelExportPath').value = '';
+      // Reset name tracking to realign proposal with restored runId
+      if (favoritesControl) {
+        favoritesControl.resetNameTracking();
+      }
       update();
     }
   </script>

@@ -234,6 +234,13 @@ Con pagine `file://`, verificare la persistenza dopo la riapertura del browser;
 se lo storage non e disponibile, la UI segnala la modalita solo in memoria.
 Dettagli e procedura di verifica in [Configuratori HTML](docs/experiments/README.md#comandi-preferiti).
 
+Il nome proposto segue l'ID del run finché non viene personalizzato; svuotandolo,
+la proposta riprende alla successiva modifica dell'ID. Carica conserva il nome
+salvato, mentre Ripristina default riallinea la proposta all'ID ripristinato.
+Nel portfolio MV, **Candidati MIS da aggregare** espone
+`--num-source-mis-candidates`: vuoto omette il flag (default CLI 1), in baseline
+è disabilitato e non viene emesso. Non cambia il numero di shot del backend MIS.
+
 Nel configuratore **Portfolio Mean–Variance**, la scheda **05 · Confronto**
 permette di scegliere **Baseline** e **Run di confronto** da due tendine di run ID,
 senza selezionare cartelle, avviare un server o rilanciare i solver. La dashboard mostra indicatori,

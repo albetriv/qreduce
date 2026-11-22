@@ -593,6 +593,9 @@ async function main() {
     // Trigger DOMContentLoaded to initialize the scripts (including tooltips)
     const initEvent = new window.Event("DOMContentLoaded");
     document.dispatchEvent(initEvent);
+    // Initialization is idempotent: repeated calls must not duplicate
+    // wrappers or handlers, including those of the static catalog tooltip.
+    window.QReduceCommon.initTooltips();
 
     // Run the appropriate test
     let result;

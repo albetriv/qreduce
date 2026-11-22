@@ -46,12 +46,20 @@ def _format_value(value: object) -> object:
     if isinstance(value, Mapping):
         return json.dumps(dict(value), ensure_ascii=False, indent=2, sort_keys=True)
     if isinstance(value, list | tuple):
-        return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
     return value
 
 
 def _display_dataframe(rows: list[dict[str, object]], columns: list[str] | None = None) -> None:
     import pandas as pd
-    from IPython.display import display
+    from IPython.display import HTML, display
 
-    display(pd.DataFrame(rows, columns=columns))
+    frame = pd.DataFrame(rows, columns=columns)
+    with pd.option_context("display.max_colwidth", None):
+        table = frame.to_html(index=False, escape=True, max_rows=None, max_cols=None)
+    display(HTML(
+        '<div class="qreduce-vertical-table">'
+        '<style>.qreduce-vertical-table td {white-space: pre-wrap; '
+        'overflow-wrap: anywhere; text-align: left; vertical-align: top;}</style>'
+        + table + '</div>'
+    ))

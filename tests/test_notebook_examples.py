@@ -72,6 +72,10 @@ def test_correlation_matrix_marks_only_actual_edges() -> None:
             for left, right in graph.edges
         }
         assert positions == expected
+        assert [text.get_text() for text in ax.texts] == [
+            f"{value:.2f}" for row in correlation for value in row
+        ]
+        assert all(text.get_fontsize() == 7 for text in ax.texts)
         assert all(line.get_marker() == "x" and line.get_color() == "red" for line in ax.lines)
         assert not ax.patches
         assert ax.get_legend().get_texts()[0].get_text() == "Arco nel grafo"

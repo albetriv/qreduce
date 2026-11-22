@@ -227,6 +227,12 @@
                   <label for="minReductionRatio">Riduzione minima <span class="param">--min-reduction-ratio</span></label>
                   <input id="minReductionRatio" type="number" min="0" max="1" step="0.01" placeholder="Default: 0.1">
                 </div>
+                <!-- PARAM_DESC: Numero massimo di candidati MIS validi e distinti da selezionare e aggregare tra quelli disponibili. La selezione segue il ranking MWIS e il filtro di diversità: non coincide necessariamente con i campioni più frequenti. Gli asset dei candidati selezionati vengono uniti prima di applicare protezioni e cap del dominio. "Max item dominio" è un limite separato. I candidati effettivamente selezionati possono essere meno di quelli richiesti. Campo vuoto: default effettivo 1. Attivo solo con riduzione (rounds > 0). -->
+                <div class="field">
+                  <label for="numSourceMisCandidates">Candidati MIS da aggregare <span class="param">--num-source-mis-candidates</span></label>
+                  <input id="numSourceMisCandidates" type="number" min="1" step="1" placeholder="Default: 1">
+                  <p class="error"></p>
+                </div>
                 <!-- PARAM_DESC: Budget massimo in secondi per l'intera esecuzione end-to-end, inclusi tutti i round di riduzione e il solve classico. Se superato, l'esecuzione termina con timeout. Un valore di 0 significa nessun limite globale. Default: 60 secondi. Attivo sempre (anche in baseline). -->
                 <div class="field">
                   <label for="endToEndBudget">Budget end-to-end (s) <span class="param">--max-end-to-end-runtime-seconds</span></label>

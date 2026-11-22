@@ -275,8 +275,11 @@ def plot_sampling(view: PortfolioRunView, top_k: int = 20):
     total = sum(row["occorrenze"] for row in rows)
     top = rows[:top_k]
     fig, axes = plt.subplots(2, 1, figsize=(14, 10))
-    axes[0].bar(range(len(top)), [row["occorrenze"] for row in top],
-                color=["tab:green" if row["indipendente"] else "tab:red" for row in top])
+    bars = axes[0].bar(range(len(top)), [row["occorrenze"] for row in top],
+                       color=["tab:green" if row["indipendente"] else "tab:red" for row in top])
+    axes[0].bar_label(bars, labels=[f"{row['asset_selezionati']} asset" for row in top],
+                      padding=3, fontsize=8)
+    axes[0].margins(y=.15)
     axes[0].set_xticks(range(len(top)), [row["bitstring"] for row in top], rotation=70)
     axes[0].set(title=f"Top {len(top)} campioni raw: verde indipendente, rosso con conflitti",
                 ylabel="Occorrenze (non rinormalizzate sul top)")

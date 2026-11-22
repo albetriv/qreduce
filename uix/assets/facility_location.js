@@ -535,6 +535,9 @@
     updateMathFormulation();
   }
 
+  // Favorites control object (assigned during initialization)
+  var favoritesControl = null;
+
   /**
    * Reset form to defaults.
    */
@@ -548,6 +551,10 @@
         el.value = defaults[id];
       }
     });
+    // Reset name tracking to realign proposal with restored runId
+    if (favoritesControl) {
+      favoritesControl.resetNameTracking();
+    }
     update();
     C.toast("Ripristinati i default di facility location.");
   }
@@ -572,7 +579,7 @@
 
     // Initial update
     update();
-    C.setupFavorites("facility_location", update);
+    favoritesControl = C.setupFavorites("facility_location", update);
 
     // Initialize MathJax for formulation panel
     // Exclude dynamic elements (reduction section) from TeX source preservation

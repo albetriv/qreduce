@@ -57,12 +57,46 @@ function launch(store = new Map(), mode = "normal") {
 }
 
 async function main() {
+  // Name proposals must behave identically in all three configurators.
+  const names = launch();
+  const initialRunId = names.$("runId").value;
+  assert.equal(names.$("favoriteName").value, initialRunId);
+  names.set("runId", "auto_one");
+  assert.equal(names.$("favoriteName").value, "auto_one");
+  names.set("runId", "auto_two");
+  assert.equal(names.$("favoriteName").value, "auto_two");
+  names.set("favoriteName", "Personalizzato");
+  names.set("runId", "auto_three");
+  assert.equal(names.$("favoriteName").value, "Personalizzato");
+  names.set("favoriteName", "");
+  assert.equal(names.$("favoriteName").value, "");
+  names.set("runId", "auto_four");
+  assert.equal(names.$("favoriteName").value, "auto_four");
+  if (family === "facility_location") names.set("instancePath", "instance.txt");
+  names.save("Nome salvato");
+  names.select("Nome salvato");
+  names.set("favoriteName", "Modificato dopo selezione");
+  names.$("loadFavorite").click();
+  assert.equal(names.$("favoriteName").value, "Nome salvato");
+  names.set("runId", "after_load");
+  assert.equal(names.$("favoriteName").value, "Nome salvato");
+  names.$("resetDefaults").click();
+  assert.equal(names.$("favoriteName").value, names.$("runId").value);
+  names.set("runId", "after_reset");
+  assert.equal(names.$("favoriteName").value, "after_reset");
+  names.set("favoriteName", "Altro nome");
+  names.$("resetDefaults").click();
+  assert.equal(names.$("favoriteName").value, initialRunId);
+  assert.deepEqual(names.errors, []);
+  names.dom.window.close();
+
   const app = launch();
   const { $, w, set, save, select } = app;
   assert.ok($("favoritesPanel").closest("aside.summary"));
   assert.equal($("loadFavorite").disabled, true);
   assert.equal($("exportFavorites").disabled, true);
   set("runId", "favorite_run");
+  if (family === "portfolio_mv") set("numSourceMisCandidates", "5");
   if (family === "facility_location") set("instancePath", "data/example instance.txt");
   assert.equal($("copyCommand").disabled, false);
   w.document.querySelector('[data-format="multiline"]').click();
@@ -142,6 +176,50 @@ async function main() {
   const otherBrowser = launch();
   await otherBrowser.importData(content);
   assert.equal(JSON.parse(otherBrowser.store.get(key)).entries.length, 3);
+  if (family === "portfolio_mv") {
+    otherBrowser.set("numSourceMisCandidates", "7");
+    otherBrowser.select("Zeta");
+    otherBrowser.$("loadFavorite").click();
+    assert.equal(otherBrowser.$("numSourceMisCandidates").value, "5");
+    assert.match(otherBrowser.$("cliPreview").textContent, /--num-source-mis-candidates\s+5/);
+
+    for (const savedValue of [undefined, "", "3"]) {
+      const compatible = JSON.parse(JSON.stringify(archive));
+      compatible.entries = [compatible.entries[0]];
+      if (savedValue === undefined) delete compatible.entries[0].fields.numSourceMisCandidates;
+      else compatible.entries[0].fields.numSourceMisCandidates = savedValue;
+      // Verify both existing local archives and imported JSON.
+      for (const imported of [false, true]) {
+        const legacy = launch(imported ? new Map() : new Map([[key, JSON.stringify(compatible)]]));
+        if (imported) await legacy.importData(compatible);
+        const storedBeforeLoad = legacy.store.get(key);
+        legacy.set("numSourceMisCandidates", "7");
+        legacy.select(compatible.entries[0].name);
+        assert.equal(legacy.$("loadFavorite").disabled, false);
+        legacy.$("loadFavorite").click();
+        assert.equal(legacy.$("numSourceMisCandidates").value, savedValue || "");
+        if (savedValue) assert.match(legacy.$("cliPreview").textContent, /--num-source-mis-candidates\s+3/);
+        else assert.doesNotMatch(legacy.$("cliPreview").textContent, /--num-source-mis-candidates/);
+        assert.deepEqual(legacy.errors, []);
+        assert.equal(legacy.store.get(key), storedBeforeLoad, "loading must not migrate the archive");
+        legacy.dom.window.close();
+      }
+    }
+    // Compatibility must not allow arbitrary missing or unknown fields.
+    for (const invalidFields of [
+      { ...archive.entries[0].fields, unexpected: "value" },
+      Object.fromEntries(Object.entries(archive.entries[0].fields).filter(([id]) =>
+        id !== "numSourceMisCandidates" && id !== "runId")),
+      { ...archive.entries[0].fields, numSourceMisCandidates: false },
+    ]) {
+      const invalid = { ...archive, entries: [{ ...archive.entries[0], fields: invalidFields }] };
+      const rejected = launch();
+      await rejected.importData(invalid);
+      assert.match(rejected.$("favoritesMessage").textContent, /rifiutata/);
+      assert.equal(rejected.store.has(key), false);
+      rejected.dom.window.close();
+    }
+  }
 
   const memory = launch(new Map(), "unavailable");
   memory.set("runId", "memory");

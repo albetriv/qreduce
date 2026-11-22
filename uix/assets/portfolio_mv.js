@@ -31,6 +31,7 @@
     maxItems: "",
     targetBinary: "",
     minReductionRatio: "",
+    numSourceMisCandidates: "",
     endToEndBudget: "",
     classicalTimeLimit: "",
     domainRecovery: "fail",
@@ -298,6 +299,17 @@
         );
       }
 
+      // Num source MIS candidates if provided must be >= 1
+      var numSourceMisCandidates = C.number("numSourceMisCandidates");
+      var candidateInput = C.$("numSourceMisCandidates");
+      if (numSourceMisCandidates !== null || candidateInput.validity.badInput) {
+        require(
+          "numSourceMisCandidates",
+          !candidateInput.validity.badInput && isFiniteNumber(numSourceMisCandidates) && Number.isInteger(numSourceMisCandidates) && numSourceMisCandidates >= 1,
+          "Inserisci un intero >= 1."
+        );
+      }
+
       // Recovery validation: only validate when reduction is active
       var domainRecovery = C.value("domainRecovery");
       var infeasibleRecovery = C.value("infeasibleRecovery");
@@ -525,6 +537,11 @@
         args.push({ flag: "--min-reduction-ratio", value: minRatio });
       }
 
+      var numSourceMisCandidates = C.number("numSourceMisCandidates");
+      if (numSourceMisCandidates !== null) {
+        args.push({ flag: "--num-source-mis-candidates", value: numSourceMisCandidates });
+      }
+
       // Recovery policies (only if reduction is active)
       var domainRecovery = C.value("domainRecovery");
       if (domainRecovery !== "fail") {
@@ -683,7 +700,7 @@
 
     // Reduction-specific policy fields: disabled in baseline mode
     // NOTE: endToEndBudget is NOT in this list - it stays enabled always
-    var reductionFields = ["minItems", "maxItems", "targetBinary", "minReductionRatio"];
+    var reductionFields = ["minItems", "maxItems", "targetBinary", "minReductionRatio", "numSourceMisCandidates"];
     reductionFields.forEach(function (id) {
       var el = C.$(id);
       if (el) {
@@ -939,6 +956,9 @@
     updateMathFormulation();
   }
 
+  // Favorites control object (assigned during initialization)
+  var favoritesControl = null;
+
   /**
    * Reset form to defaults.
    */
@@ -952,6 +972,10 @@
         el.value = defaults[id];
       }
     });
+    // Reset name tracking to realign proposal with restored runId
+    if (favoritesControl) {
+      favoritesControl.resetNameTracking();
+    }
     update();
     C.toast("Ripristinati i default del portfolio.");
   }
@@ -976,7 +1000,7 @@
 
     // Initial update
     update();
-    C.setupFavorites("portfolio_mv", update);
+    favoritesControl = C.setupFavorites("portfolio_mv", update);
 
     // Initialize MathJax for formulation panel
     // Exclude dynamic elements (cardinality, reduction) from TeX source preservation

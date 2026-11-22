@@ -25,7 +25,7 @@ def plot_correlation_matrix(asset_ids, correlation, graph: ReductionGraph | None
             value = correlation[i][j]
             if len(asset_ids) <= 15:
                 ax.text(j, i, f"{value:.2f}", ha="center", va="center",
-                        color="white" if value > 0.3 else "black")
+                        fontsize=7, color="white" if value > 0.3 else "black")
             if graph is not None and left != right and tuple(sorted((left, right))) in graph.edge_reasons:
                 ax.plot(j, i, marker="x", color="red", markersize=12,
                         markeredgewidth=2, linestyle="none", zorder=4)

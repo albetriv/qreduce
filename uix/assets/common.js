@@ -320,6 +320,7 @@ var QReduceCommon = (function () {
   // - pinnedTooltip: tooltip that was explicitly clicked (persists until clicked again or Escape)
   var activeTooltip = null;
   var pinnedTooltip = null;
+  var tooltipsInitialized = false;
 
   /**
    * Close the currently active tooltip.
@@ -619,6 +620,9 @@ var QReduceCommon = (function () {
    * Call this on DOMContentLoaded.
    */
   function initTooltips() {
+    // Repeated initialization must not attach a second set of handlers.
+    if (tooltipsInitialized) return;
+    tooltipsInitialized = true;
     // Global Escape key handler
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && activeTooltip) {
@@ -642,10 +646,12 @@ var QReduceCommon = (function () {
 
     // Initialize existing static tooltip wrappers (not created from PARAM_DESC)
     var existingWrappers = document.querySelectorAll(".tooltip-wrapper");
-    existingWrappers.forEach(function (wrapper) {
+    existingWrappers.forEach(function (wrapper, index) {
       var button = wrapper.querySelector(".info-icon");
       var tooltip = wrapper.querySelector(".tooltip");
       if (!button || !tooltip) return;
+      if (!tooltip.id) tooltip.id = generateTooltipId("static-" + index);
+      button.setAttribute("aria-describedby", tooltip.id);
 
       // Skip if already initialized (has click handler)
       if (button.dataset.tooltipInit) return;
@@ -766,7 +772,50 @@ var QReduceCommon = (function () {
     var list = $("favoritesList");
     var fields = Array.from(form.querySelectorAll("input[id], select[id], textarea[id]"));
     var fieldMap = new Map(fields.map(function (field) { return [field.id, field]; }));
+
+    // Name proposal tracking: sync name with runId until user customizes it
+    var nameExplicitlySet = false;
+    var runIdField = $("runId");
+
+    /**
+     * Sync favorite name with runId if not explicitly customized.
+     * @param {string} newRunId - The new run ID value
+     */
+    function syncNameFromRunId(newRunId) {
+      if (!nameExplicitlySet) {
+        nameInput.value = newRunId;
+      }
+    }
+
+    // Initialize name from runId
     nameInput.value = value("runId");
+
+    // Listen for runId changes to update name proposal
+    if (runIdField) {
+      runIdField.addEventListener("input", function () {
+        syncNameFromRunId(this.value);
+        syncSave();
+      });
+      // Also listen for programmatic changes (e.g., reset) which fire 'change'
+      runIdField.addEventListener("change", function () {
+        syncNameFromRunId(this.value);
+        syncSave();
+      });
+    }
+
+    // Track manual name edits
+    nameInput.addEventListener("input", function () {
+      var currentName = this.value;
+      var currentRunId = value("runId");
+      if (currentName === "") {
+        // Empty name resets to auto-sync mode
+        nameExplicitlySet = false;
+      } else if (currentName !== currentRunId) {
+        // User typed something different from runId: explicit mode
+        nameExplicitlySet = true;
+      }
+      // Note: if user types exactly the runId, we don't change the mode
+    });
 
     function message(text) { $("favoritesMessage").textContent = text; }
     function storageStatus(text) { $("favoritesStorage").textContent = text; }
@@ -793,11 +842,15 @@ var QReduceCommon = (function () {
         }
         if (names.has(normalized(item.name))) throw new Error("Nomi duplicati nell'archivio.");
         names.add(normalized(item.name));
-        // Exact field sets prevent silently loading obsolete configurations.
-        if (Object.keys(item.fields).length !== fields.length) {
+        // Only the newly introduced optional MV field may be missing. Keep
+        // exact field/type validation for every other part of the archive.
+        var legacyCandidateCount = family === "portfolio_mv" &&
+          !Object.prototype.hasOwnProperty.call(item.fields, "numSourceMisCandidates");
+        if (Object.keys(item.fields).length !== fields.length - (legacyCandidateCount ? 1 : 0)) {
           throw new Error("Campi incompatibili con questa versione del configuratore.");
         }
         fields.forEach(function (field) {
+          if (legacyCandidateCount && field.id === "numSourceMisCandidates") return;
           if (!Object.prototype.hasOwnProperty.call(item.fields, field.id)) {
             throw new Error("Campo mancante: " + field.id);
           }
@@ -923,6 +976,11 @@ var QReduceCommon = (function () {
       var entry = entries.find(function (item) { return item.name === list.value; });
       if (!entry) return;
       validateArchive(envelope([entry]));
+      // Legacy MV favorites predate this optional field. Do not inherit the
+      // previous configuration's candidate count when restoring them.
+      if (family === "portfolio_mv" && !Object.prototype.hasOwnProperty.call(entry.fields, "numSourceMisCandidates")) {
+        fieldMap.get("numSourceMisCandidates").value = "";
+      }
       Object.keys(entry.fields).forEach(function (id) {
         var field = fieldMap.get(id);
         if (field.type === "checkbox") field.checked = entry.fields[id];
@@ -931,6 +989,9 @@ var QReduceCommon = (function () {
       document.querySelectorAll(".format-selector button").forEach(function (button) {
         button.classList.toggle("active", button.dataset.format === entry.format);
       });
+      // Loaded name is explicit: don't overwrite with runId changes
+      nameInput.value = entry.name;
+      nameExplicitlySet = true;
       updateCallback();
       syncSave();
       message("Configurazione caricata e comando rigenerato. Nessun comando eseguito.");
@@ -992,6 +1053,18 @@ var QReduceCommon = (function () {
       reader.readAsText(file);
     });
     refresh();
+
+    // Return control object for external operations (e.g., reset)
+    return {
+      /**
+       * Reset name tracking to auto-sync mode.
+       * Call this after a form reset to realign name proposal with runId.
+       */
+      resetNameTracking: function () {
+        nameExplicitlySet = false;
+        syncNameFromRunId(value("runId"));
+      }
+    };
   }
 
   // Public API

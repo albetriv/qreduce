@@ -113,6 +113,11 @@ function main() {
       } else {
         el.value = String(value);
       }
+      // Number inputs sanitize invalid text to empty in jsdom. Model the
+      // browser's badInput state explicitly for invalid user-edit tests.
+      if (fieldValues._badInput === id) {
+        Object.defineProperty(el.validity, "badInput", { value: true, configurable: true });
+      }
     }
 
     // Set format if specified
@@ -145,7 +150,7 @@ function main() {
     ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
       "runId", "assetCount", "riskAversion", "generationSeed", "maxRounds", "edgeMode",
      "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile", "pasqalShots",
-     "endToEndBudget", "maxRuntime"].forEach((id) => {
+     "endToEndBudget", "maxRuntime", "numSourceMisCandidates"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         currentValues[id] = el.type === "checkbox" ? el.checked : el.value;
@@ -184,6 +189,7 @@ function main() {
       isValid,
       errors,
       command,
+      copyDisabled: document.getElementById("copyCommand").disabled,
       currentValues,
       riskAversionDisabled: document.getElementById("riskAversion")?.disabled,
     };

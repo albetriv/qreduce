@@ -138,7 +138,7 @@ I configuratori:
 
 Nel pannello destro di ciascun configuratore, **Comandi preferiti** offre:
 
-- nome obbligatorio, suggerito inizialmente dall'ID del run, e **Salva** per
+- nome obbligatorio, proposto dall'ID del run, e **Salva** per
   configurazioni valide; un nome gia presente richiede conferma di sovrascrittura;
 - elenco alfabetico (con ordinamento naturale dei numeri), **Carica** e
   **Cancella**, con conferma di cancellazione;
@@ -149,6 +149,24 @@ formato inline/multilinea e comando. Carica ripristina la configurazione e
 rigenera il comando con validazione, riepilogo e formule correnti: non esegue
 comandi. Nessun preferito e caricato automaticamente; Ripristina default non
 cancella l'archivio.
+
+Il nome segue le modifiche all'ID del run finché non è personalizzato.
+Svuotandolo, la proposta automatica riprende alla successiva modifica dell'ID.
+Carica ripristina il nome salvato come esplicito, anche se il campo del nome è
+stato modificato dopo la selezione; successive modifiche all'ID non lo cambiano.
+Ripristina default riallinea il nome all'ID ripristinato nelle tre famiglie.
+
+Nel portfolio MV, **Candidati MIS da aggregare** accetta un intero positivo
+e aggiunge `--num-source-mis-candidates`. Vuoto omette il flag e conserva il
+default CLI 1; in baseline il controllo è disabilitato e il flag omesso.
+Si selezionano fino al numero richiesto di candidati validi e distinti secondo
+ranking MWIS e filtro di diversità, non necessariamente i campioni più frequenti.
+Gli asset vengono uniti prima di applicare protezioni e cap del dominio;
+**Max item dominio** è un limite separato. I candidati disponibili possono
+essere meno di quelli richiesti: il campo non controlla la generazione degli shot.
+Il valore è incluso nei preferiti e negli archivi JSON. Caricare un vecchio
+preferito senza questo campo lo ripristina a vuoto, senza ereditare il valore
+della configurazione precedente.
 
 La persistenza usa `localStorage`, non cookie, server o file nel workspace.
 Non e sincronizzata tra Chrome, Firefox, profili o macchine. Su `file://`
