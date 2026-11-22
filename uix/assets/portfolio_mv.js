@@ -41,6 +41,7 @@
     numReads: "",
     numSweeps: "",
     embeddingProfile: "none",
+    pasqalShots: "100",
     modelExport: false,
     modelExportPath: "",
   };
@@ -69,6 +70,14 @@
    */
   function isDwaveSolver() {
     return C.value("misSolver") === "dwave_simulated_annealing";
+  }
+
+  /**
+   * Check if Pasqal solver is selected.
+   * @returns {boolean}
+   */
+  function isPasqalSolver() {
+    return C.value("misSolver") === "pasqal_local";
   }
 
   /**
@@ -330,6 +339,43 @@
           );
         }
       }
+
+      // Pasqal params validation: only if Pasqal solver is selected AND reduction active
+      if (isPasqalSolver()) {
+        var pasqalShots = C.number("pasqalShots");
+        require(
+          "pasqalShots",
+          isFiniteNumber(pasqalShots) && Number.isInteger(pasqalShots) && pasqalShots >= 1,
+          "Inserisci un intero >= 1."
+        );
+
+        // Pasqal requires explicit budget=0 (unlimited) when reduction is active
+        // The local emulator cannot guarantee meeting a time deadline
+        var budgetForPasqal = C.number("endToEndBudget");
+        var pasqalBudgetError = C.$("pasqalBudgetError");
+        if (budgetForPasqal !== 0) {
+          if (pasqalBudgetError) {
+            pasqalBudgetError.style.display = "";
+          }
+          valid = false;
+        } else {
+          if (pasqalBudgetError) {
+            pasqalBudgetError.style.display = "none";
+          }
+        }
+      } else {
+        // Hide Pasqal budget error when Pasqal is not selected
+        var pasqalBudgetErrorHide = C.$("pasqalBudgetError");
+        if (pasqalBudgetErrorHide) {
+          pasqalBudgetErrorHide.style.display = "none";
+        }
+      }
+    } else {
+      // Reduction not active (baseline mode): hide Pasqal budget error
+      var pasqalBudgetErrorBaseline = C.$("pasqalBudgetError");
+      if (pasqalBudgetErrorBaseline) {
+        pasqalBudgetErrorBaseline.style.display = "none";
+      }
     }
     // Note: When reduction is NOT active (baseline mode), we skip validation of
     // reduction-specific fields entirely. Their values may still exist but are
@@ -515,6 +561,15 @@
           args.push({ flag: "--mis-embedding-profile", value: embeddingProfile });
         }
       }
+
+      // Pasqal params (only if Pasqal solver AND reduction active)
+      if (isPasqalSolver()) {
+        var pasqalShots = C.number("pasqalShots");
+        // Include shots only if different from default (100)
+        if (pasqalShots !== null && pasqalShots !== 100) {
+          args.push({ flag: "--pasqal-shots", value: pasqalShots });
+        }
+      }
     }
 
     // Classical solver (always relevant)
@@ -614,6 +669,23 @@
         el.disabled = !reductionActive;
       }
     });
+
+    // Pasqal params: disabled if not Pasqal OR if baseline mode
+    var pasqalSolver = isPasqalSolver();
+    var pasqalParamsCard = C.$("pasqalParamsCard");
+    if (pasqalParamsCard) {
+      pasqalParamsCard.style.opacity = (pasqalSolver && reductionActive) ? "1" : "0.5";
+      pasqalParamsCard.style.display = ""; // Always show, but dimmed when inactive
+    }
+    document.querySelectorAll(".pasqal-only input").forEach(function (input) {
+      input.disabled = !pasqalSolver || !reductionActive;
+    });
+
+    // Reset Pasqal shots to default when switching away
+    var pasqalShotsInput = C.$("pasqalShots");
+    if (pasqalShotsInput && (!pasqalSolver || !reductionActive)) {
+      // Don't reset value, just disable - user may switch back
+    }
   }
 
   /**

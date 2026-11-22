@@ -308,12 +308,13 @@
             </div>
 
             <div class="form-grid">
-              <!-- PARAM_DESC: Solver MIS: local_greedy o dwave_simulated_annealing. -->
+              <!-- PARAM_DESC: Solver MIS: local_greedy, dwave_simulated_annealing o pasqal_local (emulazione locale). -->
               <div class="field">
                 <label for="misSolver">Solver MIS <span class="param">--mis-solver-id</span></label>
                 <select id="misSolver">
                   <option value="local_greedy">local_greedy (default)</option>
                   <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
+                  <option value="pasqal_local">pasqal_local (emulazione locale)</option>
                 </select>
               </div>
               <!-- PARAM_DESC: Solver classico: scip o cplex. -->
@@ -355,6 +356,36 @@
                   </select>
                 </div>
               </div>
+            </div>
+
+            <div class="card pasqal-params" id="pasqalParamsCard" style="margin-top:20px">
+              <h3>Parametri Pasqal</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Attivi solo con <code>--mis-solver-id pasqal_local</code>.
+                Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
+              </p>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Default: 100. -->
+                <div class="field pasqal-only">
+                  <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
+                  <input id="pasqalShots" type="number" min="1" step="1" value="100">
+                  <p class="help">Numero di misure. Default: 100.</p>
+                  <p class="error"></p>
+                </div>
+              </div>
+              <div class="notice warning pasqal-warning" style="margin-top: 12px;">
+                <strong>Limiti del backend locale:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.85rem;">
+                  <li>Massimo 12 nodi nel grafo effettivo (limite dell'emulatore, non fisico).</li>
+                  <li>La ricerca del layout può fallire; non è garantita la compilazione di ogni grafo.</li>
+                  <li>I pesi MWIS sono valutati classicamente; i campioni non certificano ottimalità.</li>
+                  <li>Richiede <code>poetry install --with pasqal</code>.</li>
+                </ul>
+              </div>
+              <p class="error pasqal-budget-error" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
+                Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
+                L'emulatore locale non può garantire una scadenza temporale.
+              </p>
             </div>
 
             <div class="card" style="margin-top:20px">
@@ -732,6 +763,10 @@
       return $('misSolver').value === 'dwave_simulated_annealing';
     }
 
+    function isPasqalSolver() {
+      return $('misSolver').value === 'pasqal_local';
+    }
+
     function isNearDuplicateMode() {
       return $('edgeMode').value === 'near_duplicate';
     }
@@ -774,6 +809,16 @@
         el.disabled = !dwave || !reduction;
       });
       document.querySelector('.dwave-params').style.opacity = (dwave && reduction) ? '1' : '0.5';
+
+      // Pasqal params
+      const pasqal = isPasqalSolver();
+      var pasqalParamsCard = $('pasqalParamsCard');
+      if (pasqalParamsCard) {
+        pasqalParamsCard.style.opacity = (pasqal && reduction) ? '1' : '0.5';
+      }
+      document.querySelectorAll('.pasqal-only input').forEach(el => {
+        el.disabled = !pasqal || !reduction;
+      });
 
       // Recovery params
       const rounds = readNumber('maxRounds', 0, Infinity, true);
@@ -855,6 +900,41 @@
             setError('varianceDiff', 'Deve essere un numero finito >= 0');
             valid = false;
           }
+        }
+
+        // Pasqal params validation: only if Pasqal solver is selected AND reduction active
+        if (isPasqalSolver()) {
+          var pasqalShots = readNumber('pasqalShots', 1, Infinity, true);
+          if (!pasqalShots.valid) {
+            setError('pasqalShots', 'Inserisci un intero >= 1');
+            valid = false;
+          }
+
+          // Pasqal requires explicit budget=0 (unlimited) when reduction is active
+          var budgetForPasqal = readNumber('maxRuntime', 0, Infinity, false, true);
+          var pasqalBudgetError = $('pasqalBudgetError');
+          if (budgetForPasqal.value !== 0) {
+            if (pasqalBudgetError) {
+              pasqalBudgetError.style.display = '';
+            }
+            valid = false;
+          } else {
+            if (pasqalBudgetError) {
+              pasqalBudgetError.style.display = 'none';
+            }
+          }
+        } else {
+          // Hide Pasqal budget error when Pasqal is not selected
+          var pasqalBudgetErrorHide = $('pasqalBudgetError');
+          if (pasqalBudgetErrorHide) {
+            pasqalBudgetErrorHide.style.display = 'none';
+          }
+        }
+      } else {
+        // Hide Pasqal budget error when reduction is not active
+        var pasqalBudgetErrorBaseline = $('pasqalBudgetError');
+        if (pasqalBudgetErrorBaseline) {
+          pasqalBudgetErrorBaseline.style.display = 'none';
         }
       }
 
@@ -965,6 +1045,15 @@
           }
           if ($('embeddingProfile').value) {
             args.push({ flag: '--mis-embedding-profile', value: $('embeddingProfile').value });
+          }
+        }
+
+        // Pasqal params (only if Pasqal solver AND reduction active)
+        if (isPasqalSolver()) {
+          var pasqalShots = Number($('pasqalShots').value);
+          // Include shots only if different from default (100)
+          if (pasqalShots && pasqalShots !== 100) {
+            args.push({ flag: '--pasqal-shots', value: pasqalShots });
           }
         }
       }
@@ -1285,6 +1374,7 @@
       $('misNumReads').value = '';
       $('misNumSweeps').value = '';
       $('embeddingProfile').value = '';
+      $('pasqalShots').value = '100';
       $('modelExport').checked = false;
       $('modelExportPath').value = '';
       update();

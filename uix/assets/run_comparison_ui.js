@@ -350,7 +350,7 @@
       names[index] = '';
     });
     update();
-    status.textContent = 'Caricamento del catalogo locale…';
+    status.textContent = 'Ricaricamento del catalogo locale…';
     try {
       const entries = await loadCatalog();
       catalog.clear();
@@ -364,15 +364,36 @@
         input.value = catalog.has(selected[index]) ? selected[index] : '';
       });
       if (catalog.size < 2) {
-        status.textContent = (Array.isArray(entries) ? 'Il catalogo contiene meno di due run.' : 'Catalogo locale non disponibile.') + ' Dalla root esegui: python -m qreduce.experiments.portfolio_mv.run_catalog, poi premi ↻.';
+        const catalogMissingOrEmpty = !Array.isArray(entries);
+        const catalogTooSmall = Array.isArray(entries) && entries.length < 2;
+        let message = '';
+        if (catalogMissingOrEmpty) {
+          message = 'Catalogo locale non trovato o non valido.';
+        } else if (catalogTooSmall) {
+          message = 'Il catalogo contiene meno di due run (' + entries.length + ' run).';
+        }
+        message += ' Per generare o aggiornare il catalogo, esegui dalla root del workspace:';
+        status.textContent = message;
+        // Show the generation command
+        const cmdNote = document.createElement('code');
+        cmdNote.textContent = 'python -m qreduce.experiments.portfolio_mv.run_catalog';
+        cmdNote.style.display = 'block';
+        cmdNote.style.marginTop = '0.5em';
+        cmdNote.style.fontSize = '0.85rem';
+        status.appendChild(cmdNote);
+        const refreshNote = document.createElement('span');
+        refreshNote.textContent = 'Dopo la generazione, premi ↻ per ricaricare.';
+        refreshNote.style.display = 'block';
+        refreshNote.style.marginTop = '0.5em';
+        status.appendChild(refreshNote);
         return;
       }
-      status.textContent = (manual ? 'Catalogo aggiornato. ' : '') + 'Seleziona due run dal catalogo.';
+      status.textContent = (manual ? 'Catalogo ricaricato dal disco. ' : '') + 'Seleziona due run dal catalogo.';
       for (const [index, input] of inputs.entries()) {
         if (input.value) await selectRun(index);
       }
       if (manual && (status.textContent === 'Confronto pronto.' || status.textContent.startsWith('Run caricato.'))) {
-        status.textContent = 'Catalogo aggiornato. ' + status.textContent;
+        status.textContent = 'Catalogo ricaricato dal disco. ' + status.textContent;
       }
     } finally {
       refresh.disabled = false;

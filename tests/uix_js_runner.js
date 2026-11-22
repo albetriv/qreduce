@@ -138,13 +138,14 @@ function main() {
     const currentValues = {};
     ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
       "runId", "assetCount", "riskAversion", "generationSeed", "maxRounds", "edgeMode",
-     "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile"].forEach((id) => {
+     "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile", "pasqalShots",
+     "endToEndBudget", "maxRuntime"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         currentValues[id] = el.type === "checkbox" ? el.checked : el.value;
-        // Also capture disabled state for embedding profile
-        if (id === "embeddingProfile") {
-          currentValues["embeddingProfileDisabled"] = el.disabled;
+        // Also capture disabled state for embedding profile and pasqalShots
+        if (id === "embeddingProfile" || id === "pasqalShots") {
+          currentValues[id + "Disabled"] = el.disabled;
         }
       }
     });

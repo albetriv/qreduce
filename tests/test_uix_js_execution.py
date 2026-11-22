@@ -896,3 +896,268 @@ class TestPortfolioEmbeddingDOMTransitions:
 
         result = self.run_transition_test(steps)
         assert result["success"], f"Transition test failed: {result}"
+
+
+class TestPortfolioPasqalBackend:
+    """Test Pasqal local backend behavior in portfolio configurators."""
+
+    def test_pasqal_selection_with_budget_zero(self, portfolio_parser):
+        """Test that Pasqal with budget=0 is valid."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "100",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is True
+        assert "--mis-solver-id pasqal_local" in result["command"]
+        assert "--max-end-to-end-runtime-seconds 0" in result["command"]
+        # Default shots (100) should not be emitted
+        assert "--pasqal-shots" not in result["command"]
+
+        # Verify command parses
+        args = extract_cli_args(result["command"])
+        parsed = portfolio_parser.parse_args(args)
+        assert parsed.mis_solver_id == "pasqal_local"
+        assert parsed.max_end_to_end_runtime_seconds == 0.0
+
+    def test_pasqal_without_budget_zero_invalid(self):
+        """Test that Pasqal without budget=0 is invalid."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "100",
+                "endToEndBudget": "60",  # Not zero!
+            },
+        )
+        assert result["isValid"] is False
+
+    def test_pasqal_with_custom_shots(self, portfolio_parser):
+        """Test that custom shots value is included in command."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "200",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is True
+        assert "--pasqal-shots 200" in result["command"]
+
+        args = extract_cli_args(result["command"])
+        parsed = portfolio_parser.parse_args(args)
+        assert parsed.pasqal_shots == 200
+
+    def test_pasqal_exponential_notation_shots(self, portfolio_parser):
+        """Test that exponential notation in shots is correctly converted.
+        
+        Regression test: parseInt('1e3') === 1 but Number('1e3') === 1000.
+        """
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "1e3",  # Should be 1000, not 1
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is True
+        assert "--pasqal-shots 1000" in result["command"]
+        # Ensure it's not truncated to 1
+        assert "--pasqal-shots 1" not in result["command"].replace("1000", "XXXX")
+
+    def test_pasqal_invalid_shots_negative(self):
+        """Test that negative shots are rejected."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "-1",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is False
+
+    def test_pasqal_invalid_shots_zero(self):
+        """Test that zero shots are rejected."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "0",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is False
+
+    def test_pasqal_invalid_shots_float(self):
+        """Test that float shots are rejected."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "100.5",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result["isValid"] is False
+
+    def test_pasqal_ignored_in_baseline(self):
+        """Test that Pasqal params are ignored in baseline mode (rounds=0)."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "0",  # Baseline
+                "misSolver": "pasqal_local",
+                "pasqalShots": "200",
+            },
+        )
+        # Should be valid - MIS params ignored in baseline
+        assert result["isValid"] is True
+        # Command should not include Pasqal params
+        assert "--mis-solver-id" not in result["command"]
+        assert "--pasqal-shots" not in result["command"]
+
+    def test_pasqal_error_hidden_in_baseline(self):
+        """Test that Pasqal budget error is hidden when switching to baseline.
+        
+        Regression test: Error message should be hidden when reduction is disabled.
+        """
+        # First set Pasqal with non-zero budget (invalid)
+        result1 = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "endToEndBudget": "60",  # Invalid!
+            },
+        )
+        assert result1["isValid"] is False
+
+        # Then switch to baseline - should become valid
+        result2 = run_js_generator(
+            "portfolio",
+            {
+                "runId": "pasqal_test",
+                "maxRounds": "0",  # Baseline
+                "misSolver": "pasqal_local",
+                "endToEndBudget": "60",
+            },
+        )
+        # Should be valid in baseline - Pasqal budget requirement doesn't apply
+        assert result2["isValid"] is True
+
+    def test_pasqal_to_dwave_transition(self, portfolio_parser):
+        """Test switching from Pasqal to D-Wave preserves validity."""
+        # Start with Pasqal
+        result1 = run_js_generator(
+            "portfolio",
+            {
+                "runId": "switch_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "150",
+                "endToEndBudget": "0",
+            },
+        )
+        assert result1["isValid"] is True
+
+        # Switch to D-Wave (can use non-zero budget)
+        result2 = run_js_generator(
+            "portfolio",
+            {
+                "runId": "switch_test",
+                "maxRounds": "1",
+                "misSolver": "dwave_simulated_annealing",
+                "numReads": "100",
+                "endToEndBudget": "60",
+            },
+        )
+        assert result2["isValid"] is True
+        assert "--mis-solver-id dwave_simulated_annealing" in result2["command"]
+        # Pasqal params should not appear
+        assert "--pasqal-shots" not in result2["command"]
+
+    def test_pasqal_params_ignored_when_greedy(self):
+        """Test that Pasqal params don't affect validation when local_greedy is selected."""
+        result = run_js_generator(
+            "portfolio",
+            {
+                "runId": "greedy_test",
+                "maxRounds": "1",
+                "misSolver": "local_greedy",
+                "pasqalShots": "200",  # Should be ignored
+            },
+        )
+        assert result["isValid"] is True
+        # Pasqal params should not be in command
+        assert "--pasqal-shots" not in result["command"]
+
+
+class TestPortfolioSRPasqalBackend:
+    """Test Pasqal backend in portfolio_sr configurator."""
+
+    def test_pasqal_sr_with_budget_zero(self):
+        """Test that Pasqal in SR with budget=0 is valid."""
+        result = run_js_generator(
+            "portfolio_sr",
+            {
+                "runId": "pasqal_sr_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "100",
+                "maxRuntime": "0",
+            },
+        )
+        assert result["isValid"] is True
+        assert "--mis-solver-id pasqal_local" in result["command"]
+        assert "--max-end-to-end-runtime-seconds 0" in result["command"]
+
+    def test_pasqal_sr_exponential_notation(self):
+        """Test exponential notation conversion in SR (regression for parseInt vs Number)."""
+        result = run_js_generator(
+            "portfolio_sr",
+            {
+                "runId": "pasqal_sr_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "1e3",  # Should be 1000
+                "maxRuntime": "0",
+            },
+        )
+        assert result["isValid"] is True
+        assert "--pasqal-shots 1000" in result["command"]
+
+    def test_pasqal_sr_without_budget_zero_invalid(self):
+        """Test that Pasqal SR without budget=0 is invalid."""
+        result = run_js_generator(
+            "portfolio_sr",
+            {
+                "runId": "pasqal_sr_test",
+                "maxRounds": "1",
+                "misSolver": "pasqal_local",
+                "pasqalShots": "100",
+                "maxRuntime": "120",  # Not zero!
+            },
+        )
+        assert result["isValid"] is False

@@ -277,12 +277,13 @@
             </div>
 
             <div class="form-grid three">
-              <!-- PARAM_DESC: Backend per risolvere il problema MWIS (Maximum Weight Independent Set). local_greedy: algoritmo greedy locale, veloce ma approssimato. dwave_simulated_annealing: simulated annealing D-Wave, più lento ma potenzialmente migliore. Usato solo con riduzione (rounds > 0). -->
+              <!-- PARAM_DESC: Backend per risolvere il problema MWIS (Maximum Weight Independent Set). local_greedy: algoritmo greedy locale, veloce ma approssimato. dwave_simulated_annealing: simulated annealing D-Wave, più lento ma potenzialmente migliore. pasqal_local: emulazione locale Pulser/QuTiP (richiede poetry install --with pasqal), limite 12 nodi, nessuna garanzia di layout o ottimalità. Usato solo con riduzione (rounds > 0). -->
               <div class="field">
                 <label for="misSolver">Backend MIS <span class="param">--mis-solver-id</span></label>
                 <select id="misSolver">
                   <option value="local_greedy">local_greedy (default)</option>
                   <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
+                  <option value="pasqal_local">pasqal_local (emulazione locale)</option>
                 </select>
               </div>
               <!-- PARAM_DESC: Backend per risolvere il problema residuo dopo la riduzione (o l'intero problema in baseline). scip: solver open-source. cplex: solver commerciale IBM (richiede licenza). Usato sempre, sia in baseline che con riduzione. -->
@@ -330,6 +331,36 @@
                 </div>
               </div>
             </div>
+
+            <div class="card pasqal-params" id="pasqalParamsCard" style="margin-top:20px">
+              <h3>Parametri Pasqal</h3>
+              <p class="muted" style="font-size: 0.8rem; margin-bottom: 12px;">
+                Attivi solo con <code>--mis-solver-id pasqal_local</code>.
+                Emulazione locale Pulser/QuTiP; nessun accesso cloud o QPU.
+              </p>
+              <div class="form-grid">
+                <!-- PARAM_DESC: Numero di misure (shot) per l'emulazione Pasqal locale. Determina quanti campioni vengono estratti dalla sequenza emulata. Più shot possono migliorare la statistica ma aumentano il tempo. Attivo solo con mis-solver-id=pasqal_local e riduzione attiva. Default: 100. -->
+                <div class="field pasqal-only">
+                  <label for="pasqalShots">Shot <span class="param">--pasqal-shots</span></label>
+                  <input id="pasqalShots" type="number" min="1" step="1" value="100">
+                  <p class="help">Numero di misure. Default: 100.</p>
+                  <p class="error"></p>
+                </div>
+              </div>
+              <div class="notice warning pasqal-warning" style="margin-top: 12px;">
+                <strong>Limiti del backend locale:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.85rem;">
+                  <li>Massimo 12 nodi nel grafo effettivo (limite dell'emulatore, non fisico).</li>
+                  <li>La ricerca del layout può fallire; non è garantita la compilazione di ogni grafo.</li>
+                  <li>I pesi MWIS sono valutati classicamente; i campioni non certificano ottimalità.</li>
+                  <li>Richiede <code>poetry install --with pasqal</code>.</li>
+                </ul>
+              </div>
+              <p class="error pasqal-budget-error" id="pasqalBudgetError" style="display: none; margin-top: 10px;">
+                Con <code>pasqal_local</code> e riduzione attiva, il budget end-to-end deve essere esplicitamente 0 (illimitato).
+                L'emulatore locale non può garantire una scadenza temporale.
+              </p>
+            </div>
           </section>
 
           <!-- Tab 4: Export -->
@@ -376,7 +407,7 @@
               <h2 id="comparison-title">Impatto di QReduce</h2>
               <p>Scegli due run dal catalogo locale. I dati rimangono sul tuo dispositivo.</p>
             </div>
-            <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Aggiorna il catalogo dei run" aria-label="Aggiorna il catalogo dei run">
+            <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Ricarica il catalogo dal disco (non lo rigenera; usa il comando Python per aggiornarlo)" aria-label="Ricarica il catalogo dal disco">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v5h-5 M20 9a8 8 0 1 0 0 6"/></svg>
             </button>
           </div>

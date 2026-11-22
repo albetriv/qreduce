@@ -235,7 +235,7 @@ i run osservati, non provano un effetto causale.
 
 Per creare il catalogo locale o aggiornarlo dopo aver aggiunto, rimosso o
 rigenerato dei run, eseguire dalla root del repository (con l'ambiente del progetto
-attivo), poi premere **↻ Aggiorna il catalogo dei run** nella scheda **Confronto**.
+attivo), poi premere **↻** nella scheda **Confronto** per ricaricare il catalogo.
 Non occorre ricaricare la pagina; le selezioni restano valide finché i relativi
 run sono presenti nel catalogo.
 
