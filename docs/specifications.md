@@ -1222,6 +1222,12 @@ del solo core MWIS sono distinti dagli esperimenti end-to-end.
 Notebook e directory di output predefinite degli esperimenti sono organizzati
 per famiglia; il runner generico continua a rispettare `output_root` esplicito.
 
+La diagnostica di presentazione dei campioni raw del portfolio MV distingue
+l'indipendenza nel grafo di riduzione dalla fattibilità del portafoglio
+originale a selezione fissata. Quest'ultima verifica cardinalità e possibilità
+di soddisfare il budget con i limiti degli asset selezionati. Non modifica il
+ranking, il dominio ridotto né il postcheck dell'allocazione finale.
+
 Le CLI di esecuzione degli esperimenti, dopo aver configurato il logging,
 registrano a livello `DEBUG` il comando del processo Python associato al `run_id`,
 prima di preparare ed eseguire il run. Gli argomenti sono quotati per una shell

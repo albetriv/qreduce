@@ -61,6 +61,30 @@ def test_sample_statistics_use_all_raw_occurrences():
         sampling_rows(view)
 
 
+def test_original_portfolio_feasibility_is_distinct_from_graph_independence():
+    view = make_view()
+    view.analysis.artifacts.problem.update(
+        lower_bounds={"a": .1, "b": .1, "c": .1},
+        upper_bounds={"a": .6, "b": .6, "c": .6},
+        min_selected_assets=2,
+        max_selected_assets=2,
+    )
+    samples = view.round_result["mis_execution_result"]["samples"]
+    samples.append(dict(samples[0], raw_sample_id="one", delta=[0, 0, 1], occurrence_count=3))
+
+    rows = {row["raw_sample_id"]: row for row in sampling_rows(view)}
+    assert rows["valid"]["indipendente"] and rows["valid"]["fattibile_portafoglio"]
+    assert not rows["invalid"]["indipendente"] and rows["invalid"]["fattibile_portafoglio"]
+    assert rows["one"]["indipendente"] and not rows["one"]["fattibile_portafoglio"]
+    assert rows["one"]["motivi_non_fattibilita"] == (
+        "sotto_cardinalita_minima", "massimi_insufficienti_per_budget",
+    )
+    summary = sampling_summary(view)
+    assert summary["occorrenze_indipendenti_fattibili"] == 8
+    assert summary["occorrenze_indipendenti_non_fattibili"] == 3
+    assert summary["occorrenze_non_indipendenti"] == 2
+
+
 def test_exact_is_bounded_and_matches_candidate():
     view = make_view()
     assert exact_diagnostic(view)["selected_ids"] == ["a", "c"]

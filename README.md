@@ -343,3 +343,10 @@ cap del dominio, quindi le allocazioni finali a confronto con la baseline.
 La logica è in `src/qreduce/notebooks/portfolio_mv.py`. Il confronto delle
 allocazioni richiede lo stesso problema originale e soluzioni adottate con
 postcheck superato; l'enumerazione MWIS è diagnostica e limitata esplicitamente.
+
+Il [caso dimostrativo con campioni Pulser misti](./docs/experiments/portfolio.md#caso-dimostrativo-campioni-pulser-fattibili-e-non-fattibili)
+riduce il dominio da 12 a 6 asset mantenendo l'ottimo della baseline,
+con campioni indipendenti sia fattibili sia non fattibili visibili nel top 20.
+Il grafico dei campioni distingue conflitti MIS (arancione), selezioni
+indipendenti ma non fattibili come portafoglio (rosso) e selezioni che
+superano entrambi i controlli (verde).

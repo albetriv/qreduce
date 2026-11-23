@@ -42,6 +42,92 @@ poetry run python -m qreduce.experiments.portfolio_mv --help
 | `--max-reduction-rounds 1` | Single-pass (default)            |
 | `--max-reduction-rounds N` | Multi-round (N > 1)              |
 
+### Caso dimostrativo: campioni Pulser fattibili e non fattibili
+
+Questo è il caso predefinito del notebook [MWIS e Pasqal 2D](../../notebooks/experiments/portfolio_mv/001_mwis_pasqal_2d.ipynb).
+Il portafoglio può investire in 4–7 asset, con pesi individuali del 4–30%.
+La simulazione locale produce entrambi i tipi di selezione indipendente,
+senza repair o completamento. Nel run salvato, su 5000 shot:
+
+| Campioni raw | Shot | Quota |
+|---|---:|---:|
+| Indipendenti e fattibili | 3324 | 66,48% |
+| Indipendenti ma non fattibili | 1325 | 26,50% |
+| Con conflitti nel grafo | 351 | 7,02% |
+
+Tra le 20 bitstring più frequenti, 4 sono verdi e 16 rosse. La riduzione
+passa da 12 a 6 asset e uguaglia l'ottimo classico (`-0.1265045501`), con
+postcheck superato. Il candidato selezionato dal ranking MWIS ha 10 asset e
+non è un portafoglio fattibile: i campioni verdi esistono nel pool raw, ma
+la pipeline non li privilegia. Il controllo `local_greedy` conserva lo stesso
+dominio e obiettivo; non si osserva un vantaggio del campionatore.
+
+Comandi dalla root del repository (usare ID nuovi per ripetere run già salvati):
+
+```bash
+(
+  set -e
+  set -- --asset-count 12 --generation-seed 42 --observation-count 120 \
+    --risk-aversion 0.1 --lower-bound 0.04 --upper-bound 0.30 \
+    --min-selected-assets 4 --max-selected-assets 7 \
+    --graph-edge-mode correlation_only --correlation-threshold 0.88 \
+    --classical-solver-id cplex --max-end-to-end-runtime-seconds 0 \
+    --target-binary-variables 6 --candidate-domain-min-items 4 \
+    --candidate-domain-max-items 6 --num-source-mis-candidates 1
+
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 0 --run-id 001_mixed_classic
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 1 --mis-solver-id pasqal_local --pasqal-shots 5000 \
+    --run-id 001_mixed_pasqal_local
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 1 --mis-solver-id local_greedy --run-id 001_mixed_greedy
+)
+```
+
+### Caso dimostrativo: da 12 a 4 asset con Pulser locale
+
+Il portafoglio investe in esattamente 3 asset, ciascuno fra il 5% e il 45%.
+Il grafo ha 2 archi (`correlation_only`, soglia 0.88) e non codifica la
+cardinalità del portafoglio. QReduce usa un candidato MWIS per costruire
+un dominio di al massimo 4 asset, poi risolve il MIQP residuo in CPLEX.
+
+Da eseguire dalla root del repository; per nuove repliche usare ID non ancora presenti:
+
+```bash
+(
+  set -e
+  set -- --asset-count 12 --generation-seed 42 --observation-count 120 \
+    --risk-aversion 1 --lower-bound 0.05 --upper-bound 0.45 \
+    --min-selected-assets 3 --max-selected-assets 3 \
+    --graph-edge-mode correlation_only --correlation-threshold 0.88 \
+    --classical-solver-id cplex --max-end-to-end-runtime-seconds 0 \
+    --target-binary-variables 4 --candidate-domain-min-items 3 \
+    --candidate-domain-max-items 4 --num-source-mis-candidates 1
+
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 0 --run-id ptf_12_k3_classic
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 1 --mis-solver-id pasqal_local --pasqal-shots 1000 \
+    --run-id ptf_12_k3_pasqal_local
+  poetry run python -m qreduce.experiments.portfolio_mv "$@" \
+    --max-reduction-rounds 1 --mis-solver-id local_greedy --run-id ptf_12_k3_greedy
+)
+```
+
+Nel notebook [MWIS e Pasqal 2D](../../notebooks/experiments/portfolio_mv/001_mwis_pasqal_2d.ipynb)
+impostare `RUN_ID = "ptf_12_k3_pasqal_local"` e `BASELINE_RUN_ID = "ptf_12_k3_classic"`.
+Nel run di riferimento, su 1000 shot: 894 indipendenti ma non fattibili a
+selezione fissata (rosso), 27 indipendenti e fattibili (verde), 79 con archi
+violati (arancione). Il seed 42 controlla i dati, non i conteggi Pulser.
+
+Il candidato scelto ha 10 asset e non è fattibile come portafoglio. Non è
+usato come allocazione: il MIQP sceglie 3 dei 4 asset conservati, supera il
+postcheck e uguaglia l'obiettivo della baseline (`-0.1127259018`). Anche
+`local_greedy` raggiunge lo stesso risultato, e il simulatore è più lento
+della baseline end-to-end. Questo caso mostra la riduzione senza perdita
+sull'istanza, non un vantaggio del campionatore né una garanzia generale.
+
 ### Configuratore HTML
 
 Il configuratore [`uix/experiment_portfolio_mv.html`](../../uix/experiment_portfolio_mv.html)

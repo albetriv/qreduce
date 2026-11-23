@@ -132,19 +132,40 @@ def geometry_report(view: PortfolioRunView) -> dict:
 
 
 def sampling_rows(view: PortfolioRunView) -> list[dict]:
-    """Recompute independence and MWIS weights for every raw bitstring in node order."""
+    """Check graph independence and whether the fixed selection admits an allocation."""
     if view.graph is None:
         return []
     rows = []
     execution = view.round_result.get("mis_execution_result") or {}
+    problem = view.analysis.artifacts.problem
+    lower, upper = problem.get("lower_bounds"), problem.get("upper_bounds")
+    min_k, max_k = problem.get("min_selected_assets"), problem.get("max_selected_assets")
+    # With a fixed delta, budget feasibility is exactly sum(lower) <= 1 <=
+    # sum(upper). Graph edges are not constraints of the original portfolio.
+    tolerance = 1e-9
     for sample in execution.get("samples", []):
         if tuple(sample["node_order"]) != view.graph.node_ids:
             raise ValueError("Raw sample node order differs from the graph.")
         validation = validate_binary_selection(view.graph, sample["delta"])
+        selected = [node for node, bit in zip(view.graph.node_ids, sample["delta"], strict=True) if bit]
+        count = len(selected)
+        reasons = []
+        if min_k is not None and count < min_k:
+            reasons.append("sotto_cardinalita_minima")
+        if max_k is not None and count > max_k:
+            reasons.append("sopra_cardinalita_massima")
+        bounds_available = lower is not None and upper is not None
+        if bounds_available:
+            if sum(lower[node] for node in selected) > 1 + tolerance:
+                reasons.append("minimi_oltre_budget")
+            if sum(upper[node] for node in selected) < 1 - tolerance:
+                reasons.append("massimi_insufficienti_per_budget")
         rows.append({"raw_sample_id": sample["raw_sample_id"],
                      "bitstring": "".join(str(bit) for bit in sample["delta"]),
                      "occorrenze": sample["occurrence_count"],
                      "indipendente": validation.is_independent_set,
+                     "fattibile_portafoglio": not reasons if bounds_available or reasons else None,
+                     "motivi_non_fattibilita": tuple(reasons),
                      "archi_violati": validation.num_violated_edges,
                      "asset_selezionati": validation.num_selected,
                      "peso_MWIS": validation.selection_weight,
@@ -160,6 +181,10 @@ def sampling_summary(view: PortfolioRunView) -> dict:
     valid = sum(row["occorrenze"] for row in rows if row["indipendente"])
     return {"bitstring_distinti": len(rows), "occorrenze_raw": total,
             "occorrenze_indipendenti": valid, "occorrenze_non_indipendenti": total - valid,
+            "occorrenze_indipendenti_fattibili": sum(row["occorrenze"] for row in rows
+                if row["indipendente"] and row["fattibile_portafoglio"] is True),
+            "occorrenze_indipendenti_non_fattibili": sum(row["occorrenze"] for row in rows
+                if row["indipendente"] and row["fattibile_portafoglio"] is False),
             "frazione_indipendente": valid / total if total else None,
             "nota": "Presolve: occorrenze deterministiche, non shot fisici." if view.payload.get("presolve_applied") else "Campioni raw prima di repair/completamento."}
 
@@ -265,6 +290,7 @@ def plot_pasqal_geometry(view: PortfolioRunView):
 def plot_sampling(view: PortfolioRunView, top_k: int = 20):
     """Plot frequent raw bitstrings and per-node excitation frequencies."""
     import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
 
     if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1:
         raise ValueError("top_k must be a positive integer.")
@@ -274,15 +300,25 @@ def plot_sampling(view: PortfolioRunView, top_k: int = 20):
         return None
     total = sum(row["occorrenze"] for row in rows)
     top = rows[:top_k]
+    styles = {
+        (False, None): ("tab:orange", "Conflitti nel grafo MIS"),
+        (True, False): ("tab:red", "MIS valido, portafoglio non fattibile"),
+        (True, True): ("tab:green", "MIS valido e portafoglio fattibile"),
+        (True, None): ("tab:gray", "MIS valido, fattibilità non disponibile"),
+    }
+    keys = [(row["indipendente"], row["fattibile_portafoglio"] if row["indipendente"] else None)
+            for row in top]
     fig, axes = plt.subplots(2, 1, figsize=(14, 10))
     bars = axes[0].bar(range(len(top)), [row["occorrenze"] for row in top],
-                       color=["tab:green" if row["indipendente"] else "tab:red" for row in top])
+                       color=[styles[key][0] for key in keys])
     axes[0].bar_label(bars, labels=[f"{row['asset_selezionati']} asset" for row in top],
                       padding=3, fontsize=8)
     axes[0].margins(y=.15)
     axes[0].set_xticks(range(len(top)), [row["bitstring"] for row in top], rotation=70)
-    axes[0].set(title=f"Top {len(top)} campioni raw: verde indipendente, rosso con conflitti",
+    axes[0].set(title=f"Top {len(top)} campioni raw per frequenza",
                 ylabel="Occorrenze (non rinormalizzate sul top)")
+    axes[0].legend(handles=[Patch(color=color, label=label)
+                            for key, (color, label) in styles.items() if key in keys])
     frequencies = [sum(row["occorrenze"] * int(row["bitstring"][i]) for row in rows) / total
                    for i in range(len(view.graph.node_ids))]
     axes[1].bar(view.graph.node_ids, frequencies, color="tab:blue")
