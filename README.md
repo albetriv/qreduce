@@ -95,15 +95,34 @@ classical_solver_id = "scip"          # oppure "cplex"
 ```
 
 Il catalogo iniziale contiene:
-- **MWIS**: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local` (opt-in)
+- **MWIS**: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local` (opt-in),
+  `pasqal_cloud_emulator` (opt-in, richiede credenziali)
 
-Il gruppo `experiments` include anche `pulser-simulation` per Pulser/QuTiP
-locale: installare con `poetry install --with experiments`. Non è più necessario
-un gruppo `pasqal` separato.
+Il gruppo `experiments` include `pulser-simulation` (con `pulser-core`) e
+`pasqal-cloud`: installare con `poetry install --with experiments` sia per
+l'emulazione locale sia per il backend cloud. Non serve un gruppo separato.
 Nelle CLI portfolio MV e SR selezionare `--mis-solver-id pasqal_local`, con
 `--max-end-to-end-runtime-seconds=0` e, facoltativamente, `--pasqal-shots 100`
 (valore predefinito). Il backend accetta al massimo 12 nodi, non richiede
 credenziali e non esegue job cloud. I pesi MWIS sono valutati dalla pipeline.
+
+Il backend cloud della CLI portfolio MV si seleziona con
+`--mis-solver-id pasqal_cloud_emulator --pasqal-emulator-service emu_free`.
+L'esecuzione remota richiede credenziali Pasqal Cloud, configurabili in
+`~/.pasqual/credentials`; l'installazione dell'SDK non le richiede.
+L'MVP supporta solo `emu_free`, con un limite prudenziale di 12 atomi per
+gli invii remoti. Il riferimento del batch è salvato sotto
+`<output-root>/.pasqal-cloud-jobs/<run-id>/`, anche se il run fallisce.
+Per recuperare i campioni senza reinviare il batch:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio_mv recover-pasqal \
+  --reference "$OUTPUT_ROOT/.pasqal-cloud-jobs/$RUN_ID/pasqal_cloud_job_$BATCH_ID.json"
+```
+
+Il flusso è verificato con SDK reale e trasporto simulato; non sul servizio reale.
+Stato e limiti in
+`docs/implementation/pasqal-local-status.md`.
 - **Classico residuo**: `cplex`, `scip`
 
 Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non

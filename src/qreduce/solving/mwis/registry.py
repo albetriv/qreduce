@@ -1,6 +1,8 @@
 """Factory registry for QReduce-provided and application-provided MWIS solvers."""
 
 from collections.abc import Callable
+from functools import partial
+from pathlib import Path
 
 from qreduce.solving.mwis.compilation import MISExecutionAdapter
 
@@ -12,9 +14,9 @@ class UnknownMISSolverError(ValueError):
 class MISSolverRegistry:
     """Resolve bundled solver IDs and allow explicit application extensions."""
 
-    def __init__(self, *, include_builtins: bool = True) -> None:
+    def __init__(self, *, include_builtins: bool = True, job_reference_directory: Path | None = None) -> None:
         self._factories: dict[str, Callable[[], MISExecutionAdapter]] = (
-            _builtin_factories() if include_builtins else {}
+            _builtin_factories(job_reference_directory) if include_builtins else {}
         )
 
     def register(self, solver_id: str, factory: Callable[[], MISExecutionAdapter]) -> None:
@@ -41,12 +43,15 @@ def builtin_mis_solver_registry() -> MISSolverRegistry:
     return MISSolverRegistry()
 
 
-def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
+def _builtin_factories(job_reference_directory: Path | None) -> dict[str, Callable[[], MISExecutionAdapter]]:
     """Import local implementations only while constructing the built-in catalog."""
     from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
         DWaveSimulatedAnnealingMISBackend,
     )
     from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
+    from qreduce.solving.mwis.pasqal_cloud_emulator_backend import (
+        PasqalCloudEmulatorMISBackend,
+    )
     from qreduce.solving.mwis.pasqal_local_backend import PasqalLocalMISBackend
     from qreduce.solving.solver_ids import BuiltinMISSolverId
 
@@ -54,4 +59,7 @@ def _builtin_factories() -> dict[str, Callable[[], MISExecutionAdapter]]:
         BuiltinMISSolverId.LOCAL_GREEDY: LocalGreedyMISBackend,
         BuiltinMISSolverId.DWAVE_SIMULATED_ANNEALING: DWaveSimulatedAnnealingMISBackend,
         BuiltinMISSolverId.PASQAL_LOCAL: PasqalLocalMISBackend,
+        BuiltinMISSolverId.PASQAL_CLOUD_EMULATOR: partial(
+            PasqalCloudEmulatorMISBackend, job_reference_directory=job_reference_directory,
+        ),
     }

@@ -47,6 +47,20 @@ from qreduce.solving.mwis.normalization import (
     deduplicate_raw_mis_samples,
     normalize_backend_result,
 )
+from qreduce.solving.mwis.pasqal_cloud_emulator_backend import (
+    PasqalCloudEmulatorMISBackend,
+    PasqalCloudEmulatorService,
+)
+from qreduce.solving.mwis.pasqal_cloud_persistence import (
+    JobRecoveryResult,
+    PasqalCloudJobPersistenceError,
+    PasqalCloudJobRecoveryError,
+    PasqalCloudJobReference,
+    find_job_references,
+    load_job_reference,
+    recover_job_results,
+    save_job_reference,
+)
 from qreduce.solving.mwis.presolve import (
     PresolveReason,
     PresolveResult,
@@ -82,6 +96,7 @@ __all__ = [
     "GeometryDiagnostics",
     "IndependenceStatus",
     "InteractionClassification",
+    "JobRecoveryResult",
     "MISBackendRequest",
     "MISBackendResult",
     "MISCompilationRequest",
@@ -94,6 +109,11 @@ __all__ = [
     "MaximalityStatus",
     "OptimalityClaim",
     "PairInteraction",
+    "PasqalCloudEmulatorMISBackend",
+    "PasqalCloudEmulatorService",
+    "PasqalCloudJobPersistenceError",
+    "PasqalCloudJobRecoveryError",
+    "PasqalCloudJobReference",
     "PresolveReason",
     "PresolveResult",
     "PresolveStatus",
@@ -116,10 +136,14 @@ __all__ = [
     "default_smoothed_annealing_config",
     "diagnose_geometry_fidelity",
     "diagnose_pulse_strategy",
+    "find_job_references",
     "greedy_weight_completion_policy",
     "legacy_constant_config",
+    "load_job_reference",
     "normalize_backend_result",
     "presolve_to_raw_sample",
+    "recover_job_results",
+    "save_job_reference",
     "try_presolve",
     "validate_compilation_request",
 ]

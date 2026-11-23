@@ -1,5 +1,7 @@
 """Credential resolution uses fake values and never contacts the provider."""
 
+from pathlib import Path
+
 import pytest
 
 from qreduce.solving.mwis.pasqal_credentials import (
@@ -7,6 +9,21 @@ from qreduce.solving.mwis.pasqal_credentials import (
     PasqalCredentialsError,
     resolve_pasqal_credentials,
 )
+
+
+def test_default_path_uses_pasqual_credentials(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    legacy = tmp_path / ".qreduce" / "pasqal-credentials"
+    legacy.parent.mkdir()
+    legacy.write_text("[default]\nusername=legacy\npassword=fake\nproject_id=legacy-project\n")
+
+    with pytest.raises(PasqalCredentialsError):
+        resolve_pasqal_credentials(environ={})
+
+    path = tmp_path / ".pasqual" / "credentials"
+    path.parent.mkdir()
+    path.write_text("[default]\nusername=file\npassword=fake\nproject_id=file-project\n")
+    assert resolve_pasqal_credentials(environ={}).username == "file"
 
 
 def test_precedence_and_no_secret_repr(tmp_path):

@@ -23,6 +23,7 @@ from qreduce.models import ResolvedRunConfig
 from qreduce.pipeline import PipelineRunResult, run_pipeline
 from qreduce.solving.mwis import MISSolverRegistry
 from qreduce.solving.residual import ClassicalSolverRegistry
+from qreduce.solving.solver_ids import BuiltinMISSolverId
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,13 @@ def run_experiment(
             raise FileExistsError(
                 f"Experiment artifact directory already exists: {destination}"
             )
+
+        if config.mis_solver_id == BuiltinMISSolverId.PASQAL_CLOUD_EMULATOR and mis_solver_registry is None:
+            # This journal must survive failure/cleanup of the staged run artifacts.
+            journal = destination.parent / ".pasqal-cloud-jobs" / run_id
+            if any(journal.glob("pasqal_cloud_job_*.json")):
+                raise FileExistsError(f"Pasqal references already exist for this run: {journal}")
+            mis_solver_registry = MISSolverRegistry(job_reference_directory=journal)
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary_root = Path(mkdtemp(prefix=f".{run_id}.", dir=destination.parent))

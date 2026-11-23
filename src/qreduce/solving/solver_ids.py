@@ -9,6 +9,7 @@ class BuiltinMISSolverId(StrEnum):
     LOCAL_GREEDY = "local_greedy"
     DWAVE_SIMULATED_ANNEALING = "dwave_simulated_annealing"
     PASQAL_LOCAL = "pasqal_local"
+    PASQAL_CLOUD_EMULATOR = "pasqal_cloud_emulator"
 
 
 class BuiltinClassicalSolverId(StrEnum):

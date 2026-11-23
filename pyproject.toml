@@ -24,6 +24,7 @@ notebooks = [
 ]
 experiments = [
     "pulser-simulation (==1.10.1)",
+    "pasqal-cloud (>=0.24.0,<0.25.0)",
     "numpy (>=2,<3)",
     "cplex (>=22.2.0.0,<23.0.0.0)",
     "dwave-samplers (>=1.7,<2)",

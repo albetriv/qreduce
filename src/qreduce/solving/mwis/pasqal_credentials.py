@@ -54,7 +54,7 @@ def resolve_pasqal_credentials(
     if any(name in env for name in names.values()):
         return _validated({key: env.get(name) for key, name in names.items()})
 
-    file_path = Path.home() / ".qreduce" / "pasqal-credentials" if path is None else Path(path)
+    file_path = Path.home() / ".pasqual" / "credentials" if path is None else Path(path)
     parser = ConfigParser(interpolation=None)
     try:
         with file_path.open(encoding="utf-8") as handle:

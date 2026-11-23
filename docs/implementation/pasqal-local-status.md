@@ -3,9 +3,10 @@
 Il piano `PIANO_INTEGRAZIONE_PASQAL.md` descrive anche funzionalita future;
 non e una dichiarazione che tutte le fasi siano completate. L'integrazione
 locale usa il backend `pasqal_local`, con Pulser/QuTiP e dispositivo
-`AnalogDevice`. Il gruppo Poetry `experiments` include `pulser-simulation` e installa Pulser con
-`poetry install --with experiments`. Non sono registrati backend Pasqal cloud o QPU
-e il progetto non dichiara una dipendenza da `pasqal-cloud`.
+`AnalogDevice`. Il gruppo Poetry `experiments` installa `pulser-simulation`,
+`pulser-core` e `pasqal-cloud` con `poetry install --with experiments`.
+Il backend locale non usa credenziali o servizi cloud. Per lo stato del
+backend remoto, vedere la Fase 2; non è registrato un backend QPU.
 
 ## Miglioramenti implementati (Piano correzione MWIS)
 
@@ -191,3 +192,167 @@ restano non disponibili, senza ricostruzioni arbitrarie.
 I nuovi payload usano versione 3. Payload Pasqal precedenti devono essere
 ricompilati: non vengono eseguiti implicitamente senza le nuove verifiche fisiche.
 Questo riguarda il contratto di esecuzione, non la lettura UI degli artefatti storici.
+
+
+## Fase 2: Emulatori cloud Pasqal
+
+La Fase 2 implementa l'esecuzione remota su emulatori Pasqal Cloud tramite il
+backend `pasqal_cloud_emulator`. Questo backend è separato da `pasqal_local` e
+richiede:
+- Le dipendenze del gruppo Poetry `experiments`
+- Credenziali Pasqal Cloud configurate
+- Selezione esplicita del servizio emulatore
+
+### Installazione
+
+```bash
+# Pulser/QuTiP e SDK Pasqal Cloud
+poetry install --with experiments
+```
+
+### Backend `pasqal_cloud_emulator`
+
+Il backend `pasqal_cloud_emulator` compila localmente con Pulser ed esegue
+remotamente su Pasqal Cloud. Caratteristiche:
+
+- **Compilazione locale**: usa Pulser/AnalogDevice come il backend locale
+- **Presolve**: grafi senza archi sono risolti esattamente senza invio cloud
+- **Servizio esplicito**: richiede `_emulator_service` (solo `emu_free` supportato)
+- **Solo servizio gratuito**: nessun consenso sintetico e nessun fallback a servizi a pagamento
+- **Persistenza pre-polling**: il batch ID viene salvato atomicamente prima della prima lettura
+
+### Architettura invio/polling
+
+L'architettura separa esplicitamente:
+1. **Invio** (`submit_sequence`): usa il formato e il trasporto di `pasqal-cloud`
+   0.24.0 senza passare da `submit()` o dai retry del POST; non segue redirect
+2. **Callback persistenza**: chiamato tra invio e polling, scrive atomicamente
+   il job reference su file
+3. **Polling** (`wait_for_completion`): attende completamento con budget monotono
+4. **Lettura** (`read_batch_results`): recupera i risultati dal batch completato
+5. **Decodifica** (`decode_results_to_samples`): converte a RawMISSample,
+   condivisa tra esecuzione diretta e recupero
+
+Questo design garantisce che:
+- Non partano letture del batch prima della scrittura durevole dell'ID
+- Se la persistenza fallisce, l'errore include il batch_id per recupero manuale
+- Il recupero usa la stessa logica di lettura/decodifica dell'esecuzione diretta
+
+### Budget monotono
+
+Il timeout per il polling viene calcolato come budget residuo:
+```
+budget_residuo = budget_iniziale - tempo_già_speso_in_solve()
+```
+Il budget limita nuove letture e pause del polling. Non interrompe una chiamata
+SDK già in corso, inclusi i retry delle letture: non è una deadline rigida.
+
+### Verifica TLS
+
+Il backend **rifiuta** la connessione se la variabile `PASQAL_SKIP_SSL_VERIFY`
+è impostata. Questa è una protezione contro configurazioni insicure che
+disabilitano la verifica TLS. Il check si applica sia a `solve()` che a
+`recover_job_results()`.
+
+### Uso dalla CLI
+
+```bash
+python -m qreduce.experiments.portfolio_mv \
+  --run-id test-cloud \
+  --asset-count 6 --graph-edge-mode correlation_only --correlation-threshold 0.9 \
+  --mis-solver-id pasqal_cloud_emulator \
+  --pasqal-emulator-service emu_free \
+  --pasqal-shots 100
+```
+
+Questo comando invia un batch reale se il grafo richiede esecuzione remota.
+
+### Credenziali
+
+Le credenziali sono risolte in ordine:
+1. Variabili d'ambiente: `PASQAL_USERNAME`, `PASQAL_PASSWORD`, `PASQAL_PROJECT_ID`
+2. File profilo: `~/.pasqual/credentials`
+
+Esempio di file profilo (da creare manualmente, NON committare):
+
+```ini
+[default]
+username = <your-pasqal-email>
+password = <your-pasqal-password>
+project_id = <your-project-id>
+```
+
+Proteggere il file con ACL appropriati e non sincronizzarlo su cloud.
+
+### Persistenza e recupero dei job
+
+Il backend salva le informazioni del job (batch_id, node_order, shots,
+atom_to_node_map) **immediatamente dopo l'invio, prima di iniziare il polling**.
+Questo consente il recupero dei risultati in una sessione successiva senza
+reinviare il job.
+
+Il riferimento si trova in `<output-root>/.pasqal-cloud-jobs/<run-id>/`,
+fuori dagli artefatti pubblicati a fine run. Per recuperare campioni canonici:
+
+```bash
+poetry run python -m qreduce.experiments.portfolio_mv recover-pasqal \
+  --reference "$OUTPUT_ROOT/.pasqal-cloud-jobs/$RUN_ID/pasqal_cloud_job_$BATCH_ID.json"
+```
+
+Senza riferimento, usare `--batch-id` e `--project-id` insieme: verranno
+restituiti solo i conteggi grezzi e l'ordine degli atomi. Il progetto deve
+coincidere con quello delle credenziali. Il comando restituisce JSON e usa
+i codici `0` per successo, `2` per batch ancora pendente o attesa scaduta,
+e `1` per errori di recupero o stati terminali non riusciti.
+
+Funzioni di persistenza disponibili:
+- `save_job_reference()`: salva prima del polling
+- `load_job_reference()`: carica un riferimento salvato
+- `recover_job_results()`: recupera risultati da batch_id senza reinvio
+- `recover_job_to_samples()`: recupero completo con decodifica a RawMISSample
+- `find_job_references()`: cerca riferimenti in una directory
+
+Lo schema persistente (versione 1.1) include:
+- batch_id e service
+- project_id (non segreto, per audit)
+- run_id, round_index, compiled_job_id
+- node_order e atom_to_node_map per la decodifica risultati
+- shots, timestamp, profilo e versione SDK
+
+### Validazioni
+
+Il backend valida:
+- Disponibilità SDK (Pulser per compilazione, pasqal-cloud per esecuzione)
+- Credenziali configurate
+- Servizio emulatore supportato
+- TLS non disabilitato
+- Coerenza payload compilato vs esecuzione
+- Target configurato vs compilato
+
+### Limiti attuali
+
+- Solo `emu_free` supportato (nessun MPS, SV, o QPU)
+- Nessun fallback automatico tra servizi
+- Il timeout locale non annulla il job remoto
+- QReduce limita prudenzialmente l'invio a 12 atomi, seguendo la scheda
+  dettagliata del catalogo Pasqal. Il limite non si applica al presolve locale.
+- Se la creazione fallisce senza ID e senza un rifiuto certo, l'esito è ignoto:
+  riconciliare con Pasqal prima di qualsiasi nuovo invio.
+- Lo smoke test su servizio reale richiede autorizzazione esplicita
+
+### Test
+
+I test non richiedono credenziali Pasqal Cloud. Il test end-to-end usa le
+classi SDK reali e intercetta tutte le richieste HTTP:
+- Validazioni di configurazione e parametri
+- Presolve per grafi senza archi
+- Persistenza job reference (schema 1.1)
+- Sanitizzazione errori SDK (nessun segreto nei log)
+- Tampering payload
+- **End-to-end**: singola submission, persistenza pre-polling, recovery senza reinvio
+- **Verifica TLS**: rifiuto connessione con TLS disabilitato
+
+```bash
+poetry run pytest tests/solving/mwis/test_pasqal_cloud_emulator_backend.py \
+  tests/experiments/portfolio_mv/test_pasqal_cloud_flow.py -v
+```

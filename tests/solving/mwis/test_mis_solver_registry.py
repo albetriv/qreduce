@@ -11,6 +11,9 @@ from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
     DWaveSimulatedAnnealingMISBackend,
 )
 from qreduce.solving.mwis.local_backend import LocalGreedyMISBackend
+from qreduce.solving.mwis.pasqal_cloud_emulator_backend import (
+    PasqalCloudEmulatorMISBackend,
+)
 from qreduce.solving.mwis.pasqal_local_backend import PasqalLocalMISBackend
 
 
@@ -22,8 +25,14 @@ def test_builtin_registry_resolves_bundled_mis_solvers() -> None:
     """The standard catalog supplies QReduce's local heuristic and Ocean simulator."""
     registry = builtin_mis_solver_registry()
 
-    assert registry.solver_ids == ("dwave_simulated_annealing", "local_greedy", "pasqal_local")
+    assert registry.solver_ids == (
+        "dwave_simulated_annealing",
+        "local_greedy",
+        "pasqal_cloud_emulator",
+        "pasqal_local",
+    )
     assert isinstance(registry.create("pasqal_local"), PasqalLocalMISBackend)
+    assert isinstance(registry.create("pasqal_cloud_emulator"), PasqalCloudEmulatorMISBackend)
     assert isinstance(registry.create("local_greedy"), LocalGreedyMISBackend)
     assert isinstance(
         registry.create("dwave_simulated_annealing"), DWaveSimulatedAnnealingMISBackend

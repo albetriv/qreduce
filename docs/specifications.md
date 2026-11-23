@@ -95,7 +95,12 @@ implementazione.
 | Adapter gate-based, ad esempio IBM Qiskit o AWS Braket | opzionale; contratto predisposto |
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
 | Backend MIS locale `pasqal_local` | Pulser/QuTiP nel gruppo `experiments`, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
+| Backend MIS `pasqal_cloud_emulator` | Opzionale, portfolio MV, solo `emu_free`; massimo prudenziale di 12 atomi per gli invii. Un solo tentativo di creazione; riferimento durevole prima delle letture; recupero in sola lettura nel progetto originale, senza fallback. Verificato con trasporto simulato. |
 | QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
+
+Le dipendenze Pasqal/Pulser sono raccolte nel gruppo Poetry `experiments`.
+L'installazione dell'SDK cloud non richiede credenziali; il backend locale
+non lo usa a runtime.
 
 La configurazione deve rifiutare esplicitamente un ID backend non noto. Un ID noto
 ma non disponibile per binding, runtime o licenza deve produrre una failure

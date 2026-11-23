@@ -2,17 +2,20 @@
 
 ## Stato e obiettivi
 
-Piano parzialmente implementato: `pasqal_local` e disponibile; benchmark e
-test aggiuntivi restano aperti, mentre cloud e QPU non sono ancora implementati.
-Dettagli in `docs/implementation/pasqal-local-status.md`. Integrare Pasqal come solver MIS
-selezionabile, mantenendo separate tre modalità:
+Piano parzialmente implementato: `pasqal_local` è disponibile nelle CLI
+portfolio MV e SR; il run CLI locale è già documentato, mentre il benchmark
+rappresentativo resta aperto. Dettagli in
+`docs/implementation/pasqal-local-status.md`. La Fase 2 è implementata nella
+CLI portfolio MV e verificata con SDK reale e trasporto simulato. Lo smoke
+test su Pasqal Cloud resta separato e non eseguito. QPU, UI e altri servizi
+cloud non fanno parte di questa fase.
+Mantenere separate tre modalità:
 
 1. Emulazione locale Pulser/QuTiP, senza credenziali cloud.
 2. Emulatori online Pasqal, con scelta esplicita del servizio disponibile.
 3. QPU Pasqal reale, con scelta esplicita del dispositivo disponibile.
 
-Gli ID remoti indicativi `pasqal_cloud_emulator` e `pasqal_qpu` sono proposte,
-non ID attualmente disponibili. Nessun passaggio
+`pasqal_cloud_emulator` è registrato; `pasqal_qpu` resta una proposta. Nessun passaggio
 automatico tra backend, dispositivi o modalità: la policy resta `fail`.
 
 ## Decisioni e limiti di dominio
@@ -55,29 +58,33 @@ Condividere tra backend, nei limiti della compatibilità del target:
 4. Conversione dei counts in `RawMISSample`; normalizzazione, repair e ranking
    restano nella pipeline canonica.
 
-Aggiungere a `CompiledMISJob` un payload opzionale con tipo e versione di
-schema, opaco per il kernel. Per Pasqal contiene la sequenza nel formato JSON
+Riutilizzare il payload opzionale già presente in `CompiledMISJob`, con tipo
+e versione di schema, opaco per il kernel. Per i job Pasqal con sequenza,
+il payload contiene la sequenza nel formato JSON
 astratto di Pulser (`Sequence.to_abstract_repr()`), il target effettivo,
 coordinate, ordine, parametri, metodo ed eventuale seed del mapping, diagnostica
 e versione SDK. L'adapter valida il payload e ricostruisce la sequenza in
 `solve()`; testare il round trip. Lasciare invariato il campo BQM di D-Wave.
 Non archiviare oggetti SDK vivi, né copiare il payload in ogni campione.
 
-`compile()` non invia job. Per il remoto, propagare da config e CLI la scelta
-esplicita del servizio emulatore o del dispositivo QPU fino alla richiesta di
-compilazione e al job compilato. La pipeline oggi non inoltra
-`MISCompilationRequest.requested_device_id`: cablarlo per il dispositivo QPU e
-tenere distinto l'ID del servizio emulatore. Entrambe le modalità cloud usano
-`ExecutionMode.REMOTE`; non serve introdurre un nuovo valore per distinguerle.
+`compile()` non invia job. Per la Fase 2, propagare il servizio emulatore da
+config e CLI tramite un parametro di compilazione validato e vincolarlo al
+job compilato. Non usare `requested_device_id` per il servizio: la pipeline
+inoltra già questo campo, da riservare alla scelta del dispositivo QPU.
+Entrambe le modalità cloud usano `ExecutionMode.REMOTE`; non serve introdurre
+un nuovo valore per distinguerle.
 
 ## Fase 0 - Verifica SDK
 
 Usare le release più recenti non prerelease al momento dell'implementazione,
 senza supportare API legacy. Baseline verificata su PyPI il 21 novembre 2026:
 `pulser`, `pulser-core` e `pulser-simulation` **1.10.1** (17 novembre 2026);
-per la Fase 2, `pasqal-cloud` **0.24.0**. Per il locale dichiarare
-`pulser-simulation` nel gruppo `experiments`: include `pulser-core` senza
-installare l'SDK cloud. Aggiungere `pasqal-cloud` solo per il remoto.
+per la Fase 2, `pasqal-cloud` **0.24.0**. Dichiarare `pulser-simulation`
+(che include `pulser-core`) e `pasqal-cloud` nello stesso gruppo `experiments`,
+installabile con `poetry install --with experiments`. Non aggiungere il
+metapacchetto `pulser` né l'estensione legacy `pulser-pasqal`. Il backend
+`pasqal_local` non deve usare l'SDK cloud a runtime. La baseline è un
+riferimento storico, non una verifica della compatibilità del lock.
 
 Su Windows/Python 3.12, risolvere e fissare le dipendenze opzionali nel lock
 all'avvio della fase pertinente. Per il locale, fare uno smoke test con
@@ -87,6 +94,11 @@ La versione pubblicata non dimostra compatibilità con il lock del progetto:
 se la risoluzione fallisce, documentare il conflitto senza downgrade silenziosi.
 
 ## Fase 1 - Mapping ed emulatore locale
+
+Mapping, backend locale e selezione via CLI sono già implementati. Resta da
+chiudere la verifica su un corpus rappresentativo, con grafi di densità
+intermedia e più run stocastici. Distinguere i casi risolti dal presolve
+esatto (zero shot) da quelli effettivamente campionati.
 
 1. Implementare una sola strategia di ricerca con budget esplicito, un solo
    profilo locale e una sola sequenza MIS di riferimento. Registrare archi
@@ -108,31 +120,57 @@ se la risoluzione fallisce, documentare il conflitto senza downgrade silenziosi.
    nell'MVP; per i benchmark usare un cap non vincolante o riportare le esclusioni.
 5. Dichiarare seed, timeout, cancellazione e limiti solo se realmente supportati;
    un seed del layout non garantisce riproducibilità completa del sampling.
-6. Registrare il solver e renderlo selezionabile da configurazione e CLI per
-   almeno un esperimento end-to-end, con parametri validati. Rimandare la UI
-   finché il flusso CLI non è verificato; non blocca la chiusura dell'MVP.
+6. Mantenere la selezione del solver da configurazione e CLI portfolio MV e
+   SR, con parametri validati e copertura end-to-end.
 
 ## Fase 2 - Emulatori online Pasqal
 
-1. Integrare `PasqalCloudConnection` e partire da un solo servizio selezionato
-   esplicitamente, `RemoteEmuFreeBackend`, da verificare per il progetto
-   Pasqal. Distinguere ciò che è supportato dall'adapter da ciò che risulta
-   accessibile all'account. Non selezionare automaticamente un altro target.
-2. Validare API, versioni, parametri, limiti, rumore, autorizzazioni e costi per
-   ciascun servizio: non assumere gratuità, disponibilità o intercambiabilità.
-3. Mantenere `solve()` sincrono e salvare negli artefatti del run, appena
-   disponibili e prima del polling, `batch_id`, eventuali `job_ids` e target
-   effettivo. Prevedere un comando di recupero per ID che non invii nuovi job;
-   non serve un job manager. Distinguere timeout dell'attesa (il job può ancora
-   essere attivo) da esito di submission ignoto (timeout prima di ricevere
-   l'ID): in quest'ultimo caso non ritentare automaticamente, ma riconciliare
-   con il provider prima di un eventuale nuovo invio.
-4. Prima dell'invio, verificare che il target effettivo coincida con quello
-   selezionato. Esporre costi e limiti ove disponibili e richiedere un consenso
-   esplicito se il job può avere un costo o il costo è ignoto. Non effettuare
-   job reali durante i test automatici standard.
-5. Normalizzare bitstring e occorrenze sul grafo originale, senza confondere
-   frequenze o score del provider con energia QUBO canonica.
+1. Registrare `pasqal_cloud_emulator` e renderlo selezionabile da config e
+   CLI in almeno un esperimento portfolio end-to-end. Richiedere un servizio
+   esplicito; per l'MVP supportare solo `EMU_FREE` con
+   `PasqalCloudConnection`. Distinguere dipendenza disponibile, servizio
+   supportato e accesso del progetto al servizio. Nessun fallback.
+2. Compilare contro un profilo del servizio verificato per la versione SDK
+   nel lock. Validare registro, impulsi, limiti e opzioni supportate, senza
+   ereditare automaticamente cap e impostazioni dell'emulatore locale.
+   Prima dell'invio verificare che il target configurato coincida con quello
+   compilato; esporre limiti e costi noti e richiedere consenso esplicito se
+   è possibile un costo o se è ignoto. Verificare anche gli eventuali retry
+   impliciti dell'SDK sulla creazione del batch.
+3. Mantenere `solve()` sincrono per la pipeline, ma separare invio e attesa:
+   leggere l'ID dalla risposta di creazione senza usare `submit()` (che
+   ritenta e legge i job ID). Persistire `batch_id` appena
+   disponibile e **prima di iniziare il polling**, senza aspettare eventuali
+   `job_ids`. Predisporre e verificare un registro scrivibile prima dell'invio:
+   un artefatto durevole per run, round e job compilato, indipendente dal
+   successo del run. Salvare il riferimento al job, il servizio e il contesto
+   necessario per decodificare i risultati, senza credenziali. Se la scrittura
+   fallisce dopo l'invio, interrompere l'attesa, restituire l'ID in una
+   diagnostica sicura e non reinviare.
+4. Applicare il budget residuo all'attesa e distinguere rifiuto certo,
+   esito di invio ignoto, timeout locale dopo la ricezione dell'ID e stato
+   terminale remoto. Un timeout locale non implica cancellazione. Se l'esito
+   dell'invio è ignoto, riconciliare con il provider prima di qualsiasi nuovo
+   invio; nessun retry automatico o promessa di idempotenza.
+5. Fornire un comando di recupero in sola lettura usando `batch_id` e lo
+   stesso progetto Pasqal. Il comando recupera stato e risultati senza
+   inviare job né rilanciare la pipeline. Per riportare i campioni nell'ordine
+   canonico usare l'artefatto del job originale; senza tale contesto non
+   attribuire i bit a nodi Qreduce.
+6. Leggere i conteggi finali, verificare l'ordine degli atomi, la lunghezza
+   dei bitstring e le occorrenze; registrare shot richiesti e ricevuti.
+   Passare i campioni validati alla normalizzazione canonica, senza usare
+   frequenze o score del provider come energia QUBO. Se interviene il
+   presolve esatto, registrare provenienza e zero shot senza inviare un batch.
+
+**Chiusura della Fase 2:** lock verificato su Python 3.12 e flusso CLI con
+client simulato, su un grafo con almeno un arco per esercitare davvero la
+submission. Verificare persistenza prima del polling, recupero in una nuova
+sessione senza reinvio, timeout prima e dopo l'ID, fallimento della persistenza,
+target errato, assenza di fallback e assenza di segreti in log e artefatti.
+Lo smoke test sul servizio reale è un traguardo distinto, solo opt-in e
+autorizzato: distinguere «validato con client simulato» da «validato su Pasqal
+Cloud» nella documentazione.
 
 ## Fase 3 - QPU reale
 
@@ -150,10 +188,11 @@ se la risoluzione fallisce, documentare il conflitto senza downgrade silenziosi.
 
 ## Credenziali locali in stile AWS
 
-Usare un file di profili gestito da Qreduce, esterno al repository, ad esempio
-`%USERPROFILE%\.qreduce\pasqal-credentials` su Windows. È un formato proposto
-per Qreduce, non un formato nativo Pasqal verificato. L'utente crea e compila il
-file in privato; non inserire credenziali reali in conversazioni o repository.
+Riutilizzare il resolver di `pasqal_credentials.py` e il relativo file di
+profili Qreduce, esterno al repository: `~/.pasqual/credentials`
+(`%USERPROFILE%\.pasqual\credentials` su Windows). Non è un formato
+nativo Pasqal. L'utente crea e compila il file in privato; non inserire
+credenziali reali in conversazioni o repository.
 
 Esempio indicativo, con soli segnaposto:
 
@@ -193,7 +232,8 @@ project_id = <project-id-pasqal>
   esaurito e rifiuti dimostrabili del target.
 - Testare ordine canonico, decodifica, conteggi, shot, deduplicazione, pesi,
   violazioni, normalizzazione, repair e assenza di pretese di ottimalità.
-- Chiudere la Fase 1 con un run CLI end-to-end e un benchmark che riporti
+- Completare la verifica della Fase 1, oltre al run CLI già documentato, con
+  un benchmark che riporti
   quota di grafi compilabili, quota di shot validi prima del repair (sul
   totale delle occorrenze ricevute, prima dei cap) e divario di peso tra il
   miglior candidato valido e l'ottimo esatto sulle istanze piccole. Riportare

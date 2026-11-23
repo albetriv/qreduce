@@ -10,8 +10,10 @@ The execution mode is controlled by --max-reduction-rounds:
 """
 
 import argparse
+import json
 import sys
 from dataclasses import replace
+from pathlib import Path
 
 from qreduce.config import validate_timeout_value
 from qreduce.experiments.portfolio_mv.execution import (
@@ -186,7 +188,7 @@ Examples:
     solver_group = parser.add_argument_group("Solver options")
     solver_group.add_argument(
         "--mis-solver-id",
-        choices=("local_greedy", "dwave_simulated_annealing", "pasqal_local"),
+        choices=("local_greedy", "dwave_simulated_annealing", "pasqal_local", "pasqal_cloud_emulator"),
         default="local_greedy",
         help="MIS solver ID. Default: local_greedy.",
     )
@@ -203,7 +205,18 @@ Examples:
         "A value of 0 means no per-solve limit (solver runs until completion "
         "or end-to-end budget exhaustion). Default: 60.0.",
     )
-    solver_group.add_argument("--pasqal-shots", type=int, help="Pasqal local shots (default: 100).")
+    solver_group.add_argument("--pasqal-shots", type=int, help="Pasqal local/cloud shots (default: 100).")
+    solver_group.add_argument(
+        "--pasqal-emulator-service",
+        choices=("emu_free",),
+        default=None,
+        help=(
+            "Cloud emulator service for pasqal_cloud_emulator. "
+            "Currently only 'emu_free' is supported. "
+            "Requires --mis-solver-id=pasqal_cloud_emulator. "
+            "EMU_FREE does not require credits. No paid backend is selected automatically."
+        ),
+    )
     solver_group.add_argument(
         "--mis-num-reads",
         type=int,
@@ -287,12 +300,24 @@ Examples:
 
 def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     """Validate argument combinations."""
-    if args.pasqal_shots is not None and (args.mis_solver_id != "pasqal_local" or args.pasqal_shots < 1):
-        parser.error("--pasqal-shots requires pasqal_local and a positive integer")
+    # Pasqal local validation
+    if args.pasqal_shots is not None and args.mis_solver_id not in ("pasqal_local", "pasqal_cloud_emulator"):
+        parser.error("--pasqal-shots requires pasqal_local or pasqal_cloud_emulator")
+    if args.pasqal_shots is not None and args.pasqal_shots < 1:
+        parser.error("--pasqal-shots must be a positive integer")
     if (args.mis_solver_id == "pasqal_local" and args.max_reduction_rounds != 0
             and args.max_end_to_end_runtime_seconds != 0):
         parser.error("pasqal_local requires --max-end-to-end-runtime-seconds=0; "
                      "the local emulator cannot enforce a deadline")
+
+    # Pasqal cloud emulator validation
+    if args.pasqal_emulator_service is not None and args.mis_solver_id != "pasqal_cloud_emulator":
+        parser.error("--pasqal-emulator-service requires --mis-solver-id=pasqal_cloud_emulator")
+    if args.mis_solver_id == "pasqal_cloud_emulator" and args.pasqal_emulator_service is None:
+        parser.error("--mis-solver-id=pasqal_cloud_emulator requires explicit --pasqal-emulator-service selection")
+    if args.mis_solver_id == "pasqal_cloud_emulator" and args.max_reduction_rounds == 0:
+        parser.error("pasqal_cloud_emulator requires reduction to be enabled (--max-reduction-rounds > 0)")
+
     if args.model_export_path and not args.model_export:
         parser.error("--model-export-path requires --model-export")
 
@@ -414,8 +439,59 @@ def _build_reduction_policy(args: argparse.Namespace) -> ReductionPolicy | None:
     return replace(base_policy, **overrides)
 
 
+def _recover_pasqal_main(argv: list[str]) -> int:
+    from qreduce.solving.mwis.pasqal_cloud_persistence import (
+        PasqalCloudJobPersistenceError,
+        PasqalCloudJobRecoveryError,
+        load_job_reference,
+        recover_batch_counts,
+        recover_job_to_samples,
+    )
+
+    parser = argparse.ArgumentParser(prog="portfolio_mv recover-pasqal", description="Read an existing Pasqal batch without submitting jobs.")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--reference", type=Path)
+    source.add_argument("--batch-id")
+    parser.add_argument("--project-id", help="Original project; required with --batch-id.")
+    parser.add_argument("--profile")
+    parser.add_argument("--timeout-seconds", type=float, default=0.0, help="Wait budget (0: check once).")
+    args = parser.parse_args(argv)
+    if bool(args.batch_id) != bool(args.project_id):
+        parser.error("--batch-id and --project-id must be supplied together")
+    try:
+        if args.reference is not None:
+            reference = load_job_reference(args.reference)
+            samples, recovery = recover_job_to_samples(
+                reference, compiled_job_id=reference.compiled_job_id, compilation_params={},
+                weight_encoding_mode="classical_ranking", profile=args.profile, timeout_seconds=args.timeout_seconds,
+            )
+        else:
+            samples = []
+            recovery = recover_batch_counts(
+                args.batch_id, project_id=args.project_id, profile=args.profile or "default",
+                timeout_seconds=args.timeout_seconds,
+            )
+    except (PasqalCloudJobPersistenceError, PasqalCloudJobRecoveryError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps({
+        "batch_id": recovery.batch_id,
+        "status": recovery.status,
+        "shots_requested": recovery.shots_requested,
+        "shots_received": recovery.shots_received,
+        "atom_order": recovery.atom_order,
+        "counts": recovery.results,
+        "node_order": recovery.node_order,
+        "samples": [{"delta": sample.delta, "occurrence_count": sample.occurrence_count} for sample in samples],
+        "error": recovery.error_message,
+    }))
+    return 0 if recovery.is_success else (1 if recovery.is_terminal or recovery.error_message else 2)
+
+
 def main() -> int:
     """CLI entry point."""
+    if sys.argv[1:2] == ["recover-pasqal"]:
+        return _recover_pasqal_main(sys.argv[2:])
     parser = _build_parser()
     args = parser.parse_args()
     _validate_args(parser, args)
@@ -470,6 +546,7 @@ def main() -> int:
         classical_time_limit_seconds=args.classical_time_limit_seconds,
         mis_num_reads=args.mis_num_reads,
         pasqal_shots=args.pasqal_shots,
+        pasqal_emulator_service=args.pasqal_emulator_service,
         mis_num_sweeps=args.mis_num_sweeps,
         mis_embedding_profile=args.mis_embedding_profile,
         model_export_enabled=args.model_export,

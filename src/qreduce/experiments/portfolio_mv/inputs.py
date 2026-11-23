@@ -132,6 +132,7 @@ def build_synthetic_portfolio_inputs(
     classical_time_limit_seconds: float | None = None,
     mis_num_reads: int | None = None,
     pasqal_shots: int | None = None,
+    pasqal_emulator_service: str | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     lower_bound: float = 0.0,
@@ -158,6 +159,9 @@ def build_synthetic_portfolio_inputs(
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
         pasqal_shots: Local Pasqal shot count; defaults to 100 for Pasqal.
+        pasqal_emulator_service: Cloud emulator service for pasqal_cloud_emulator.
+            Currently only 'emu_free' is supported. Requires explicit consent
+            for potential costs.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
             Constrains sampling to hardware-like topology without QPU access.
@@ -231,7 +235,10 @@ def build_synthetic_portfolio_inputs(
         allow_noncertifying_penalty=False,
         mis_solver_id=mis_solver_id,
         mis_execution=MISExecutionOptions(
-            1, None if mis_solver_id == "pasqal_local" else 17, 1, False, 0, 0.0, 20
+            1,
+            # Pasqal backends don't support random_seed
+            None if mis_solver_id in {"pasqal_local", "pasqal_cloud_emulator"} else 17,
+            1, False, 0, 0.0, 20
         ),
         classical_solve=ClassicalSolveOptions(
             classical_solver_id=classical_solver_id,
@@ -248,14 +255,47 @@ def build_synthetic_portfolio_inputs(
         ),
         run_identity=RunIdentity(run_id),
     )
-    if pasqal_shots is not None and mis_solver_id != "pasqal_local":
-        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local'.")
+    # Handle pasqal_shots for Pasqal backends (local and cloud)
+    if pasqal_shots is not None and mis_solver_id not in {"pasqal_local", "pasqal_cloud_emulator"}:
+        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local' or 'pasqal_cloud_emulator'.")
     if mis_solver_id == "pasqal_local":
         shots = 100 if pasqal_shots is None else pasqal_shots
         _require_positive_int(shots, "pasqal_shots")
         config = replace(config, mis_execution=replace(
             config.mis_execution, max_distinct_samples=shots, provider_parameters={"shots": shots}
         ))
+
+    # Handle Pasqal Cloud emulator
+    if pasqal_emulator_service is not None:
+        if mis_solver_id != "pasqal_cloud_emulator":
+            raise ValueError(
+                "pasqal_emulator_service requires mis_solver_id='pasqal_cloud_emulator'."
+            )
+        valid_services = ("emu_free",)
+        if pasqal_emulator_service not in valid_services:
+            raise ValueError(
+                f"Invalid pasqal_emulator_service: {pasqal_emulator_service!r}. "
+                f"Valid values: {', '.join(valid_services)}"
+            )
+        # Explicit selection of the only supported (free) service.
+        compilation_params: dict[str, object] = {
+            "_emulator_service": pasqal_emulator_service,
+        }
+        shots = pasqal_shots if pasqal_shots is not None else 100
+        _require_positive_int(shots, "pasqal_shots")
+        config = replace(
+            config,
+            mis_execution=replace(
+                config.mis_execution,
+                max_distinct_samples=shots,
+                provider_parameters={"shots": shots},
+                compilation_parameters=compilation_params,
+            ),
+        )
+    elif mis_solver_id == "pasqal_cloud_emulator":
+        raise ValueError(
+            "pasqal_cloud_emulator requires explicit --pasqal-emulator-service selection."
+        )
 
     if mis_num_reads is not None or mis_num_sweeps is not None:
         if mis_solver_id != "dwave_simulated_annealing":
