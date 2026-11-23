@@ -6,9 +6,10 @@ Piano parzialmente implementato: `pasqal_local` è disponibile nelle CLI
 portfolio MV e SR; il run CLI locale è già documentato, mentre il benchmark
 rappresentativo resta aperto. Dettagli in
 `docs/implementation/pasqal-local-status.md`. La Fase 2 è implementata nella
-CLI portfolio MV e verificata con SDK reale e trasporto simulato. Lo smoke
-test su Pasqal Cloud resta separato e non eseguito. QPU, UI e altri servizi
-cloud non fanno parte di questa fase.
+CLI portfolio MV e verificata con SDK reale e trasporto simulato. La UIX di
+Portfolio MV genera il comando per `emu_free`, senza accesso diretto al cloud.
+Lo smoke test su Pasqal Cloud resta separato e non eseguito. QPU, Portfolio SR
+cloud e altri servizi cloud restano fuori perimetro.
 Mantenere separate tre modalità:
 
 1. Emulazione locale Pulser/QuTiP, senza credenziali cloud.
@@ -240,7 +241,8 @@ project_id = <project-id-pasqal>
   separatamente gli esiti con repair e i casi senza candidati validi; non
   richiedere che il metodo euristico trovi sempre l'ottimo.
 - Testare CLI e pipeline, compresi parametri non supportati, budget e limiti.
-  Testare la UI quando verrà integrata.
+  Verificare che la UIX Portfolio MV generi comandi accettati dalla CLI e
+  ometta i flag cloud quando si cambia backend o si passa alla baseline.
 - Usare client simulati per autenticazione, submission, polling, timeout
   prima e dopo l'ID, recupero senza reinvio, target non corrispondente e
   mancato fallback. Iniettare un segreto fittizio nel testo di un'eccezione

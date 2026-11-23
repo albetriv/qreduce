@@ -42,7 +42,7 @@
     numReads: "",
     numSweeps: "",
     embeddingProfile: "none",
-    pasqalShots: "100",
+    pasqalShots: "",
     modelExport: false,
     modelExportPath: "",
   };
@@ -74,11 +74,27 @@
   }
 
   /**
-   * Check if Pasqal solver is selected.
+   * Check if local Pasqal solver is selected.
    * @returns {boolean}
    */
   function isPasqalSolver() {
     return C.value("misSolver") === "pasqal_local";
+  }
+
+  /**
+   * Check if Pasqal Cloud solver is selected.
+   * @returns {boolean}
+   */
+  function isPasqalCloudSolver() {
+    return C.value("misSolver") === "pasqal_cloud_emulator";
+  }
+
+  /**
+   * Check if any Pasqal solver (local or cloud) is selected.
+   * @returns {boolean}
+   */
+  function isAnyPasqalSolver() {
+    return isPasqalSolver() || isPasqalCloudSolver();
   }
 
   /**
@@ -353,16 +369,20 @@
         }
       }
 
-      // Pasqal params validation: only if Pasqal solver is selected AND reduction active
-      if (isPasqalSolver()) {
+      if (isAnyPasqalSolver()) {
         var pasqalShots = C.number("pasqalShots");
-        require(
-          "pasqalShots",
-          isFiniteNumber(pasqalShots) && Number.isInteger(pasqalShots) && pasqalShots >= 1,
-          "Inserisci un intero >= 1."
-        );
+        var shotsInput = C.$("pasqalShots");
+        if (pasqalShots !== null || shotsInput.validity.badInput) {
+          require(
+            "pasqalShots",
+            !shotsInput.validity.badInput && isFiniteNumber(pasqalShots) && Number.isInteger(pasqalShots) && pasqalShots >= 1,
+            "Inserisci un intero >= 1."
+          );
+        }
+      }
 
-        // Pasqal requires explicit budget=0 (unlimited) when reduction is active
+      if (isPasqalSolver()) {
+        // Pasqal LOCAL requires explicit budget=0 (unlimited) when reduction is active
         // The local emulator cannot guarantee meeting a time deadline
         var budgetForPasqal = C.number("endToEndBudget");
         var pasqalBudgetError = C.$("pasqalBudgetError");
@@ -378,7 +398,7 @@
           }
         }
       } else {
-        // Hide Pasqal budget error when Pasqal is not selected
+        // Hide Pasqal budget error when Pasqal local is not selected
         var pasqalBudgetErrorHide = C.$("pasqalBudgetError");
         if (pasqalBudgetErrorHide) {
           pasqalBudgetErrorHide.style.display = "none";
@@ -581,11 +601,14 @@
         }
       }
 
-      // Pasqal params (only if Pasqal solver AND reduction active)
-      if (isPasqalSolver()) {
+      if (isPasqalCloudSolver()) {
+        args.push({ flag: "--pasqal-emulator-service", value: "emu_free" });
+      }
+
+      if (isAnyPasqalSolver()) {
         var pasqalShots = C.number("pasqalShots");
-        // Include shots only if different from default (100)
-        if (pasqalShots !== null && pasqalShots !== 100) {
+        // Preserve the local solver's existing omission of the default value.
+        if (pasqalShots !== null && (isPasqalCloudSolver() || pasqalShots !== 100)) {
           args.push({ flag: "--pasqal-shots", value: pasqalShots });
         }
       }
@@ -616,6 +639,7 @@
     var reductionActive = isReductionActive();
     var dwaveSolver = isDwaveSolver();
     var pasqalSolver = isPasqalSolver();
+    var pasqalCloudSolver = isPasqalCloudSolver();
     var greedySolver = C.value("misSolver") === "local_greedy";
     var nearDuplicate = isNearDuplicateMode();
 
@@ -644,6 +668,7 @@
     var misParamsCard = C.$("misParamsCard");
     var dwaveParamsSection = C.$("dwaveParams");
     var pasqalParamsSection = C.$("pasqalParams");
+    var pasqalCloudParamsSection = C.$("pasqalCloudParams");
     var greedyParamsSection = C.$("greedyParams");
     C.$("misParamsCard").hidden = !reductionActive;
 
@@ -652,11 +677,13 @@
         // Baseline mode: show notice, hide all params
         if (dwaveParamsSection) dwaveParamsSection.style.display = "none";
         if (pasqalParamsSection) pasqalParamsSection.style.display = "none";
+        if (pasqalCloudParamsSection) pasqalCloudParamsSection.style.display = "none";
         if (greedyParamsSection) greedyParamsSection.style.display = "none";
       } else {
         // Reduction active: show params for selected solver
         if (dwaveParamsSection) dwaveParamsSection.style.display = dwaveSolver ? "" : "none";
         if (pasqalParamsSection) pasqalParamsSection.style.display = pasqalSolver ? "" : "none";
+        if (pasqalCloudParamsSection) pasqalCloudParamsSection.style.display = pasqalCloudSolver ? "" : "none";
         if (greedyParamsSection) greedyParamsSection.style.display = greedySolver ? "" : "none";
       }
     }
@@ -708,10 +735,9 @@
       }
     });
 
-    // Pasqal params: disabled if not Pasqal OR if baseline mode
-    document.querySelectorAll(".pasqal-only input").forEach(function (input) {
-      input.disabled = !pasqalSolver || !reductionActive;
-    });
+    var pasqalActive = reductionActive && isAnyPasqalSolver();
+    C.$("pasqalShotField").hidden = !pasqalActive;
+    C.$("pasqalShots").disabled = !pasqalActive;
 
     // Update dynamic solver info panels
     updateSolverInfoPanels(reductionActive);

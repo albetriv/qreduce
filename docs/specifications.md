@@ -96,6 +96,11 @@ implementazione.
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
 | Backend MIS locale `pasqal_local` | Pulser/QuTiP nel gruppo `experiments`, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
 | Backend MIS `pasqal_cloud_emulator` | Opzionale, portfolio MV, solo `emu_free`; massimo prudenziale di 12 atomi per gli invii. Un solo tentativo di creazione; riferimento durevole prima delle letture; recupero in sola lettura nel progetto originale, senza fallback. Verificato con trasporto simulato. |
+
+Per invio e recupero Pasqal Cloud, la verifica TLS resta obbligatoria. Se il
+client non ha gia` un bundle CA esplicito, QReduce aggiunge la CA locale
+`~/.cato/cato-ca.pem`, quando presente, alle CA pubbliche per la sola durata
+dell'operazione. In assenza del file mantiene la configurazione standard.
 | QPU remota, embedding o mapping fisico | non richiesti dal kernel; richiesti soltanto dagli adapter che li dichiarano necessari |
 
 Le dipendenze Pasqal/Pulser sono raccolte nel gruppo Poetry `experiments`.
@@ -1216,6 +1221,12 @@ lettura generica degli artifact non dipendono da famiglie concrete. I benchmark
 del solo core MWIS sono distinti dagli esperimenti end-to-end.
 Notebook e directory di output predefinite degli esperimenti sono organizzati
 per famiglia; il runner generico continua a rispettare `output_root` esplicito.
+
+Le CLI di esecuzione degli esperimenti, dopo aver configurato il logging,
+registrano a livello `DEBUG` il comando del processo Python associato al `run_id`,
+prima di preparare ed eseguire il run. Gli argomenti sono quotati per una shell
+POSIX; wrapper esterni e variabili d'ambiente non fanno parte del comando
+registrato. Le chiamate via API non registrano la riga di comando del processo.
 
 L'API della libreria deve restituire per ogni esecuzione un risultato in memoria serializzabile e auditabile, con identificatore di run immutabile, configurazione risolta, esito terminale, dati intermedi disponibili, metriche e diagnostica. La pipeline non deve scrivere file o directory come effetto implicito di un run.
 

@@ -15,6 +15,7 @@ from dataclasses import replace
 from datetime import date
 
 from qreduce.config import validate_timeout_value
+from qreduce.experiments._cli_logging import log_run_command
 from qreduce.experiments.portfolio_sr.execution import run_sharpe_portfolio_experiment
 from qreduce.experiments.portfolio_sr.graph_policy import default_sharpe_graph_policy
 from qreduce.experiments.portfolio_sr.inputs import (
@@ -443,6 +444,8 @@ def main() -> int:
     except (FileNotFoundError, LoggingConfigError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+    log_run_command(args.run_id)
 
     # Parse explicit tickers
     explicit_tickers = None

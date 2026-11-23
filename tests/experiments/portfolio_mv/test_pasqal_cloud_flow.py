@@ -1,8 +1,10 @@
 """Portfolio MV CLI acceptance with real Pasqal SDK objects, no network."""
 
 import json
+import os
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -23,14 +25,26 @@ def cloud(monkeypatch, tmp_path):
     monkeypatch.setenv("PASQAL_PASSWORD", "fake-password")
     monkeypatch.setenv("PASQAL_PROJECT_ID", "fake-project")
     monkeypatch.delenv("PASQAL_SKIP_SSL_VERIFY", raising=False)
-    monkeypatch.setattr(PasswordGrantTokenProvider, "get_token", lambda _: "unlabelled-value-123")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr(cli, "configure_logging", lambda *args: True)
     calls = []
     state = {"status": ["PENDING", "DONE"], "post": 201, "shots": 64}
     journal = tmp_path / ".pasqal-cloud-jobs" / "cloud-run"
     reference = journal / "pasqal_cloud_job_batch-1.json"
 
+    def get_token(_):
+        if state.get("check_ca"):
+            bundle = Path(os.environ["REQUESTS_CA_BUNDLE"])
+            assert bundle.is_file()
+            state.setdefault("token_bundles", []).append(bundle)
+        return "unlabelled-value-123"
+
+    monkeypatch.setattr(PasswordGrantTokenProvider, "get_token", get_token)
+
     def send(adapter, request, **kwargs):
+        if state.get("check_ca"):
+            bundle = Path(kwargs["verify"])
+            assert bundle == state["token_bundles"][-1] and bundle.is_file()
         method, url = request.method, request.url
         calls.append((method, url))
         status = 200
@@ -108,12 +122,38 @@ def _recover(monkeypatch, *args):
     return cli.main()
 
 
+def test_automatic_cato_bundle_spans_submission_and_recovery(monkeypatch, tmp_path, cloud):
+    import certifi
+
+    state, calls, reference = cloud
+    state["check_ca"] = True
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    ca = tmp_path / ".cato" / "cato-ca.pem"
+    ca.parent.mkdir()
+    ca.write_bytes(Path(certifi.where()).read_bytes())
+
+    assert _run(monkeypatch, tmp_path) == 0
+    assert [method for method, _ in calls].count("POST") == 1
+    assert reference.is_file()
+    assert "REQUESTS_CA_BUNDLE" not in os.environ
+    calls.clear()
+
+    assert _recover(monkeypatch, "--reference", reference) == 0
+    assert calls and all(method == "GET" for method, _ in calls)
+    assert "REQUESTS_CA_BUNDLE" not in os.environ
+    assert len(set(state["token_bundles"])) == 2
+    assert all(not path.exists() for path in state["token_bundles"])
+
+
 @pytest.mark.parametrize("explicit_shots", [True, False])
 def test_cli_submission_and_recovery(monkeypatch, tmp_path, capsys, cloud, explicit_shots):
     state, calls, reference = cloud
     if not explicit_shots:
         state["shots"] = state["requested_shots"] = 100
-    from qreduce.solving.mwis.pasqal_cloud_emulator_backend import PasqalCloudEmulatorMISBackend
+    from qreduce.solving.mwis.pasqal_cloud_emulator_backend import (
+        PasqalCloudEmulatorMISBackend,
+    )
 
     solve = PasqalCloudEmulatorMISBackend.solve
     results = []

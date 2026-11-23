@@ -77,6 +77,21 @@
         "Con riduzione attiva, richiede budget end-to-end esplicitamente 0 (illimitato).",
         "Richiede <code>poetry install --with experiments</code> (include <code>pulser-simulation</code>)."
       ]
+    },
+
+    pasqal_cloud_emulator: {
+      title: "Pasqal Cloud (EMU_FREE): requisiti e limitazioni",
+      type: "warning",
+      items: [
+        "Esecuzione remota su emulatore Pasqal Cloud (servizio <code>emu_free</code>).",
+        "Richiede credenziali Pasqal Cloud configurate nel processo CLI.",
+        "Le credenziali vengono lette da <code>~/.pasqual/credentials</code> o dalle variabili d'ambiente.",
+        "Qreduce impone un limite di 12 atomi per gli invii remoti.",
+        "I pesi MWIS sono valutati classicamente; i campioni non certificano ottimalità.",
+        "Il batch_id viene persistito prima del polling per consentire il recupero.",
+        "Accetta un budget positivo; la scadenza locale non annulla il batch remoto.",
+        "Richiede <code>poetry install --with experiments</code> (include <code>pasqal-cloud</code>)."
+      ]
     }
   };
 

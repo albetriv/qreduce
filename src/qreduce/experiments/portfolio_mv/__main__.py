@@ -16,6 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from qreduce.config import validate_timeout_value
+from qreduce.experiments._cli_logging import log_run_command
 from qreduce.experiments.portfolio_mv.execution import (
     DEFAULT_PORTFOLIO_OUTPUT_ROOT,
     run_portfolio_experiment,
@@ -513,6 +514,8 @@ def main() -> int:
     except (FileNotFoundError, LoggingConfigError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+    log_run_command(args.run_id)
 
     # Build generation policy
     generation_policy = default_generation_policy(

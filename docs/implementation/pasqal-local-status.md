@@ -254,6 +254,17 @@ Il backend **rifiuta** la connessione se la variabile `PASQAL_SKIP_SSL_VERIFY`
 disabilitano la verifica TLS. Il check si applica sia a `solve()` che a
 `recover_job_results()`.
 
+Il modulo condiviso `qreduce.cloud_tls` può fornire a un SDK un bundle
+temporaneo con le CA pubbliche di `certifi` e la CA di `~/.cato/cato-ca.pem`.
+Pasqal lo applica tramite `REQUESTS_CA_BUNDLE` per tutta l'operazione cloud,
+dall'autenticazione alla lettura dei risultati, anche in recupero. Se
+`REQUESTS_CA_BUNDLE` o `CURL_CA_BUNDLE` sono già impostate a un valore non
+vuoto, vengono rispettate. Se la CA locale manca si usa il comportamento
+standard; se è presente ma non valida, il backend restituisce un errore.
+Il bundle temporaneo viene rimosso e l'ambiente del processo ripristinato
+al termine. Durante l'operazione la variabile è visibile a tutto il processo;
+non vengono modificati il contesto `ssl` globale, la shell o i file di sistema.
+
 ### Uso dalla CLI
 
 ```bash
@@ -266,6 +277,11 @@ python -m qreduce.experiments.portfolio_mv \
 ```
 
 Questo comando invia un batch reale se il grafo richiede esecuzione remota.
+
+Il configuratore Portfolio MV offre **Pasqal Cloud (EMU_FREE)** solo con la
+riduzione attiva. Usa lo stesso campo Shot di Pasqal locale, ma accetta anche
+un budget positivo. La UIX genera il comando senza leggere credenziali, inviare
+batch o recuperarli; per il recupero si usa il sottocomando CLI `recover-pasqal`.
 
 ### Credenziali
 

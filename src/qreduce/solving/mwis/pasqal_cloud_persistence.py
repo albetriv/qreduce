@@ -25,6 +25,7 @@ import json
 import logging
 import os
 from collections.abc import Mapping
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,7 +33,9 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 
 from qreduce.artifacts.metadata import pretty_json
+from qreduce.cloud_tls import CloudTLSConfigurationError
 from qreduce.solving.mwis.contracts import RawMISSample
+from qreduce.solving.mwis.pasqal_cloud_tls import pasqal_ca_environment
 from qreduce.solving.mwis.pasqal_credentials import resolve_pasqal_credentials
 
 logger = logging.getLogger(__name__)
@@ -360,7 +363,10 @@ def _recover_batch(
     from time import perf_counter
 
     from qreduce.config import validate_timeout_value
-    from qreduce.solving.mwis.pasqal_cloud_submission import read_batch_results, wait_for_completion
+    from qreduce.solving.mwis.pasqal_cloud_submission import (
+        read_batch_results,
+        wait_for_completion,
+    )
 
     error = validate_timeout_value(timeout_seconds, "timeout_seconds")
     if error:
@@ -374,10 +380,12 @@ def _recover_batch(
         raise PasqalCloudJobRecoveryError("Install the Pasqal SDK with: poetry install --with experiments") from None
 
     phase = "credentials"
+    tls = ExitStack()
     try:
         credentials = resolve_pasqal_credentials(profile=profile)
         if credentials.project_id != project_id:
             raise PasqalCloudJobRecoveryError("Configured Pasqal project does not match the original project.")
+        tls.enter_context(pasqal_ca_environment())
         phase = "connect"
         connection = PasqalCloudConnection(
             username=credentials.username, password=credentials.password, project_id=credentials.project_id,
@@ -401,10 +409,14 @@ def _recover_batch(
                                  shots, batch.total_shots, atom_order=batch.atom_order)
     except PasqalCloudJobRecoveryError:
         raise
-    except Exception:
+    except CloudTLSConfigurationError as error:
+        raise PasqalCloudJobRecoveryError(str(error)) from None
+    except Exception:  # noqa: BLE001 - redact provider errors during recovery
         raise PasqalCloudJobRecoveryError(
             f"Pasqal recovery failed during {phase}. Batch ID: {batch_id}."
         ) from None
+    finally:
+        tls.close()
 
 
 def recover_job_to_samples(

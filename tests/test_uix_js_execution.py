@@ -17,6 +17,7 @@ import pytest
 
 from qreduce.experiments.portfolio_mv.__main__ import (
     _build_parser as build_portfolio_parser,
+    _validate_args as validate_portfolio_args,
 )
 
 
@@ -1162,6 +1163,39 @@ class TestPortfolioPasqalBackend:
         assert "--pasqal-shots" not in result["command"]
 
 
+class TestPortfolioPasqalCloudBackend:
+    @pytest.mark.parametrize("shots", [None, 100, 250])
+    def test_command_passes_cli_validation(self, portfolio_parser, shots):
+        fields = {
+            "misSolver": "pasqal_cloud_emulator",
+            "maxRounds": "1",
+            "endToEndBudget": "60",
+        }
+        if shots is not None:
+            fields["pasqalShots"] = str(shots)
+        result = run_js_generator("portfolio", fields)
+        assert result["isValid"], result
+        assert not result["copyDisabled"]
+        tokens = extract_cli_args(result["command"])
+        assert tokens.count("--pasqal-shots") == (shots is not None)
+        args = portfolio_parser.parse_args(tokens)
+        validate_portfolio_args(portfolio_parser, args)
+        assert args.mis_solver_id == "pasqal_cloud_emulator"
+        assert args.pasqal_emulator_service == "emu_free"
+        assert args.pasqal_shots == shots
+        assert args.max_end_to_end_runtime_seconds == 60
+
+    @pytest.mark.parametrize("shots", ["0", "-1", "1.5", "abc"])
+    def test_invalid_shots_block_copy(self, shots):
+        fields = {"misSolver": "pasqal_cloud_emulator", "pasqalShots": shots}
+        if shots == "abc":
+            fields["_badInput"] = "pasqalShots"
+        result = run_js_generator("portfolio", fields)
+        assert not result["isValid"]
+        assert result["copyDisabled"]
+        assert result["errors"]["pasqalShots"]
+
+
 class TestPortfolioSRPasqalBackend:
     """Test Pasqal backend in portfolio_sr configurator."""
 
@@ -1252,6 +1286,45 @@ class TestSolverInfoPanelDOMTransitions:
             return json.loads(result.stdout)
         except json.JSONDecodeError:
             pytest.fail(f"Invalid JSON output: {result.stdout}")
+
+    def test_pasqal_cloud_backend_transitions(self):
+        cloud_flags = ["pasqal_cloud_emulator", "--pasqal-emulator-service"]
+        steps = [
+            {"set": {"maxRounds": "1", "misSolver": "pasqal_cloud_emulator",
+                     "pasqalShots": "250", "endToEndBudget": "60"}, "verify": {
+                "pasqalCloudParams": {"visible": True, "includes": "~/.pasqual/credentials"},
+                "misSolverInfoContainer": {"includes": "Pasqal Cloud (EMU_FREE)"},
+                "pasqalShots": {"visible": True, "disabled": False},
+                "pasqalBudgetError": {"visible": False},
+                "cliPreview": {"includes": [*cloud_flags, "--pasqal-shots 250"]},
+            }},
+            {"set": {"misSolver": "pasqal_local"}, "verify": {
+                "pasqalCloudParams": {"visible": False},
+                "pasqalBudgetError": {"visible": True},
+                "copyCommand": {"disabled": True},
+            }},
+            {"set": {"endToEndBudget": "0"}, "verify": {
+                "cliPreview": {"includes": ["pasqal_local", "--pasqal-shots 250"], "excludes": cloud_flags},
+                "copyCommand": {"disabled": False},
+            }},
+            {"set": {"misSolver": "local_greedy"}, "verify": {
+                "pasqalShots": {"visible": False, "disabled": True},
+                "cliPreview": {"excludes": [*cloud_flags, "--pasqal-shots"]},
+            }},
+            {"set": {"misSolver": "pasqal_cloud_emulator", "maxRounds": "0"}, "verify": {
+                "misSolver": {"disabled": True},
+                "pasqalCloudParams": {"visible": False},
+                "pasqalShots": {"disabled": True},
+                "cliPreview": {"excludes": [*cloud_flags, "--pasqal-shots", "--mis-solver-id"]},
+                "copyCommand": {"disabled": False},
+            }},
+            {"set": {"maxRounds": "1"}, "verify": {
+                "pasqalShots": {"value": "250", "disabled": False},
+                "cliPreview": {"includes": [*cloud_flags, "--pasqal-shots 250"]},
+            }},
+        ]
+        result = self.run_transition_test("portfolio", steps)
+        assert result["success"], result
 
     def test_candidate_count_baseline_and_backend_transitions(self):
         """Baseline preserves the value but ignores its validation and flag."""

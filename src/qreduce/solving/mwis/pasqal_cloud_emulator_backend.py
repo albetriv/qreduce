@@ -17,6 +17,7 @@ encoded in the Hamiltonian.
 """
 
 from collections.abc import Mapping
+from contextlib import ExitStack
 from enum import StrEnum
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -24,6 +25,7 @@ from time import perf_counter
 from typing import Any
 
 from qreduce.capabilities import RuntimeCapabilities
+from qreduce.cloud_tls import CloudTLSConfigurationError
 from qreduce.solving.mwis.audit import WeightEncodingMode
 from qreduce.solving.mwis.compilation import validate_compilation_request
 from qreduce.solving.mwis.contracts import (
@@ -33,6 +35,7 @@ from qreduce.solving.mwis.contracts import (
     MISCompletionStatus,
     RawMISSample,
 )
+from qreduce.solving.mwis.pasqal_cloud_tls import pasqal_ca_environment
 from qreduce.solving.mwis.pasqal_credentials import (
     PasqalCredentialsError,
     resolve_pasqal_credentials,
@@ -132,6 +135,7 @@ class PasqalCloudEmulatorMISBackend:
     backend_id = "pasqal_cloud_emulator"
 
     def __init__(self, *, job_reference_directory: Path | None = None) -> None:
+        """Set the directory used to persist remote job references."""
         self._job_reference_directory = job_reference_directory
 
     def capabilities(self) -> RuntimeCapabilities:
@@ -602,11 +606,16 @@ class PasqalCloudEmulatorMISBackend:
         deadline = start + budget if budget > 0 else None
         phase = "prepare"
 
+        tls = ExitStack()
         try:
             from pasqal_cloud import PasqalCloudConnection
             from pulser import Sequence
             from pulser.devices import AnalogDevice
 
+            from qreduce.solving.mwis.pasqal_cloud_persistence import (
+                make_persistence_callback,
+                prepare_job_reference_directory,
+            )
             from qreduce.solving.mwis.pasqal_cloud_submission import (
                 SubmissionOutcomeUnknown,
                 SubmissionPersistenceError,
@@ -615,11 +624,6 @@ class PasqalCloudEmulatorMISBackend:
                 read_batch_results,
                 submit_sequence,
                 wait_for_completion,
-            )
-
-            from qreduce.solving.mwis.pasqal_cloud_persistence import (
-                make_persistence_callback,
-                prepare_job_reference_directory,
             )
 
             # Reconstruct sequence from payload
@@ -652,6 +656,7 @@ class PasqalCloudEmulatorMISBackend:
 
             prepare_job_reference_directory(self._job_reference_directory)
             credentials = resolve_pasqal_credentials(profile=profile)
+            tls.enter_context(pasqal_ca_environment())
             phase = "connect"
             connection = PasqalCloudConnection(
                 username=credentials.username,
@@ -754,6 +759,8 @@ class PasqalCloudEmulatorMISBackend:
                 TerminalReason.MIS_CREDENTIALS_UNAVAILABLE,
                 "Pasqal credentials unavailable; check the environment or configured profile.",
             )
+        except CloudTLSConfigurationError as error:
+            return result([], TerminalReason.MIS_EXECUTION_FAILED, str(error))
         except Exception:  # noqa: BLE001 - normalize provider failures
             msg = f"Pasqal Cloud failed during {phase} (details redacted)."
             if batch_id:
@@ -764,3 +771,5 @@ class PasqalCloudEmulatorMISBackend:
                 msg,
                 effective_params={"shots": shots, "batch_id": batch_id, "phase": phase},
             )
+        finally:
+            tls.close()

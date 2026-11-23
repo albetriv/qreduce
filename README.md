@@ -108,8 +108,16 @@ credenziali e non esegue job cloud. I pesi MWIS sono valutati dalla pipeline.
 
 Il backend cloud della CLI portfolio MV si seleziona con
 `--mis-solver-id pasqal_cloud_emulator --pasqal-emulator-service emu_free`.
+Nel configuratore Portfolio MV, selezionare **Pasqal Cloud (EMU_FREE)** con
+la riduzione attiva. Lasciare vuoto il campo Shot per usare il valore
+predefinito della CLI (100). Il browser genera solo il comando: le credenziali
+sono lette dal processo CLI che lo esegue.
 L'esecuzione remota richiede credenziali Pasqal Cloud, configurabili in
 `~/.pasqual/credentials`; l'installazione dell'SDK non le richiede.
+Se `~/.cato/cato-ca.pem` è presente, QReduce aggiunge automaticamente la CA di
+Cato alle CA pubbliche durante l'esecuzione e il recupero Pasqal Cloud. Non
+serve un `export`; eventuali bundle espliciti di Requests hanno precedenza e
+la verifica TLS resta attiva.
 L'MVP supporta solo `emu_free`, con un limite prudenziale di 12 atomi per
 gli invii remoti. Il riferimento del batch è salvato sotto
 `<output-root>/.pasqal-cloud-jobs/<run-id>/`, anche se il run fallisce.
@@ -172,6 +180,10 @@ d'ambiente.
 Il file YAML predefinito configura:
 - Console su `stderr` a livello `INFO`
 - File con rotazione in `logs/qreduce.log` a livello `DEBUG`
+
+All'avvio di un run da CLI, il log a livello `DEBUG` include il `run_id` e la
+riga di comando Python con gli argomenti quotati per Bash/Zsh. Sono esclusi i
+wrapper esterni (ad esempio `poetry run`) e le variabili d'ambiente.
 
 I percorsi relativi nel YAML (es. `filename: "../logs/qreduce.log"`) sono
 risolti rispetto alla directory del file YAML, non rispetto alla directory di

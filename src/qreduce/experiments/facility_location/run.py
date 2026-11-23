@@ -11,6 +11,7 @@ from qreduce.config import (
     DEFAULT_END_TO_END_BUDGET_SECONDS,
     validate_timeout_value,
 )
+from qreduce.experiments._cli_logging import log_run_command
 from qreduce.experiments.runner import run_experiment
 from qreduce.logging_config import (
     LoggingConfigError,
@@ -202,6 +203,8 @@ def main():
     except (FileNotFoundError, LoggingConfigError) as e:
         print(f"Error: {e}", file=sys.stderr)
         raise SystemExit(1) from None
+
+    log_run_command(args.run_id)
 
     policy = FacilityLocationGraphPolicy(
         args.alpha,
