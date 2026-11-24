@@ -1,38 +1,70 @@
 # Riassicurazione passiva
 
-**Stato: famiglia sperimentale, anteprima non eseguibile.** Questa pagina descrive
-una proposta di esperimento, non un configuratore né un programma di copertura.
+## 1. Descrizione del problema
 
-## Caso d'uso
+La proposta, non ancora eseguibile, seleziona offerte indivisibili di
+riassicurazione in eccesso di sinistro, usando premi, perdite e indennizzi per
+scenario. L'obiettivo è ridurre la perdita trattenuta negli scenari gravi,
+rimanendo nel budget e impedendo doppi recuperi.
 
-Nella riassicurazione passiva, una compagnia cede a uno o più riassicuratori
-parte dei rischi che ha assunto con le polizze dei propri clienti. La demo
-considera un portafoglio sintetico di polizze danni e offerte in eccesso di
-sinistro (*excess of loss*): ciascuna copre la parte della perdita sopra una
-soglia, fino a un limite contrattuale. Per la terminologia e un esempio si
-vedano il [glossario IVASS](https://www.ivass.it/pubblicazioni-e-statistiche/pubblicazioni/relazione-annuale/2023/Relazione_Annuale_2022_glossario_en.pdf?language_id=3)
-e la [banca dati dei quesiti IVASS](https://www.ivass.it/operatori/intermediari/prova-idoneita/database-quesiti/DATABASE_QUESITI_PROVA_RUI.pdf).
+## 2. Formulazione matematica
 
-La decisione è quali offerte acquistare per ridurre la perdita trattenuta negli
-scenari più gravi, entro un budget di premi. Una prima formulazione MILP può
-usare offerte indivisibili e indennizzi precalcolati per scenario, con regole
-esplicite per evitare doppi recuperi, ad esempio trattando le offerte alternative
-per lo stesso strato come mutuamente esclusive.
+Siano \(I\) le offerte, \(S\) un insieme non vuoto di scenari e \(G\) gli
+strati di rischio disgiunti. Ogni offerta appartiene a uno strato; \(I_g\) è
+l'insieme delle offerte per lo strato \(g\). La variabile
+\(\delta_i \in \{0,1\}\) indica l'acquisto, mentre \(x_{\mathrm{worst}}\) è
+continua e libera. Come scelta modellistica proposta, si minimizza la massima
+perdita trattenuta sugli scenari, senza includere i premi nella perdita:
 
-## Ruolo del kernel QReduce
+\[
+\begin{aligned}
+\min\quad & x_{\mathrm{worst}} \\
+\text{s.t.}\quad
+& x_{\mathrm{worst}} \ge L_s - \sum_{i\in I} r_{si}\delta_i && s\in S, \\
+& \sum_{i\in I} p_i\delta_i \le B, \\
+& \sum_{i\in I_g}\delta_i \le 1 && g\in G.
+\end{aligned}
+\]
 
-Ogni offerta è un nodo. Offerte con profili di rimborso simili possono essere
-collegate nel grafo per segnalare ridondanza; le incompatibilità contrattuali
-effettive vanno rispettate anche nel modello residuo. Le soluzioni MWIS
-propongono un insieme di candidati: l'adapter fissa a zero le offerte escluse e
-il solver classico sceglie la combinazione finale. Due offerte simili ma
-combinabili potrebbero essere entrambe necessarie per raggiungere la capacità
-desiderata: la riduzione non garantisce di preservare la soluzione migliore.
+Tutti i vincoli sono attivi. Per ogni scenario, sia \(L_{sg}\ge 0\) la
+perdita attribuita allo strato disgiunto \(g\). I dati devono soddisfare:
 
-## Confronto sperimentale
+\[
+\sum_{g\in G} L_{sg}\le L_s,\qquad
+0\le r_{si}\le L_{sg}\quad (g\in G,\ i\in I_g,\ s\in S).
+\]
 
-Confrontare lo stesso modello sul catalogo completo e su quello ridotto, a
-parità di scenari, budget e solver. Registrare fattibilità, premi, perdite
-trattenute negli scenari estremi, offerte eliminate e tempo totale inclusa la
-riduzione. Il portafoglio senza riassicurazione è un riferimento per quantificare
-il rischio trasferito, non per misurare l'efficacia del kernel.
+Gli indennizzi sono precalcolati. Questi limiti e la mutua esclusione delle
+offerte alternative impediscono doppi recuperi e assicurano che l'indennizzo
+complessivo non superi la perdita lorda.
+
+## 3. CLI unificata
+
+Non disponibile: l’esperimento non è ancora eseguibile.
+
+## 4. Parametri
+
+- \(L_s \ge 0\): perdita lorda nello scenario \(s\).
+- \(L_{sg} \ge 0\): perdita dello strato \(g\) nello scenario \(s\), con somma
+  sugli strati non superiore a \(L_s\).
+- \(r_{si} \ge 0\): indennizzo dell'offerta \(i\) nello scenario \(s\),
+  precalcolato secondo soglia e limite contrattuale.
+- \(p_i \ge 0\): premio dell'offerta; \(B \ge 0\): budget totale dei premi.
+- \(I\), \(S\), \(G\) e \(I_g\): offerte, scenari, strati e assegnazione
+  delle offerte agli strati.
+
+## 5. Directory degli artifact
+
+Non applicabile: l’esperimento non produce ancora artifact.
+
+## 6. Note specifiche
+
+Archi di un grafo ausiliario tra offerte con rimborsi simili rappresentano
+ridondanza euristica, non necessariamente incompatibilità contrattuale. Le
+incompatibilità effettive sono invece vincoli del modello; eliminare offerte
+simili può peggiorare l'ottimo.
+
+## 7. Riferimenti
+
+- [Glossario IVASS](https://www.ivass.it/pubblicazioni-e-statistiche/pubblicazioni/relazione-annuale/2023/Relazione_Annuale_2022_glossario_en.pdf?language_id=3): terminologia assicurativa e riassicurativa.
+- [Banca dati dei quesiti IVASS](https://www.ivass.it/operatori/intermediari/prova-idoneita/database-quesiti/DATABASE_QUESITI_PROVA_RUI.pdf): contesto sulle coperture riassicurative.

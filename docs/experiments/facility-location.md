@@ -1,196 +1,120 @@
-# Esperimento facility location
+# Facility location con capacità
 
-L'esperimento facility location verifica la pipeline QReduce con istanze del
-problema capacitated facility location. È sperimentale ed escluso dal wheel.
+## 1. Descrizione del problema
 
-## Problema di dominio
+Si decide quali sedi aprire e come ripartire la domanda dei clienti tra le sedi
+aperte, minimizzando costi fissi e costi di allocazione. La domanda è
+frazionabile, ogni cliente può essere servito da più sedi e tutti i collegamenti
+sede-cliente sono ammessi. Ogni domanda deve essere soddisfatta interamente e
+ogni sede rispetta la propria capacità.
 
-Il modello usa domanda frazionabile, collegamenti completi, costi fissi e
-costi di allocazione per l'intera domanda. L'adapter facility location:
+L'ingresso è un'istanza numerica OR-Library: capacità e costi fissi delle sedi,
+domande dei clienti e costi di allocazione. Capacità e domande sono finite e
+positive; i costi sono finiti e non negativi.
 
-- identifica ogni sede (facility) come item riducibile;
-- costruisce il grafo di ridondanza basato su profili di costo e capacità;
-- fissa a chiuse le sedi escluse;
-- compila un MILP residuo con vincoli di domanda e capacità.
+## 2. Formulazione matematica
 
-Gli archi indicano ridondanza euristica, non incompatibilità. I fixing non
-sono certificati e l'ottimalità residua non dimostra quella originale.
+Siano \(I\) l'insieme delle sedi e \(J\) quello dei clienti. Per ogni sede
+\(i\), \(u_i\) è la capacità e \(f_i\) il costo fisso; per ogni cliente \(j\),
+\(d_j\) è la domanda e \(c_{ji}\) il costo di assegnare alla sede \(i\)
+l'intera domanda del cliente \(j\). Il costo di una frazione è proporzionale a
+quella frazione: non si moltiplica nuovamente \(c_{ji}\) per \(d_j\).
 
-## Dataset
+La variabile binaria \(\delta_i\) indica l'apertura della sede; la variabile
+continua \(x_{ij}\) è la frazione della domanda del cliente \(j\) assegnata a
+\(i\). Il modello minimizza
 
-Le istanze OR-Library sono benchmark pubblici. Devono essere acquisite
-localmente dall'utente; non sono previsti download automatici.
+\[
+\min \quad \sum_{i\in I} f_i\delta_i +
+\sum_{i\in I}\sum_{j\in J} c_{ji}x_{ij}
+\]
 
-Percorso atteso:
+soggetto ai seguenti vincoli, sempre attivi:
 
-```text
-data/benchmarks/or_library/capacitated_facility_location/
-├── cap41.txt
-├── cap42.txt
-├── ...
-```
+\[
+\begin{aligned}
+\sum_{i\in I} x_{ij} &= 1 && \forall j\in J && \text{(domanda)},\\
+\sum_{j\in J} d_j x_{ij} &\le u_i\delta_i && \forall i\in I && \text{(capacità)},\\
+x_{ij} &\le \delta_i && \forall i\in I,\ j\in J && \text{(collegamento)},\\
+\delta_i &\in \{0,1\} && \forall i\in I,\\
+0\le x_{ij} &\le 1 && \forall i\in I,\ j\in J.
+\end{aligned}
+\]
 
-Le istanze sono escluse da Git tramite `.gitignore`. Il manifest descrive i
-byte locali, non certifica autenticità o diritti di redistribuzione.
+Quando la riduzione esclude una sede, il modello residuo aggiunge i fissaggi
+\(\delta_i=0\) e \(x_{ij}=0\) per tutti i suoi clienti. Questi fissaggi
+sono euristici e non garantiscono la conservazione dell'ottimo originale.
 
-## Esecuzione
-
-Il configuratore [`uix/experiment_facility_location.html`](../../uix/experiment_facility_location.html)
-genera comandi CLI interattivamente. È una pagina statica apribile direttamente
-da filesystem; seleziona i parametri e copia il comando nel terminale.
-
-Il percorso dell'istanza è un argomento posizionale obbligatorio e si riferisce
-al filesystem locale, non a un upload nel browser.
-
-### Baseline (senza riduzione)
-
-```bash
-poetry run python -m qreduce.experiments.facility_location.run \
-  data/benchmarks/or_library/capacitated_facility_location/cap41.txt \
-  --run-id cap41-baseline
-```
-
-`--rounds 0` (default): il problema è risolto direttamente senza riduzione.
-
-### Single-pass con recovery
+## 3. CLI unificata
 
 ```bash
-poetry run python -m qreduce.experiments.facility_location.run \
-  data/benchmarks/or_library/capacitated_facility_location/cap41.txt \
-  --run-id cap41-recovery \
-  --rounds 1 \
-  --recovery-attempts 15
+poetry run python -m qreduce.experiments.facility_location.run --help
 ```
 
-`--recovery-attempts`: tentativi di allargare il dominio se insufficiente.
+## 4. Parametri
 
-### Multi-round
+### 4.1 Ingresso e configurazione
 
-```bash
-poetry run python -m qreduce.experiments.facility_location.run \
-  data/benchmarks/or_library/capacitated_facility_location/cap41.txt \
-  --run-id cap41-multi \
-  --rounds 3 \
-  --recovery-attempts 15
-```
+| Parametro | Significato e condizioni |
+| --- | --- |
+| `instance` | Posizionale obbligatorio: percorso del file numerico OR-Library, codificato ASCII. Sono richieste dimensioni positive e il numero esatto di valori; i segnaposto `capacity` non sono supportati. |
+| `--run-id` | Obbligatorio: identificativo non vuoto dell'esecuzione. |
+| `--output-root` | Directory radice degli artifact; predefinita `outputs/facility_location`. |
+| `--log-config` | Percorso della configurazione YAML dei log; se omesso si usa `QREDUCE_LOG_CONFIG`, altrimenti la configurazione predefinita del repository se presente. |
+| `-h`, `--help` | Mostra la guida ed esce. |
 
-La pipeline si arresta al primo successo o successo parziale.
+### 4.2 Riduzione e solver
 
-## Opzioni CLI
+| Parametro | Significato e condizioni |
+| --- | --- |
+| `--rounds` | Intero non negativo, massimo numero di round di riduzione; predefinito `0`, ossia baseline senza riduzione. |
+| `--solver` | Identificativo del solver classico: `scip` (predefinito) o `cplex`. |
+| `--mis-solver` | Solver del grafo di riduzione; predefinito `local_greedy`. Identificativi inclusi: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local`, `pasqal_cloud_emulator`, `pasqal_qpu`. Usato nei round di riduzione. |
+| `--seed` | Intero, predefinito `7`; seed passato alle opzioni MIS e al solver classico. |
+| `--budget` | Secondi, numero finito non negativo; predefinito effettivo `60.0`. Budget complessivo condiviso tra round e recovery; `0` elimina il limite globale. |
+| `--classical-time-limit-seconds` | Secondi, numero finito non negativo; predefinito effettivo `60.0`. Limite per ciascuna invocazione del solver classico; `0` elimina il limite per solve, ma resta applicabile il budget globale. |
+| `--cap` | Intero, massimo numero di sedi nel dominio candidato; se omesso è il numero di sedi dell'istanza. Deve essere almeno `1`; un valore inferiore al numero di sedi protette può impedire la riduzione. |
+| `--protect-all` | Flag, disattivato per default: protegge tutte le sedi dall'esclusione, senza imporne l'apertura. |
+| `--recovery-attempts` | Intero non negativo, predefinito `0`: massimo numero di tentativi con dominio più ampio quando il dominio è troppo piccolo o il residuo è inammissibile. Un valore positivo richiede `--rounds` almeno `1`. |
+| `--min-reduction-ratio` | Numero finito in `[0, 1]`, predefinito `0.1`: soglia minima della frazione di riduzione. |
+| `--model-export` | Flag, disattivato per default: richiede l'esportazione del modello classico residuo. |
 
-| Opzione                | Descrizione                                  | Default |
-|------------------------|----------------------------------------------|---------|
-| `instance`             | Percorso file istanza OR-Library             | obblig. |
-| `--run-id`             | Identificatore unico del run                 | obblig. |
-| `--output-root`        | Directory base per artifact                  | outputs/facility_location |
-| `--log-config`         | Percorso file YAML di configurazione logging | config/logging.yaml |
-| `--rounds`             | Numero massimo di round di riduzione         | 0       |
-| `--solver`             | Backend classico: `scip` o `cplex`           | scip    |
-| `--mis-solver`         | Backend MIS                                  | local_greedy |
-| `--seed`               | Seed random                                  | 7       |
-| `--budget`             | Budget end-to-end in secondi (0 = illimitato)| 60      |
-| `--classical-time-limit-seconds` | Timeout per invocazione solver (0 = illimitato) | 60 |
-| `--cap`                | Max items nel dominio candidato              | #sedi   |
-| `--protect-all`        | Proteggi tutte le sedi (verifica baseline)   | false   |
-| `--recovery-attempts`  | Tentativi di recovery                        | 0       |
-| `--min-reduction-ratio`| Ratio minima di riduzione                    | 0.1     |
-| `--model-export`       | Esporta modello residuo                      | false   |
+### 4.3 Policy del grafo
 
-**Semantica dei timeout:**
+Questi parametri sono numeri finiti e controllano il grafo euristico usato
+nei round di riduzione; i profili sono costruiti sull'istanza originale.
 
-- `--budget`: budget totale della pipeline. Con `0` la pipeline non ha limite
-  di tempo end-to-end.
-- `--classical-time-limit-seconds`: limite per ogni singola invocazione del
-  solver classico. Con `0` il solver prosegue fino al completamento o
-  all'esaurimento del budget end-to-end.
+| Parametro | Significato e valori ammessi |
+| --- | --- |
+| `--alpha` | Peso della capacità utile nello score, in `[0, 1]`; predefinito `0.5`. Il peso restante è attribuito alla convenienza di costo. |
+| `--epsilon` | Limite inferiore dello score, in `(0, 1]`; predefinito `0.01`. |
+| `--profile-fraction` | Frazione della domanda totale da coprire nel profilo di ciascuna sede, in `(0, 1]`; predefinita `0.5`. I clienti sono ordinati per costo unitario e indice. |
+| `--overlap-threshold` | Sovrapposizione minima dei profili, pesata per domanda, per creare un arco; in `[0, 1]`, predefinita `0.5`. |
+| `--capacity-difference` | Differenza relativa massima tra capacità per creare un arco, in `[0, 1]`; predefinita `0.25`. Anche la soglia di sovrapposizione deve essere soddisfatta. |
 
-Entrambi i parametri rifiutano valori negativi, NaN, infinito e booleani.
+Con `--rounds` maggiore di zero, i tre backend Pasqal non sono utilizzabili
+tramite questa CLI: il runner passa sempre un seed MIS intero, non supportato
+per il campionamento da nessuno dei tre. Impostare `--seed 0` non lo rimuove.
+Inoltre `pasqal_local` non supporta un budget globale positivo; `--budget 0`
+risolve solo questa limitazione, non quella del seed. Per `pasqal_qpu` servono
+anche device esplicito, shot e consenso ai costi, che questa CLI non espone.
+Con `--rounds 0` il solver MIS non viene usato.
 
-### Opzioni graph policy
+## 5. Directory degli artifact
 
-| Opzione                | Descrizione                                  | Default |
-|------------------------|----------------------------------------------|---------|
-| `--alpha`              | Peso capacità nello score                    | 0.5     |
-| `--epsilon`            | Floor dello score                            | 0.01    |
-| `--profile-fraction`   | Quota profilo per overlap                    | 0.5     |
-| `--overlap-threshold`  | Soglia overlap pesato per arco               | 0.5     |
-| `--capacity-difference`| Max differenza relativa capacità             | 0.25    |
+La directory radice predefinita è `outputs/facility_location`; `--output-root`
+la sostituisce.
 
-## Policy del grafo (versione 1)
+## 6. Note specifiche
 
-Lo score combina capacità utile e costo indicativo:
+Il grafo ausiliario rappresenta ridondanza euristica tra sedi, non vincoli di
+incompatibilità del problema. Le sedi indispensabili per conservare capacità
+complessiva sufficiente sono protette dall'esclusione, non obbligate ad aprire.
+Con collegamenti completi e domanda frazionabile, una capacità complessiva
+sufficiente permette di soddisfare la domanda. L'ottimalità del residuo non
+certifica quella del modello originale.
 
-```text
-D = sum_j d_j
-effective_i = min(u_i, D)
-proxy_i = f_i + effective_i * sum_j(c_ij) / D
-max_proxy = max_k(proxy_k)
+## 7. Riferimenti
 
-cost_component_i = 1 - proxy_i / max_proxy   se max_proxy > 0
-cost_component_i = 1                          se max_proxy = 0
-
-w_i = epsilon + (1 - epsilon) * (
-    alpha * effective_i / max_k(effective_k)
-    + (1 - alpha) * cost_component_i
-)
-```
-
-Quando tutti i costi proxy sono zero, il componente costo vale 1 per tutte
-le sedi (nessuna penalizzazione basata sul costo).
-
-I profili sono costruiti sull'istanza originale, ordinando i clienti per
-costo unitario e indice. Gli archi collegano sedi con overlap elevato e
-capacità simile.
-
-## Directory degli artifact
-
-```text
-outputs/facility_location/{run_id}/
-├── run_result.json
-├── config_used.json
-├── problem.json
-├── experiment_metadata.json
-├── run_manifest.json
-├── round_NN_result.json      # uno per ogni round di riduzione completato
-└── recovery_attempts.json    # se sono stati eseguiti tentativi di recovery
-```
-
-## Notebook
-
-I notebook sono in `notebooks/experiments/facility_location/`. Caricano
-artifact già prodotti.
-
-Il notebook individua la root del repository cercando `pyproject.toml` nella
-directory corrente e nei genitori. Eseguire il notebook dalla root o da una
-sottodirectory del repository.
-
-## Codici di uscita
-
-- `0`: success o partial_success
-- `1`: altri stati (failed, adapter_failure, etc.)
-
-Un run fallito (failure normalizzata della pipeline) viene comunque pubblicato
-come artifact analizzabile. Errori di parsing o configurazione prima
-dell'invocazione del runner non producono artifact.
-
-## Risultati esplorativi
-
-Valutazione su quattro istanze cap41-44 (SCIP, seed 7, budget 60s, 15
-recovery attempts):
-
-| Istanza | Baseline     | Single-pass | Con recovery   | Differenza    |
-|---------|-------------:|-------------|---------------:|--------------:|
-| cap41   | 1040444.375  | fallito     | 1157583.050    | +117138.675   |
-| cap42   | 1098000.450  | fallito     | 1212583.050    | +114582.600   |
-| cap43   | 1153000.450  | fallito     | 1267583.050    | +114582.600   |
-| cap44   | 1235500.450  | fallito     | 1350083.050    | +114582.600   |
-
-Questi risultati non dimostrano vantaggi: la policy è sperimentale e le
-differenze mostrano perdite di qualità rispetto alla baseline.
-
-## Riferimenti
-
-- Adapter: `src/qreduce/experiments/facility_location/adapter.py`
-- Graph policy: `src/qreduce/experiments/facility_location/graph_policy.py`
-- Parser: `src/qreduce/experiments/facility_location/datasets.py`
-- Documentazione architetturale: [`facility-location-experiment.md`](../implementation/facility-location-experiment.md)
+- [OR-Library: capacitated warehouse location](https://people.brunel.ac.uk/~mastjjb/jeb/orlib/capinfo.html): formato e istanze benchmark del problema.
+- [SCIP Optimization Suite](https://www.scipopt.org/): documentazione di un solver per programmazione mista intera.

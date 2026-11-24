@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [dependency-groups]
+docs = [
+    "mistune (==3.4.0)",
+]
 dev = [
     "pytest (>=8.0)",
     "ruff (>=0.8)",

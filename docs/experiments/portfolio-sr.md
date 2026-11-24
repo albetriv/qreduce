@@ -1,346 +1,148 @@
-# Esperimento portfolio Sharpe ratio (portfolioSR)
+# Esperimento portfolio Sharpe ratio
 
-L'esperimento portfolioSR ottimizza il rapporto Sharpe usando dati reali
-S&P500. Misura l'effetto della riduzione QReduce su qualità e costo
-computazionale per un problema di massimizzazione Sharpe con vincoli
-settoriali e cardinalità facoltativa.
+## 1. Descrizione del problema
 
-## Problema di dominio
+Si scelgono i pesi long-only di un portafoglio a partire da prezzi adjusted
+close, ticker e settori. Si massimizza il rapporto tra rendimento atteso e
+volatilità, rispettando budget e limite di peso per asset; limiti settoriali e
+cardinalità massima sono facoltativi. Le medie e la covarianza sono stimate
+dai rendimenti e annualizzate. Il tasso privo di rischio è fissato a zero.
 
-L'obiettivo è massimizzare lo Sharpe ratio:
+## 2. Formulazione matematica
 
-```text
-SR(x) = (μ' * x) / √(x' * Σ * x)
-```
+Sia \(I\) l'insieme degli asset e \(I_s\) il sottoinsieme del settore \(s\).
+Per ogni \(i\), \(\mu_i>0\) è il rendimento medio annualizzato, \(U_i>0\)
+il limite di peso e \(x_i\geq 0\) il peso continuo. La matrice di covarianza
+annualizzata \(\Sigma\) è semidefinita positiva. I limiti settoriali sono
+\(L_s,H_s\); se è richiesta cardinalità, \(K\) è il massimo di posizioni e
+\(\delta_i\in\{0,1\}\) indica la selezione.
 
-dove `μ` sono i rendimenti medi annualizzati, `Σ` la covarianza annualizzata,
-`x` i pesi del portafoglio. A differenza del portfolio media-varianza
-tradizionale, non c'è un parametro di avversione al rischio: l'obiettivo è
-un rapporto adimensionale.
+Il problema di dominio, per portafogli a varianza positiva, è:
 
-### Trasformazione convessa
+\[
+\max_x\quad SR(x)=\frac{\mu^T x}{\sqrt{x^T\Sigma x}}
+\]
+\[
+\sum_{i\in I}x_i=1,\qquad 0\leq x_i\leq U_i\quad(i\in I).
+\]
 
-Il problema non lineare viene trasformato in un QP convesso. Definendo
-`x_scale = 1/(μ^T x)` e `x_scaled = x_scale · x`:
+Quando configurati si aggiungono i vincoli settoriali e di cardinalità:
 
-```text
-minimize  x_scaled' * Σ * x_scaled
-subject to  μ' * x_scaled = 1
-            vincoli lineari su pesi e scale
-```
+\[
+L_s\leq\sum_{i\in I_s}x_i\leq H_s,\qquad
+x_i\leq U_i\delta_i,\quad \sum_{i\in I}\delta_i\leq K.
+\]
 
-La ricostruzione: `x = x_scaled / x_scale` e `SR = 1/√(obiettivo)`.
+La trasformazione usa la positività di tutti i rendimenti selezionati e il
+budget: ponendo \(x_{scale}=1/(\mu^T x)>0\) e \(x_{scaled,i}=x_{scale}x_i\), con \(x_{scaled}\) e \(x_{scale}\)
+variabili continue, si ottiene il QP seguente:
 
-### Vincoli
+\[
+\begin{aligned}
+\min_{x_{scaled},x_{scale}}\quad & x_{scaled}^T\Sigma x_{scaled}\\
+\text{soggetto a}\quad & \mu^T x_{scaled}=1,\quad \sum_i x_{scaled,i}=x_{scale},\\
+& 0\leq x_{scaled,i}\leq U_i x_{scale},\quad
+1/\mu_{\max}\leq x_{scale}\leq 1/\mu_{\min}.
+\end{aligned}
+\]
 
-- **Budget**: somma dei pesi = 1
-- **Upper bounds**: peso massimo per asset
-- **Settori**: limiti min/max per esposizione settoriale (opzionale)
-- **Cardinalità**: massimo numero di posizioni (opzionale)
+Qui \(\mu_{\min}\) e \(\mu_{\max}\) sono rispettivamente minimo e massimo
+dei rendimenti degli asset. I vincoli opzionali diventano:
 
-## Dataset
+\[
+L_s x_{scale}\leq\sum_{i\in I_s}x_{scaled,i}\leq H_s x_{scale},\qquad
+ x_{scaled,i}\leq\frac{U_i}{\mu_{\min}}\delta_i,\quad
+\sum_i\delta_i\leq K,\quad \delta_i\in\{0,1\}.
+\]
 
-Il dataset è il file CSV S&P500 in `data/yahoo/SP500.csv`:
+Il collegamento big-M è lineare e si aggiunge al limite \(x_{scaled,i}\leq U_i x_{scale}\).
+Senza cardinalità il modello è un QP convesso; con cardinalità è un MIQP.
+La ricostruzione è \(x_i=x_{scaled,i}/x_{scale}\); se il valore ottimo \(v=x_{scaled}^T\Sigma x_{scaled}\)
+è positivo, lo Sharpe è \(1/\sqrt v\). Una covarianza semidefinita può
+ammettere varianza nulla: in tal caso il rapporto e questa ricostruzione dello
+Sharpe non sono matematicamente definiti. La metrica implementata restituisce
+zero quando la volatilità calcolata non è positiva.
 
-- 480 ticker con prezzi dal 2020 al 2026
-- 11 settori, valuta USD
-- Adjusted close per calcolo rendimenti
-
-Il preprocessing:
-1. Filtra per intervallo temporale
-2. Calcola rendimenti (log o semplici)
-3. Annualizza a 252 giorni
-4. Esclude ticker con media non positiva
-5. Valida covarianza PSD
-
-## CLI
+## 3. CLI unificata
 
 ```bash
 poetry run python -m qreduce.experiments.portfolio_sr --help
 ```
 
-| Valore                     | Modalità                         |
-|----------------------------|----------------------------------|
-| `--max-reduction-rounds 0` | Classical-only baseline          |
-| `--max-reduction-rounds 1` | Single-pass (default)            |
-| `--max-reduction-rounds N` | Multi-round (N > 1)              |
+## 4. Parametri
 
-### Classical-only baseline
+### 4.1 Esecuzione e dati
 
-```bash
-poetry run python -m qreduce.experiments.portfolio_sr \
-  --run-id sr_baseline \
-  --asset-count 50 \
-  --max-reduction-rounds 0
-```
+| Parametro | Significato, valori e default |
+|---|---|
+| `-h`, `--help` | Mostra l'aiuto ed esce. |
+| `--run-id` | Identificativo della run; obbligatorio. |
+| `--log-config` | Percorso della configurazione YAML di logging; omesso usa la configurazione predefinita. |
+| `--output-root` | Radice degli artifact; default `outputs/portfolio_sr`. |
+| `--model-export` | Abilita l'esportazione del modello classico residuo; disabilitata per default. |
+| `--model-export-path` | Percorso personalizzato di export `.lp` o `.mps`; richiede `--model-export`. Se omesso si usa il percorso predefinito. |
+| `--csv-path` | CSV dei prezzi; default `data/yahoo/SP500.csv`. |
+| `--asset-count` | Numero intero positivo di asset; mutuamente esclusivo con `--explicit-tickers`. Se entrambi omessi, 50. |
+| `--explicit-tickers` | Lista di ticker separati da virgola, non vuoti e senza duplicati; alternativa a `--asset-count`. |
+| `--start-date`, `--end-date` | Estremi opzionali della finestra, date ISO `YYYY-MM-DD`. |
+| `--return-convention` | Rendimento `simple` o `log`; default `log`. |
+| `--annualization-factor` | Fattore intero positivo di annualizzazione; default 252. |
+| `--selection-order` | Ordine di selezione: `alphabetical` (default), `sharpe_descending` o `random`. |
+| `--random-seed` | Seed intero opzionale per la selezione casuale. |
 
-### Single-pass con riduzione
+### 4.2 Vincoli e grafo
 
-```bash
-poetry run python -m qreduce.experiments.portfolio_sr \
-  --run-id sr_reduced \
-  --asset-count 50 \
-  --correlation-threshold 0.80 \
-  --edge-mode near_duplicate
-```
+| Parametro | Significato, valori e default |
+|---|---|
+| `--upper-bound` | Limite uniforme per asset, reale positivo; default 1.0. |
+| `--max-positions` | Massimo intero positivo di posizioni, non superiore al numero di asset; omesso disattiva la cardinalità. |
+| `--risk-free-rate` | Tasso privo di rischio; default 0.0, unico valore attualmente accettato. |
+| `--sector-min`, `--sector-max` | Limiti opzionali come coppie `settore=valore` separate da virgole. Ogni valore è finito tra 0 e 1; per ogni settore minimo non superiore al massimo e somma dei minimi non superiore a 1. Un estremo omesso vale rispettivamente 0 o 1. Un minimo positivo richiede asset del settore nell'universo selezionato. |
+| `--edge-mode` | `correlation_only` oppure `near_duplicate` (default): criterio degli archi del grafo di riduzione. |
+| `--correlation-threshold` | Soglia di correlazione con segno, finita tra 0 e 1; default 0.80. |
+| `--near-duplicate-max-return-diff` | Massima differenza relativa di rendimento per `near_duplicate`, finita e non negativa; default 0.15. |
+| `--near-duplicate-max-variance-diff` | Massima differenza relativa di varianza per `near_duplicate`, finita e non negativa; default 0.15. |
 
-### Con vincolo cardinalità
+### 4.3 Solver e riduzione
 
-```bash
-poetry run python -m qreduce.experiments.portfolio_sr \
-  --run-id sr_cardinality \
-  --asset-count 100 \
-  --max-positions 20
-```
+| Parametro | Significato, valori e default |
+|---|---|
+| `--mis-solver-id` | Metodo MIS: `local_greedy` (default), `dwave_simulated_annealing` o `pasqal_local`. Con riduzione attiva, `pasqal_local` richiede esplicitamente `--max-end-to-end-runtime-seconds 0`, perché l'emulatore locale non applica deadline. |
+| `--classical-solver-id` | Solver classico: `scip` (default) o `cplex`. |
+| `--classical-time-limit-seconds` | Limite in secondi per solve classico; default 60.0, zero disabilita il limite. |
+| `--pasqal-shots` | Numero intero positivo di shot, solo con `pasqal_local`; default effettivo 100. |
+| `--mis-num-reads`, `--mis-num-sweeps` | Interi positivi opzionali per `dwave_simulated_annealing`; omessi usano i default del backend. |
+| `--mis-embedding-profile` | `none`, `pegasus_p16` o `zephyr_z12`; omesso non impone un profilo. I profili diversi da `none` richiedono `dwave_simulated_annealing` e riduzione attiva (`--max-reduction-rounds` maggiore di zero). |
+| `--max-reduction-rounds` | Intero non negativo; default 1. Zero disattiva la riduzione, uno abilita un round, valori superiori più round. |
+| `--candidate-domain-min-items` | Minimo di asset nel dominio candidato; default 1. |
+| `--candidate-domain-max-items` | Massimo di asset nel dominio candidato; default il massimo tra 1 e il 60% della numerosità richiesta, arrotondato per difetto: numero di ticker espliciti, oppure `--asset-count`, oppure 50 se entrambi omessi; non è ricalcolato sugli asset effettivamente idonei. |
+| `--num-source-mis-candidates` | Numero di candidati MIS sorgente considerati; default 1. |
+| `--min-reduction-ratio` | Rapporto minimo di riduzione; default 0.1. |
+| `--target-binary-variables` | Target di binarie residue; default 3 con cardinalità, altrimenti 0. |
+| `--max-end-to-end-runtime-seconds` | Limite totale in secondi; default 120.0, zero disabilita il limite. |
+| `--recovery-policy-on-domain-too-small` | Politica per dominio troppo piccolo: `fail` (default) o `retry_with_larger_domain`. |
+| `--recovery-policy-on-infeasible` | Politica per problema non fattibile: `fail` (default) o `retry_with_larger_domain`. |
+| `--max-recovery-attempts` | Numero massimo di tentativi di recovery; default 0. |
 
-### Con vincoli settoriali
+## 5. Directory degli artifact
 
-```bash
-poetry run python -m qreduce.experiments.portfolio_sr \
-  --run-id sr_sectors \
-  --asset-count 50 \
-  --sector-min "Technology=0.10,Health Care=0.05" \
-  --sector-max "Technology=0.30,Health Care=0.20"
-```
+La radice predefinita è `outputs/portfolio_sr`; `--output-root` la sostituisce.
 
-### Multi-round con recovery
+## 6. Note specifiche
 
-```bash
-poetry run python -m qreduce.experiments.portfolio_sr \
-  --run-id sr_recovery \
-  --asset-count 100 \
-  --max-reduction-rounds 3 \
-  --recovery-policy-on-infeasible retry_with_larger_domain \
-  --max-recovery-attempts 2
-```
+Servono almeno tre date di prezzo per la covarianza campionaria. Sono esclusi
+i ticker con rendimento medio annualizzato non superiore a `1e-12`; la
+covarianza è verificata per simmetria, diagonale positiva e semidefinitezza
+positiva con tolleranza numerica. La selezione avviene sull'universo idoneo.
 
-## Opzioni CLI
+Gli archi del grafo indicano ridondanza euristica, non incompatibilità tra
+investimenti: `correlation_only` usa la correlazione con segno; `near_duplicate`
+richiede anche differenze relative di rendimento e varianza entro le rispettive
+soglie. La riduzione non garantisce di conservare l'ottimo originale.
 
-### Opzioni dati
+## 7. Riferimenti
 
-| Opzione | Default | Descrizione |
-|---------|---------|-------------|
-| `--csv-path` | `data/yahoo/SP500.csv` | File CSV prezzi |
-| `--asset-count` | 50 | Numero asset da selezionare |
-| `--explicit-tickers` | - | Lista ticker esplicita (alternativa ad asset-count) |
-| `--start-date` | - | Data inizio (YYYY-MM-DD) |
-| `--end-date` | - | Data fine (YYYY-MM-DD) |
-| `--return-convention` | `log` | Tipo rendimento: `log` o `simple` |
-| `--annualization-factor` | 252 | Giorni per annualizzazione |
-| `--selection-order` | `alphabetical` | Ordine selezione: `alphabetical`, `sharpe_descending`, `random` |
-| `--random-seed` | - | Seed per selezione random |
-
-### Opzioni problema
-
-| Opzione | Default | Descrizione |
-|---------|---------|-------------|
-| `--upper-bound` | 1.0 | Peso massimo per asset |
-| `--max-positions` | - | Massimo posizioni (cardinalità) |
-| `--risk-free-rate` | 0.0 | Tasso risk-free |
-| `--sector-min` | - | Minimi settoriali (es. `Tech=0.10,Health=0.05`) |
-| `--sector-max` | - | Massimi settoriali |
-
-### Opzioni grafo
-
-| Opzione | Default | Descrizione |
-|---------|---------|-------------|
-| `--edge-mode` | `near_duplicate` | Semantica archi: `correlation_only` o `near_duplicate` |
-| `--correlation-threshold` | 0.80 | Soglia correlazione positiva |
-| `--near-duplicate-max-return-diff` | 0.15 | Max differenza rendimento relativa |
-| `--near-duplicate-max-variance-diff` | 0.15 | Max differenza varianza relativa |
-
-### Opzioni solver
-
-| Opzione | Default | Descrizione |
-|---------|---------|-------------|
-| `--mis-solver-id` | `local_greedy` | Solver MIS |
-| `--classical-solver-id` | `scip` | Solver classico: `scip` o `cplex` |
-| `--classical-time-limit-seconds` | 60.0 | Time limit per solve |
-
-### Opzioni riduzione
-
-| Opzione | Default | Descrizione |
-|---------|---------|-------------|
-| `--max-reduction-rounds` | 1 | Rounds riduzione (0=baseline) |
-| `--candidate-domain-min-items` | 1 | Minimo item dominio candidato |
-| `--candidate-domain-max-items` | 60% assets | Massimo item dominio |
-| `--num-source-mis-candidates` | 1 | Numero di candidati MIS aggregati |
-| `--min-reduction-ratio` | 0.1 | Rapporto minimo di riduzione |
-| `--target-binary-variables` | 3 con cardinalità, altrimenti 0 | Target di variabili binarie residue |
-| `--max-end-to-end-runtime-seconds` | 120.0 | Timeout totale |
-| `--recovery-policy-on-domain-too-small` | `fail` | Policy per dominio candidato troppo piccolo |
-| `--recovery-policy-on-infeasible` | `fail` | Policy recovery |
-| `--max-recovery-attempts` | 0 | Tentativi recovery |
-
-## Artifact
-
-Gli artifact sono pubblicati in `outputs/portfolio_sr/<run_id>/`:
-
-```
-run_manifest.json        # Metadati e hash
-config_used.json         # Configurazione risolta
-problem.json             # Problema originale
-run_result.json          # Risultato finale
-experiment_metadata.json # Dataset e preprocessing
-round_00_result.json     # Risultato round (se riduzione)
-```
-
-## Analisi dei risultati
-
-```python
-from qreduce.experiments.portfolio_sr.analysis import (
-    load_sharpe_portfolio_analysis,
-    compare_runs,
-)
-
-# Carica un run
-analysis = load_sharpe_portfolio_analysis("outputs/portfolio_sr/my_run")
-
-print(f"Sharpe ratio: {analysis.sharpe_ratio}")
-print(f"Posizioni: {analysis.position_count}")
-
-# Confronta più run
-comparison = compare_runs([
-    "outputs/portfolio_sr/baseline",
-    "outputs/portfolio_sr/reduced",
-])
-best = comparison.best_sharpe
-print(f"Best Sharpe: {best.run_id if best is not None else None}")
-```
-
-## Benchmark
-
-Il modulo `benchmark.py` fornisce confronti strutturati:
-
-```python
-from qreduce.experiments.portfolio_sr.benchmark import (
-    BenchmarkConfig,
-    run_benchmark_suite,
-)
-
-config = BenchmarkConfig(
-    asset_count=50,
-    target_retention_fraction=0.5,
-)
-
-results = run_benchmark_suite("bench_001", config)
-```
-
-Metodi confrontati:
-1. **Full baseline**: problema completo senza riduzione
-2. **QReduce**: riduzione MWIS + solve residuo
-3. **Sharpe screening**: top-K per Sharpe individuale
-4. **Random screening**: selezione casuale con seed
-5. **Correlation screening**: selezione greedy diversificata
-
-## Configuratore HTML
-
-Il configuratore [`uix/experiment_portfolio_sr.html`](../../uix/experiment_portfolio_sr.html)
-genera comandi CLI interattivamente. È una pagina statica apribile da
-filesystem.
-
-La selezione dell'universo usa alternativamente una numerosità o una lista
-esplicita di ticker non vuoti e senza duplicati. In assenza di entrambe le
-opzioni CLI, la numerosità predefinita è 50. Il configuratore espone anche
-logging, parametri di riduzione e recovery ed export del modello nel tab
-dedicato; il target binario è attivo solo quando è configurata la cardinalità.
-
-Il configuratore include un pannello espandibile con la formulazione matematica
-del problema configurato. Il pannello mostra:
-
-- **Problema originale**: massimizzazione Sharpe con budget e bounds
-- **Vincoli**: cardinalità (quando configurata), vincoli settoriali
-- **Problema trasformato**: minimizzazione varianza con rendimento normalizzato
-- **Ricostruzione**: recupero pesi originali e Sharpe dall'obiettivo
-- **Riduzione euristica**: modalità corrente (baseline, single-pass, multi-round)
-
-I valori configurati (n, U, K) si aggiornano dinamicamente. Le formule usano
-MathJax quando disponibile, con fallback testuale per uso offline.
-
-Il pannello è aperto inizialmente. Le formule dei vincoli opzionali vengono
-conservate anche dopo aggiornamenti ripetuti e dopo il ripristino dei default.
-Il pulsante **Ripristina** reimposta campi, formulazione e comando CLI.
-
-Numero di asset, cardinalità e round richiedono valori interi nel rispettivo
-dominio. I limiti settoriali usano `Settore=valore`, con valori finiti tra 0 e 1:
-il minimo non può superare il massimo e la somma dei minimi non può superare 1.
-Un limite omesso assume minimo 0 o massimo 1, come nella CLI. Input malformati
-per questi parametri non vengono ignorati o troncati: il pannello segnala l'errore e il comando non
-viene generato né reso copiabile finché la configurazione non è valida.
-
-**Note sulla formulazione:**
-- Il tasso risk-free è fisso a 0 nella versione corrente
-- I coefficienti big-M per cardinalità dipendono dal dataset caricato
-- Senza cardinalità il problema è un QP convesso; con cardinalità è MIQP
-
-## Confronto tra run
-
-La scheda **06 · Confronto** nel configuratore permette di confrontare due run
-selezionando **Baseline** e **Run di confronto** da tendine popolate dal catalogo locale.
-
-La dashboard mostra:
-- **Indicatori**: dominio finale, variazione Sharpe ratio, posizioni escluse
-- **Grafico dominio**: ticker mantenuti ed esclusi
-- **Motivi esclusioni**: per round, con conteggi e percentuali
-- **Termometro**: confronto qualità (Sharpe), tempo solver, tempo end-to-end
-- **Verdetto**: favorevole, compromesso, o non disponibile con motivi
-
-Il verdetto viene generato solo quando:
-- L'istanza è identica (problem.json byte-per-byte uguale)
-- Entrambe le soluzioni sono valide e adottate
-- La baseline è senza riduzione verificata
-- Il confronto ha riduzione applicata verificata
-- Sono disponibili Sharpe e tempi necessari per il confronto
-
-Le differenze descrivono i run osservati e non dimostrano un effetto causale.
-
-### Generazione del catalogo
-
-Per creare o aggiornare il catalogo locale dopo aver aggiunto, rimosso o
-rigenerato run, eseguire dalla root del repository:
-
-```bash
-python -m qreduce.experiments.portfolio_sr.run_catalog
-```
-
-Il comando legge gli artifact in `outputs/portfolio_sr/` e genera
-`outputs/portfolio_sr/run_catalog.js`, uno snapshot locale non tracciato da Git.
-
-Dopo la generazione, premere **↻** nella scheda **Confronto** per ricaricare.
-Non occorre ricaricare la pagina; le selezioni restano valide finché i run
-sono presenti nel catalogo.
-
-## Differenze dal portfolio sintetico
-
-| Aspetto | portfolio_mv | portfolio_sr |
-|---------|-----------|--------------|
-| **Dati** | Sintetici | Reali S&P500 |
-| **Obiettivo** | Media-varianza (risk_aversion) | Sharpe ratio |
-| **Vincoli** | Budget, bounds | Budget, bounds, settori, cardinalità |
-| **Trasformazione** | Nessuna | QP convesso |
-| **Variabile ausiliaria** | No | x_scale |
-
-## Limiti
-
-- Dataset con provenienza e continuità non verificabili
-- Classificazione settoriale statica
-- Riduzione MWIS non certifica ottimalità
-- Senza cardinalità il residuo è puramente continuo
-
-Vedere il [README del package](../../src/qreduce/experiments/portfolio_sr/README.md)
-per il confronto metodologico con l'articolo di Corbelletto.
-
-## Notebook e validazione
-
-Il notebook `notebooks/experiments/portfolio_sr/001_artifact_analysis.ipynb`
-mostra configurazione, metriche, pesi ed esposizioni degli artifact persistiti.
-Non esegue solver e non duplica logica finanziaria.
-
-Per baseline e screening, l'analisi ricostruisce le esposizioni dai metadati del
-problema originale. Soluzioni incomplete, non finite, non adottate o con
-post-check fallito non vengono presentate come portafogli. Le classifiche
-escludono i fallimenti e accettano runtime validi pari a zero.
-
-Il loader gestisce campi CSV quotati, segnala le serie incomplete escluse nei
-metadati e rifiuta settori incoerenti per lo stesso ticker nella finestra scelta.
-Servono almeno tre prezzi per stimare una covarianza campionaria.
+- [Sharpe, The Sharpe Ratio (1994)](https://web.stanford.edu/~wfsharpe/art/sr/sr.htm): definizione e interpretazione del rapporto di Sharpe.
+- M. Mattesi et al., [Diversifying Investments and Maximizing Sharpe Ratio: a novel QUBO formulation](https://arxiv.org/abs/2302.12291), 2023: formulazione QUBO per Sharpe e diversificazione settoriale, distinta dal modello continuo e dai vincoli settoriali qui descritti.
+- [Cornuéjols e Tütüncü, Optimization Methods in Finance](https://doi.org/10.1017/CBO9780511754871): modelli e trasformazioni per l'ottimizzazione di portafoglio.
+- [NumPy, `cov`](https://numpy.org/doc/stable/reference/generated/numpy.cov.html): stima della matrice di covarianza campionaria.

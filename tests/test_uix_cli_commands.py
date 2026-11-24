@@ -847,15 +847,15 @@ class TestUIXHtmlContent:
         parser.feed(content)
         assert parser.cards == [
             [["experiment_portfolio_mv.html", "Portfolio Media-Varianza"],
-             ["../docs/experiments/portfolio.md", "Documentazione"]],
+             ["../docs/experiments/portfolio.html", "Documentazione"]],
             [["experiment_portfolio_sr.html", "Portfolio Sharpe Ratio"],
-             ["../docs/experiments/portfolio-sr.md", "Documentazione"]],
+             ["../docs/experiments/portfolio-sr.html", "Documentazione"]],
             [["experiment_facility_location.html", "Facility Location"],
-             ["../docs/experiments/facility-location.md", "Documentazione"]],
-            [["../docs/experiments/asset-liability-management.md", "Documentazione"]],
-            [["../docs/experiments/riassicurazione-passiva.md", "Documentazione"]],
-            [["../docs/experiments/cessione-crediti-deteriorati.md", "Documentazione"]],
-            [["../docs/experiments/pianificazione-audit-interni.md", "Documentazione"]],
+             ["../docs/experiments/facility-location.html", "Documentazione"]],
+            [["../docs/experiments/asset-liability-management.html", "Documentazione"]],
+            [["../docs/experiments/riassicurazione-passiva.html", "Documentazione"]],
+            [["../docs/experiments/cessione-crediti-deteriorati.html", "Documentazione"]],
+            [["../docs/experiments/pianificazione-audit-interni.html", "Documentazione"]],
         ]
         assert parser.resources == [
             ["../docs/experiments/README.md", "Guida esperimenti"],
@@ -870,7 +870,7 @@ class TestUIXHtmlContent:
         assert "Risorse comuni" in content
         cards = [part.split("</article>")[0] for part in content.split('<article class="catalog-card">')[1:]]
         preview_titles = [
-            "Asset Liability Management (ALM)",
+            "Asset Liability Management",
             "Riassicurazione passiva",
             "Cessione di crediti deteriorati",
             "Pianificazione degli audit interni",
@@ -879,12 +879,14 @@ class TestUIXHtmlContent:
         for card, title, links in zip(cards[3:], preview_titles, parser.cards[3:], strict=True):
             assert f"<h2>{title}</h2>" in card
             assert '<p class="eyebrow">Famiglia sperimentale</p>' in card
-            assert '<span class="pill">anteprima · non eseguibile</span>' in card
+            assert '<span class="pill">sperimentale</span>' in card
             assert "<button" not in card
             doc_text = (index_file.parent / links[0][0]).read_text(encoding="utf-8")
-            assert doc_text.splitlines()[0] == f"# {title}"
+            assert '<html lang="it">' in doc_text
+            assert "Non disponibile: l’esperimento non è ancora eseguibile." in doc_text
+            assert (index_file.parent / links[0][0]).with_suffix(".md").is_file()
         reinsurance = next(card for card in cards if "<h2>Riassicurazione passiva</h2>" in card)
-        assert "Selezione di coperture per limitare le perdite da sinistri gravi" in reinsurance
+        assert "Selezione di coperture riassicurative per ridurre le perdite trattenute" in reinsurance
 
     def test_portfolio_uses_unified_cli(self) -> None:
         """Test that portfolio configurator uses the unified CLI entry point."""

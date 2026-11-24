@@ -29,13 +29,12 @@ def test_experiment_documentation_local_links_exist(document):
             assert (path.parent / target.split("#")[0]).exists(), f"{path}: broken link {target}"
 
 
-def test_portfolio_documented_source_paths_exist():
+def test_portfolio_documentation_has_required_sections():
     root = Path(__file__).resolve().parents[3]
     content = (root / "docs/experiments/portfolio.md").read_text(encoding="utf-8")
-    paths = re.findall(r"`((?:src/qreduce/experiments/|notebooks/experiments/)[^`]+)`", content)
-    assert paths
-    for path in paths:
-        assert (root / path).exists(), f"Missing documented path: {path}"
+    assert "## 2. Formulazione matematica" in content
+    assert "## 3. CLI unificata" in content
+    assert "## 4. Parametri" in content
 
 
 def test_portfolio_unified_cli_help():

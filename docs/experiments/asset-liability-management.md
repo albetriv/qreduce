@@ -1,36 +1,56 @@
 # Asset Liability Management (ALM)
 
-**Stato: famiglia sperimentale, anteprima non eseguibile.** Questa pagina descrive
-una proposta di esperimento, non un configuratore né un modello operativo.
+## 1. Descrizione del problema
 
-## Caso d'uso
+La proposta, non ancora eseguibile, seleziona swap di tasso e ne dimensiona i
+nozionali usando scenari di rischio, impatti EVE e NII e limiti operativi.
+L'obiettivo è minimizzare la perdita EVE nello scenario peggiore, limitando il
+calo NII, il nozionale complessivo e il numero di operazioni.
 
-La demo isola il rischio di tasso del portafoglio bancario (IRRBB) su un
-bilancio sintetico. La decisione è quali swap di tasso attivare, tra più scadenze
-e direzioni, e con quale nozionale. Nella [Relazione finanziaria annuale
-2025](https://group.intesasanpaolo.com/content/dam/portalgroup/repository-documenti/investor-relations/bilanci-relazioni-it/2025/Bilanci_2025.pdf),
-Intesa Sanpaolo descrive l'IRRBB attraverso il valore economico del patrimonio
-(EVE) e il margine di interesse (NII). La demo usa queste due prospettive senza
-replicare i dati o i modelli della banca.
+## 2. Formulazione matematica
 
-Il modello proposto minimizza la perdita di EVE nello scenario peggiore, limita
-il calo di NII in ciascuno scenario e impone tetti al nozionale totale e al
-numero di operazioni. Con impatti per unità di nozionale precalcolati e additivi,
-si può formulare come MILP: attivazioni binarie e nozionali continui.
+Siano \(I\) gli swap e \(S\) un insieme non vuoto di scenari. Le variabili sono
+il nozionale continuo \(x_i \ge 0\), l'attivazione binaria
+\(\delta_i \in \{0,1\}\) e la perdita massima continua libera \(x_{\mathrm{worst}}\).
+Con impatti additivi per unità di nozionale, il modello proposto è:
 
-## Ruolo del kernel QReduce
+\[
+\begin{aligned}
+\min\quad & x_{\mathrm{worst}} \\
+\text{s.t.}\quad
+& x_{\mathrm{worst}} \ge L_s - \sum_{i\in I} a_{si}x_i && s\in S, \\
+& N_s + \sum_{i\in I} b_{si}x_i \ge -D_s && s\in S, \\
+& 0 \le x_i \le U_i\delta_i && i\in I, \\
+& \sum_{i\in I} x_i \le B, \qquad \sum_{i\in I}\delta_i \le K.
+\end{aligned}
+\]
 
-Ogni swap è un nodo. Gli archi segnalano profili d'impatto simili nei diversi
-scenari, non divieti di acquisto congiunto. Il kernel usa le soluzioni MWIS
-(insiemi indipendenti di peso massimo) per costruire un dominio candidato.
-L'adapter fissa a zero attivazione e nozionale degli esclusi; il solver residuo
-sceglie e dimensiona gli swap rimasti, mantenendo i vincoli originali. Due swap
-simili possono servire entrambi se i limiti per strumento rendono insufficiente
-uno solo: il fixing è euristico e può perdere qualità o fattibilità.
+Tutti i vincoli indicati sono attivi. Una perdita massima negativa rappresenta
+un guadagno EVE anche nello scenario peggiore; non si impone un minimo nozionale
+per un'attivazione.
 
-## Confronto sperimentale
+## 3. CLI unificata
 
-Confrontare lo stesso modello sul catalogo completo e su quello ridotto, con lo
-stesso solver, misurando fattibilità, perdita EVE peggiore, rispetto dei limiti
-NII, variabili eliminate e tempo totale inclusa la riduzione. Il confronto senza
-nuove coperture è un riferimento di rischio, non un test dell'effetto di QReduce.
+Non disponibile: l’esperimento non è ancora eseguibile.
+
+## 4. Parametri
+
+- \(L_s\): perdita EVE iniziale nello scenario; \(N_s\): variazione NII iniziale.
+- \(a_{si}\): variazione EVE e \(b_{si}\): variazione NII per unità di
+  nozionale dello swap, con segno; \(D_s \ge 0\): calo NII massimo ammesso.
+- \(U_i \ge 0\): nozionale massimo individuale; \(B \ge 0\): tetto totale;
+  \(K\): numero massimo intero non negativo di operazioni.
+
+## 5. Directory degli artifact
+
+Non applicabile: l’esperimento non produce ancora artifact.
+
+## 6. Note specifiche
+
+Un grafo ausiliario può collegare swap con profili simili: tali archi indicano
+ridondanza euristica, non incompatibilità. Escludere candidati in base a tale
+grafo può peggiorare l'ottimo o rendere il problema residuo infattibile.
+
+## 7. Riferimenti
+
+- [Relazione finanziaria annuale 2025 di Intesa Sanpaolo](https://group.intesasanpaolo.com/content/dam/portalgroup/repository-documenti/investor-relations/bilanci-relazioni-it/2025/Bilanci_2025.pdf): contesto IRRBB, EVE e NII.

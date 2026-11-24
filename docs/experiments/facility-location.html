@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facility location con capacità</title>
+<style>body { font: 1rem/1.55 system-ui, sans-serif; max-width: 72rem; margin: 2rem auto; padding: 0 1rem; } pre { overflow-x: auto; } table { border-collapse: collapse; display: block; overflow-x: auto; } th, td { border: 1px solid #aaa; padding: .4rem; } .math { overflow-x: auto; }</style>
+<script>window.MathJax = {tex: {inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']]}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<main>
+<h1>Facility location con capacità</h1>
+<h2>1. Descrizione del problema</h2>
+<p>Si decide quali sedi aprire e come ripartire la domanda dei clienti tra le sedi
+aperte, minimizzando costi fissi e costi di allocazione. La domanda è
+frazionabile, ogni cliente può essere servito da più sedi e tutti i collegamenti
+sede-cliente sono ammessi. Ogni domanda deve essere soddisfatta interamente e
+ogni sede rispetta la propria capacità.</p>
+<p>L'ingresso è un'istanza numerica OR-Library: capacità e costi fissi delle sedi,
+domande dei clienti e costi di allocazione. Capacità e domande sono finite e
+positive; i costi sono finiti e non negativi.</p>
+<h2>2. Formulazione matematica</h2>
+<p>Siano \(I\) l'insieme delle sedi e \(J\) quello dei clienti. Per ogni sede
+\(i\), \(u_i\) è la capacità e \(f_i\) il costo fisso; per ogni cliente \(j\),
+\(d_j\) è la domanda e \(c_{ji}\) il costo di assegnare alla sede \(i\)
+l'intera domanda del cliente \(j\). Il costo di una frazione è proporzionale a
+quella frazione: non si moltiplica nuovamente \(c_{ji}\) per \(d_j\).</p>
+<p>La variabile binaria \(\delta_i\) indica l'apertura della sede; la variabile
+continua \(x_{ij}\) è la frazione della domanda del cliente \(j\) assegnata a
+\(i\). Il modello minimizza</p>
+<div class="math">\[
+\min \quad \sum_{i\in I} f_i\delta_i +
+\sum_{i\in I}\sum_{j\in J} c_{ji}x_{ij}
+\]</div>
+<p>soggetto ai seguenti vincoli, sempre attivi:</p>
+<div class="math">\[
+\begin{aligned}
+\sum_{i\in I} x_{ij} &amp;= 1 &amp;&amp; \forall j\in J &amp;&amp; \text{(domanda)},\\
+\sum_{j\in J} d_j x_{ij} &amp;\le u_i\delta_i &amp;&amp; \forall i\in I &amp;&amp; \text{(capacità)},\\
+x_{ij} &amp;\le \delta_i &amp;&amp; \forall i\in I,\ j\in J &amp;&amp; \text{(collegamento)},\\
+\delta_i &amp;\in \{0,1\} &amp;&amp; \forall i\in I,\\
+0\le x_{ij} &amp;\le 1 &amp;&amp; \forall i\in I,\ j\in J.
+\end{aligned}
+\]</div>
+<p>Quando la riduzione esclude una sede, il modello residuo aggiunge i fissaggi
+\(\delta_i=0\) e \(x_{ij}=0\) per tutti i suoi clienti. Questi fissaggi
+sono euristici e non garantiscono la conservazione dell'ottimo originale.</p>
+<h2>3. CLI unificata</h2>
+<pre><code class="language-bash">poetry run python -m qreduce.experiments.facility_location.run --help
+</code></pre>
+<h2>4. Parametri</h2>
+<h3>4.1 Ingresso e configurazione</h3>
+<table>
+<thead>
+<tr>
+  <th>Parametro</th>
+  <th>Significato e condizioni</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>instance</code></td>
+  <td>Posizionale obbligatorio: percorso del file numerico OR-Library, codificato ASCII. Sono richieste dimensioni positive e il numero esatto di valori; i segnaposto <code>capacity</code> non sono supportati.</td>
+</tr>
+<tr>
+  <td><code>--run-id</code></td>
+  <td>Obbligatorio: identificativo non vuoto dell'esecuzione.</td>
+</tr>
+<tr>
+  <td><code>--output-root</code></td>
+  <td>Directory radice degli artifact; predefinita <code>outputs/facility_location</code>.</td>
+</tr>
+<tr>
+  <td><code>--log-config</code></td>
+  <td>Percorso della configurazione YAML dei log; se omesso si usa <code>QREDUCE_LOG_CONFIG</code>, altrimenti la configurazione predefinita del repository se presente.</td>
+</tr>
+<tr>
+  <td><code>-h</code>, <code>--help</code></td>
+  <td>Mostra la guida ed esce.</td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 Riduzione e solver</h3>
+<table>
+<thead>
+<tr>
+  <th>Parametro</th>
+  <th>Significato e condizioni</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>--rounds</code></td>
+  <td>Intero non negativo, massimo numero di round di riduzione; predefinito <code>0</code>, ossia baseline senza riduzione.</td>
+</tr>
+<tr>
+  <td><code>--solver</code></td>
+  <td>Identificativo del solver classico: <code>scip</code> (predefinito) o <code>cplex</code>.</td>
+</tr>
+<tr>
+  <td><code>--mis-solver</code></td>
+  <td>Solver del grafo di riduzione; predefinito <code>local_greedy</code>. Identificativi inclusi: <code>local_greedy</code>, <code>dwave_simulated_annealing</code>, <code>pasqal_local</code>, <code>pasqal_cloud_emulator</code>, <code>pasqal_qpu</code>. Usato nei round di riduzione.</td>
+</tr>
+<tr>
+  <td><code>--seed</code></td>
+  <td>Intero, predefinito <code>7</code>; seed passato alle opzioni MIS e al solver classico.</td>
+</tr>
+<tr>
+  <td><code>--budget</code></td>
+  <td>Secondi, numero finito non negativo; predefinito effettivo <code>60.0</code>. Budget complessivo condiviso tra round e recovery; <code>0</code> elimina il limite globale.</td>
+</tr>
+<tr>
+  <td><code>--classical-time-limit-seconds</code></td>
+  <td>Secondi, numero finito non negativo; predefinito effettivo <code>60.0</code>. Limite per ciascuna invocazione del solver classico; <code>0</code> elimina il limite per solve, ma resta applicabile il budget globale.</td>
+</tr>
+<tr>
+  <td><code>--cap</code></td>
+  <td>Intero, massimo numero di sedi nel dominio candidato; se omesso è il numero di sedi dell'istanza. Deve essere almeno <code>1</code>; un valore inferiore al numero di sedi protette può impedire la riduzione.</td>
+</tr>
+<tr>
+  <td><code>--protect-all</code></td>
+  <td>Flag, disattivato per default: protegge tutte le sedi dall'esclusione, senza imporne l'apertura.</td>
+</tr>
+<tr>
+  <td><code>--recovery-attempts</code></td>
+  <td>Intero non negativo, predefinito <code>0</code>: massimo numero di tentativi con dominio più ampio quando il dominio è troppo piccolo o il residuo è inammissibile. Un valore positivo richiede <code>--rounds</code> almeno <code>1</code>.</td>
+</tr>
+<tr>
+  <td><code>--min-reduction-ratio</code></td>
+  <td>Numero finito in <code>[0, 1]</code>, predefinito <code>0.1</code>: soglia minima della frazione di riduzione.</td>
+</tr>
+<tr>
+  <td><code>--model-export</code></td>
+  <td>Flag, disattivato per default: richiede l'esportazione del modello classico residuo.</td>
+</tr>
+</tbody>
+</table>
+<h3>4.3 Policy del grafo</h3>
+<p>Questi parametri sono numeri finiti e controllano il grafo euristico usato
+nei round di riduzione; i profili sono costruiti sull'istanza originale.</p>
+<table>
+<thead>
+<tr>
+  <th>Parametro</th>
+  <th>Significato e valori ammessi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>--alpha</code></td>
+  <td>Peso della capacità utile nello score, in <code>[0, 1]</code>; predefinito <code>0.5</code>. Il peso restante è attribuito alla convenienza di costo.</td>
+</tr>
+<tr>
+  <td><code>--epsilon</code></td>
+  <td>Limite inferiore dello score, in <code>(0, 1]</code>; predefinito <code>0.01</code>.</td>
+</tr>
+<tr>
+  <td><code>--profile-fraction</code></td>
+  <td>Frazione della domanda totale da coprire nel profilo di ciascuna sede, in <code>(0, 1]</code>; predefinita <code>0.5</code>. I clienti sono ordinati per costo unitario e indice.</td>
+</tr>
+<tr>
+  <td><code>--overlap-threshold</code></td>
+  <td>Sovrapposizione minima dei profili, pesata per domanda, per creare un arco; in <code>[0, 1]</code>, predefinita <code>0.5</code>.</td>
+</tr>
+<tr>
+  <td><code>--capacity-difference</code></td>
+  <td>Differenza relativa massima tra capacità per creare un arco, in <code>[0, 1]</code>; predefinita <code>0.25</code>. Anche la soglia di sovrapposizione deve essere soddisfatta.</td>
+</tr>
+</tbody>
+</table>
+<p>Con <code>--rounds</code> maggiore di zero, i tre backend Pasqal non sono utilizzabili
+tramite questa CLI: il runner passa sempre un seed MIS intero, non supportato
+per il campionamento da nessuno dei tre. Impostare <code>--seed 0</code> non lo rimuove.
+Inoltre <code>pasqal_local</code> non supporta un budget globale positivo; <code>--budget 0</code>
+risolve solo questa limitazione, non quella del seed. Per <code>pasqal_qpu</code> servono
+anche device esplicito, shot e consenso ai costi, che questa CLI non espone.
+Con <code>--rounds 0</code> il solver MIS non viene usato.</p>
+<h2>5. Directory degli artifact</h2>
+<p>La directory radice predefinita è <code>outputs/facility_location</code>; <code>--output-root</code>
+la sostituisce.</p>
+<h2>6. Note specifiche</h2>
+<p>Il grafo ausiliario rappresenta ridondanza euristica tra sedi, non vincoli di
+incompatibilità del problema. Le sedi indispensabili per conservare capacità
+complessiva sufficiente sono protette dall'esclusione, non obbligate ad aprire.
+Con collegamenti completi e domanda frazionabile, una capacità complessiva
+sufficiente permette di soddisfare la domanda. L'ottimalità del residuo non
+certifica quella del modello originale.</p>
+<h2>7. Riferimenti</h2>
+<ul>
+<li><a href="https://people.brunel.ac.uk/~mastjjb/jeb/orlib/capinfo.html">OR-Library: capacitated warehouse location</a>: formato e istanze benchmark del problema.</li>
+<li><a href="https://www.scipopt.org/">SCIP Optimization Suite</a>: documentazione di un solver per programmazione mista intera.</li>
+</ul>
+</main>
+</body>
+</html>

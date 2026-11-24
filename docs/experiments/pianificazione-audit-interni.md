@@ -1,34 +1,50 @@
 # Pianificazione degli audit interni
 
-**Stato: famiglia sperimentale, anteprima non eseguibile.** Questa pagina descrive
-una proposta di esperimento, non un piano operativo di revisione interna.
+## 1. Descrizione del problema
 
-## Caso d'uso
+La proposta, non ancora eseguibile, seleziona interventi di audit sulla base
+delle giornate richieste e delle aree di rischio coperte. L'obiettivo è coprire
+tutte le aree obbligatorie minimizzando le giornate complessive.
 
-Ogni intervento candidato richiede un certo numero di giornate e può verificare
-una o più aree di rischio. Su dati sintetici, l'obiettivo è scegliere gli
-interventi che coprono tutte le aree obbligatorie con il minimo impegno totale.
-Il modello riprende una decisione concreta del processo di audit: Intesa Sanpaolo
-descrive la propria pianificazione e riporta 320 audit completati nel 2025 nella
-sezione [Attività di audit](https://group.intesasanpaolo.com/it/sostenibilita/governo-sostenibilita/integrita-nella-condotta-aziendale).
+## 2. Formulazione matematica
 
-## Ruolo del kernel QReduce
+Siano \(I\) gli interventi candidati e \(R\) le aree obbligatorie. La variabile
+\(\delta_i \in \{0,1\}\) indica la selezione dell'intervento \(i\). Il modello
+proposto di copertura è:
 
-È un problema di *set covering*. Ogni intervento è un nodo: gli archi tra
-interventi con copertura simile indicano ridondanza, non un divieto di
-selezionarli insieme. Le soluzioni MWIS propongono un dominio candidato.
-L'adapter protegge gli interventi indispensabili, per esempio l'unico che copre
-una certa area, e controlla prima del fixing che ogni area resti copribile.
-Se la verifica fallisce, occorre ampliare il dominio o registrare il fallimento.
-Il MILP residuo sceglie il piano a costo minimo tra gli interventi rimasti,
-mantenendo tutti i vincoli di copertura. Conservare la fattibilità non garantisce
-di conservare il piano meno costoso.
+\[
+\begin{aligned}
+\min\quad & \sum_{i\in I} c_i\delta_i \\
+\text{s.t.}\quad & \sum_{i\in I} a_{ri}\delta_i \ge 1 && r\in R.
+\end{aligned}
+\]
 
-## Confronto sperimentale
+Tutti i vincoli di copertura sono attivi. Se un'area non è coperta da alcun
+intervento candidato, il modello è infattibile.
 
-Confrontare lo stesso modello e solver sui due insiemi di candidati. Registrare
-aree coperte, giornate di audit, interventi eliminati, eventuali fallimenti di
-fattibilità e tempo totale inclusa la riduzione. Come benchmark matematico,
-distinto dalla demo aziendale, [OR-Library](https://people.brunel.ac.uk/~mastjjb/jeb/orlib/scpinfo.html)
-offre istanze di *set covering* come `scp41`; si veda la
-[roadmap N03](../implementation/00-implementation-overview.md#nice-to-have-benchmark-suite-pubblica-esterna).
+## 3. CLI unificata
+
+Non disponibile: l’esperimento non è ancora eseguibile.
+
+## 4. Parametri
+
+- \(c_i \ge 0\): giornate richieste dall'intervento \(i\).
+- \(a_{ri} \in \{0,1\}\): indica se l'intervento \(i\) copre l'area \(r\).
+- \(I\) e \(R\): catalogo degli interventi e insieme delle aree obbligatorie.
+
+## 5. Directory degli artifact
+
+Non applicabile: l’esperimento non produce ancora artifact.
+
+## 6. Note specifiche
+
+Nel grafo ausiliario, archi tra interventi simili indicano ridondanza, non
+incompatibilità. Una riduzione può proteggere gli interventi indispensabili e
+verificare che ogni area resti copribile; in caso contrario occorre ampliare il
+dominio o segnalare il fallimento. La copribilità non preserva necessariamente
+il piano a costo minimo.
+
+## 7. Riferimenti
+
+- [OR-Library, set covering](https://people.brunel.ac.uk/~mastjjb/jeb/orlib/scpinfo.html): istanze e formulazione del problema di copertura.
+- [Attività di audit, Intesa Sanpaolo](https://group.intesasanpaolo.com/it/sostenibilita/governo-sostenibilita/integrita-nella-condotta-aziendale): contesto della pianificazione degli audit.

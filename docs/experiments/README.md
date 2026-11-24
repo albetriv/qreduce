@@ -99,8 +99,8 @@ L'architettura comune è descritta in
 | portfolio_sr        | completo      | [portfolio-sr.md](./portfolio-sr.md)     |
 | facility_location   | sperimentale  | [facility-location.md](./facility-location.md) |
 
-Le guide delle famiglie disponibili descrivono comandi CLI, parametri specifici,
-convenzioni dei run ID, posizione dei notebook e interpretazione dei risultati.
+Le guide delle famiglie disponibili descrivono i modelli, i parametri CLI e le
+directory degli artifact; il comando `--help` mostra le opzioni disponibili.
 
 ## Anteprime sperimentali non eseguibili
 

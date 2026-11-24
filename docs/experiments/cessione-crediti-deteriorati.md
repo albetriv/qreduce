@@ -1,34 +1,55 @@
 # Cessione di crediti deteriorati
 
-**Stato: famiglia sperimentale, anteprima non eseguibile.** Questa pagina descrive
-una proposta di esperimento su dati sintetici, non un processo della banca.
+## 1. Descrizione del problema
 
-## Caso d'uso
+La proposta, non ancora eseguibile, seleziona offerte indivisibili su lotti di
+crediti deteriorati, potenzialmente sovrapposti. Dati i ricavi netti attesi e
+i volumi dei crediti, si massimizza il ricavo rispettando un volume minimo e
+impedendo che un credito sia ceduto più volte.
 
-Una banca riceve offerte indivisibili per lotti di crediti deteriorati. Le
-offerte possono riguardare lotti parzialmente sovrapposti. Occorre selezionare
-quelle che massimizzano il ricavo netto atteso, raggiungono un volume minimo
-di crediti ceduti e non assegnano lo stesso credito a più acquirenti. Come
-contesto, Intesa Sanpaolo documenta cessioni di portafogli deteriorati nel suo
-[bilancio consolidato 2025](https://group.intesasanpaolo.com/content/dam/portalgroup/repository-documenti/investor-relations/bilanci-relazioni-it/2025/Bilanci_2025.pdf).
+## 2. Formulazione matematica
 
-## Ruolo del kernel QReduce
+Siano \(I\) le offerte e \(C\) i crediti. La variabile
+\(\delta_i \in \{0,1\}\) indica la selezione dell'offerta \(i\). Assumendo
+che il volume sia additivo per credito, il modello proposto è:
 
-È un problema di *set packing* con un vincolo aggiuntivo sul volume. Ogni
-offerta è un nodo, pesato con una stima del valore netto. Due nodi sono
-incompatibili se condividono almeno un credito. Il kernel usa le soluzioni
-MWIS per proporre un dominio di offerte; l'adapter fissa a zero le escluse e
-il MILP residuo mantiene il divieto di doppia cessione e il volume minimo.
-Un'offerta poco remunerativa può essere necessaria per raggiungere il volume:
-la sola selezione MWIS non garantisce un residuo fattibile. Il *set packing*
-puro è già rappresentabile come MWIS: il vincolo di volume rende la demo un
-test distinto del contributo della pipeline completa.
+\[
+\begin{aligned}
+\max\quad & \sum_{i\in I} r_i\delta_i \\
+\text{s.t.}\quad
+& \sum_{i\in I} a_{ci}\delta_i \le 1 && c\in C, \\
+& \sum_{i\in I}\left(\sum_{c\in C} v_c a_{ci}\right)\delta_i \ge V.
+\end{aligned}
+\]
 
-## Confronto sperimentale
+Entrambi i vincoli sono attivi. Il primo impedisce la doppia cessione; grazie
+ad esso il volume nel secondo non conta due volte lo stesso credito.
 
-Usare lo stesso modello e solver sui cataloghi completo e ridotto: misurare
-fattibilità, ricavo netto, volume ceduto, offerte eliminate e tempo totale
-inclusa la riduzione. Il tag [set packing di MIPLIB 2017](https://miplib.zib.de/tag_set_packing.html)
-è un filtro iniziale per il benchmark strutturale, non una prova che ogni
-istanza sia compatibile con l'adapter. Il riferimento interno è la
-[roadmap N05](../implementation/00-implementation-overview.md#nice-to-have-benchmark-suite-pubblica-esterna).
+## 3. CLI unificata
+
+Non disponibile: l’esperimento non è ancora eseguibile.
+
+## 4. Parametri
+
+- \(r_i\): ricavo netto atteso dell'offerta \(i\), eventualmente negativo.
+- \(a_{ci} \in \{0,1\}\): indica se il credito \(c\) appartiene al lotto
+  dell'offerta \(i\).
+- \(v_c \ge 0\): volume del credito \(c\); \(V \ge 0\): volume minimo richiesto,
+  nella stessa unità.
+- \(I\) e \(C\): catalogo delle offerte e insieme dei crediti.
+
+## 5. Directory degli artifact
+
+Non applicabile: l’esperimento non produce ancora artifact.
+
+## 6. Note specifiche
+
+Le sovrapposizioni dei lotti costituiscono conflitti reali, rappresentabili con
+archi tra offerte; il vincolo di volume resta necessario nel modello. Una
+riduzione euristica del catalogo non equivale a imporre questi conflitti e può
+eliminare offerte necessarie a raggiungere il volume, causando infattibilità.
+
+## 7. Riferimenti
+
+- [MIPLIB 2017, set packing](https://miplib.zib.de/tag_set_packing.html): istanze con struttura di selezione incompatibile.
+- [Relazione finanziaria annuale 2025 di Intesa Sanpaolo](https://group.intesasanpaolo.com/content/dam/portalgroup/repository-documenti/investor-relations/bilanci-relazioni-it/2025/Bilanci_2025.pdf): contesto sulle cessioni di crediti deteriorati.

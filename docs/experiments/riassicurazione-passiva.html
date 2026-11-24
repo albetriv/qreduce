@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Riassicurazione passiva</title>
+<style>body { font: 1rem/1.55 system-ui, sans-serif; max-width: 72rem; margin: 2rem auto; padding: 0 1rem; } pre { overflow-x: auto; } table { border-collapse: collapse; display: block; overflow-x: auto; } th, td { border: 1px solid #aaa; padding: .4rem; } .math { overflow-x: auto; }</style>
+<script>window.MathJax = {tex: {inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']]}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<main>
+<h1>Riassicurazione passiva</h1>
+<h2>1. Descrizione del problema</h2>
+<p>La proposta, non ancora eseguibile, seleziona offerte indivisibili di
+riassicurazione in eccesso di sinistro, usando premi, perdite e indennizzi per
+scenario. L'obiettivo è ridurre la perdita trattenuta negli scenari gravi,
+rimanendo nel budget e impedendo doppi recuperi.</p>
+<h2>2. Formulazione matematica</h2>
+<p>Siano \(I\) le offerte, \(S\) un insieme non vuoto di scenari e \(G\) gli
+strati di rischio disgiunti. Ogni offerta appartiene a uno strato; \(I_g\) è
+l'insieme delle offerte per lo strato \(g\). La variabile
+\(\delta_i \in \{0,1\}\) indica l'acquisto, mentre \(x_{\mathrm{worst}}\) è
+continua e libera. Come scelta modellistica proposta, si minimizza la massima
+perdita trattenuta sugli scenari, senza includere i premi nella perdita:</p>
+<div class="math">\[
+\begin{aligned}
+\min\quad &amp; x_{\mathrm{worst}} \\
+\text{s.t.}\quad
+&amp; x_{\mathrm{worst}} \ge L_s - \sum_{i\in I} r_{si}\delta_i &amp;&amp; s\in S, \\
+&amp; \sum_{i\in I} p_i\delta_i \le B, \\
+&amp; \sum_{i\in I_g}\delta_i \le 1 &amp;&amp; g\in G.
+\end{aligned}
+\]</div>
+<p>Tutti i vincoli sono attivi. Per ogni scenario, sia \(L_{sg}\ge 0\) la
+perdita attribuita allo strato disgiunto \(g\). I dati devono soddisfare:</p>
+<div class="math">\[
+\sum_{g\in G} L_{sg}\le L_s,\qquad
+0\le r_{si}\le L_{sg}\quad (g\in G,\ i\in I_g,\ s\in S).
+\]</div>
+<p>Gli indennizzi sono precalcolati. Questi limiti e la mutua esclusione delle
+offerte alternative impediscono doppi recuperi e assicurano che l'indennizzo
+complessivo non superi la perdita lorda.</p>
+<h2>3. CLI unificata</h2>
+<p>Non disponibile: l’esperimento non è ancora eseguibile.</p>
+<h2>4. Parametri</h2>
+<ul>
+<li>\(L_s \ge 0\): perdita lorda nello scenario \(s\).</li>
+<li>\(L_{sg} \ge 0\): perdita dello strato \(g\) nello scenario \(s\), con somma
+sugli strati non superiore a \(L_s\).</li>
+<li>\(r_{si} \ge 0\): indennizzo dell'offerta \(i\) nello scenario \(s\),
+precalcolato secondo soglia e limite contrattuale.</li>
+<li>\(p_i \ge 0\): premio dell'offerta; \(B \ge 0\): budget totale dei premi.</li>
+<li>\(I\), \(S\), \(G\) e \(I_g\): offerte, scenari, strati e assegnazione
+delle offerte agli strati.</li>
+</ul>
+<h2>5. Directory degli artifact</h2>
+<p>Non applicabile: l’esperimento non produce ancora artifact.</p>
+<h2>6. Note specifiche</h2>
+<p>Archi di un grafo ausiliario tra offerte con rimborsi simili rappresentano
+ridondanza euristica, non necessariamente incompatibilità contrattuale. Le
+incompatibilità effettive sono invece vincoli del modello; eliminare offerte
+simili può peggiorare l'ottimo.</p>
+<h2>7. Riferimenti</h2>
+<ul>
+<li><a href="https://www.ivass.it/pubblicazioni-e-statistiche/pubblicazioni/relazione-annuale/2023/Relazione_Annuale_2022_glossario_en.pdf?language_id=3">Glossario IVASS</a>: terminologia assicurativa e riassicurativa.</li>
+<li><a href="https://www.ivass.it/operatori/intermediari/prova-idoneita/database-quesiti/DATABASE_QUESITI_PROVA_RUI.pdf">Banca dati dei quesiti IVASS</a>: contesto sulle coperture riassicurative.</li>
+</ul>
+</main>
+</body>
+</html>
