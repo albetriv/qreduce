@@ -164,7 +164,11 @@ poetry run python -m qreduce.experiments.portfolio_sr \
 | `--max-reduction-rounds` | 1 | Rounds riduzione (0=baseline) |
 | `--candidate-domain-min-items` | 1 | Minimo item dominio candidato |
 | `--candidate-domain-max-items` | 60% assets | Massimo item dominio |
+| `--num-source-mis-candidates` | 1 | Numero di candidati MIS aggregati |
+| `--min-reduction-ratio` | 0.1 | Rapporto minimo di riduzione |
+| `--target-binary-variables` | 3 con cardinalità, altrimenti 0 | Target di variabili binarie residue |
 | `--max-end-to-end-runtime-seconds` | 120.0 | Timeout totale |
+| `--recovery-policy-on-domain-too-small` | `fail` | Policy per dominio candidato troppo piccolo |
 | `--recovery-policy-on-infeasible` | `fail` | Policy recovery |
 | `--max-recovery-attempts` | 0 | Tentativi recovery |
 
@@ -235,6 +239,12 @@ Il configuratore [`uix/experiment_portfolio_sr.html`](../../uix/experiment_portf
 genera comandi CLI interattivamente. È una pagina statica apribile da
 filesystem.
 
+La selezione dell'universo usa alternativamente una numerosità o una lista
+esplicita di ticker non vuoti e senza duplicati. In assenza di entrambe le
+opzioni CLI, la numerosità predefinita è 50. Il configuratore espone anche
+logging, parametri di riduzione e recovery ed export del modello nel tab
+dedicato; il target binario è attivo solo quando è configurata la cardinalità.
+
 Il configuratore include un pannello espandibile con la formulazione matematica
 del problema configurato. Il pannello mostra:
 
@@ -262,6 +272,43 @@ viene generato né reso copiabile finché la configurazione non è valida.
 - Il tasso risk-free è fisso a 0 nella versione corrente
 - I coefficienti big-M per cardinalità dipendono dal dataset caricato
 - Senza cardinalità il problema è un QP convesso; con cardinalità è MIQP
+
+## Confronto tra run
+
+La scheda **06 · Confronto** nel configuratore permette di confrontare due run
+selezionando **Baseline** e **Run di confronto** da tendine popolate dal catalogo locale.
+
+La dashboard mostra:
+- **Indicatori**: dominio finale, variazione Sharpe ratio, posizioni escluse
+- **Grafico dominio**: ticker mantenuti ed esclusi
+- **Motivi esclusioni**: per round, con conteggi e percentuali
+- **Termometro**: confronto qualità (Sharpe), tempo solver, tempo end-to-end
+- **Verdetto**: favorevole, compromesso, o non disponibile con motivi
+
+Il verdetto viene generato solo quando:
+- L'istanza è identica (problem.json byte-per-byte uguale)
+- Entrambe le soluzioni sono valide e adottate
+- La baseline è senza riduzione verificata
+- Il confronto ha riduzione applicata verificata
+- Sono disponibili Sharpe e tempi necessari per il confronto
+
+Le differenze descrivono i run osservati e non dimostrano un effetto causale.
+
+### Generazione del catalogo
+
+Per creare o aggiornare il catalogo locale dopo aver aggiunto, rimosso o
+rigenerato run, eseguire dalla root del repository:
+
+```bash
+python -m qreduce.experiments.portfolio_sr.run_catalog
+```
+
+Il comando legge gli artifact in `outputs/portfolio_sr/` e genera
+`outputs/portfolio_sr/run_catalog.js`, uno snapshot locale non tracciato da Git.
+
+Dopo la generazione, premere **↻** nella scheda **Confronto** per ricaricare.
+Non occorre ricaricare la pagina; le selezioni restano valide finché i run
+sono presenti nel catalogo.
 
 ## Differenze dal portfolio sintetico
 

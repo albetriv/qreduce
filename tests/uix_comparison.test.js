@@ -2,9 +2,11 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {importRun, adaptPortfolio, compareRuns} = require('../uix/assets/comparison.js');
+const {importRun, importRunSharpe, adaptPortfolio, adaptSharpePortfolio, compareRuns} = require('../uix/assets/comparison.js');
 const folder = name => { const dir = path.join(__dirname, '../outputs/portfolio_mv', name); return Object.fromEntries(fs.readdirSync(dir).filter(n => n.endsWith('.json')).map(n => [n, fs.readFileSync(path.join(dir, n))])); };
+const folderSR = name => { const dir = path.join(__dirname, '../outputs/portfolio_sr', name); return Object.fromEntries(fs.readdirSync(dir).filter(n => n.endsWith('.json')).map(n => [n, fs.readFileSync(path.join(dir, n))])); };
 const load = async name => adaptPortfolio(await importRun(folder(name)));
+const loadSR = async name => adaptSharpePortfolio(await importRunSharpe(folderSR(name)));
 
 test('contradictory classical evidence and selection block comparison', async () => {
   for (const mutate of [
@@ -286,4 +288,114 @@ test('round adapter exposes presolve and physical provenance without inventing l
   assert.equal(round.audit.weightEncoding, 'not_applicable');
   assert.equal(round.candidates[0].completion_applied, true);
   assert.equal(round.backend.provider, 'qreduce');
+});
+
+
+// --- Sharpe Portfolio (SR) Tests ---
+
+function syntheticSR(classical = false) {
+  const entries = {
+    'run_manifest.json': {artifact_schema_version: '1.1', experiment_id: 'sharpe_portfolio', run_id: 'sr_run', run_status: 'success', is_classical_only: classical},
+    'problem.json': {tickers: ['AAPL', 'MSFT'], mean_returns: [0.15, 0.20], covariance: [[0.04, 0.01], [0.01, 0.09]], max_positions: 2},
+    'run_result.json': {objective_sense: 'minimize',
+      run_result: {run_status: 'success', adoption_status: 'adopted'},
+      postcheck_result: {postcheck_feasible: true, objective_recomputed: 1.5},
+      domain_evaluation_metrics: [{metric_id: 'sharpe_ratio', value: 1.5}, {metric_id: 'expected_return', value: 0.18}, {metric_id: 'volatility', value: 0.12}],
+      classical_result: {variable_values: {x_scale: 2.0, x_scaled__AAPL: 1.0, x_scaled__MSFT: 1.0, delta__AAPL: 1, delta__MSFT: 1}},
+      final_retained_item_ids: classical ? null : ['AAPL', 'MSFT']},
+    'config_used.json': {run_identity: {run_id: 'sr_run'}}, 'experiment_metadata.json': {}
+  };
+  return Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, JSON.stringify(v)]));
+}
+
+test('SR import rejects MV experiment_id', async () => {
+  const files = syntheticSR();
+  change(files, 'run_manifest.json', m => m.experiment_id = 'synthetic-portfolio');
+  const imported = await importRunSharpe(files);
+  assert.ok(imported.errors.some(e => e.includes('sharpe_portfolio')));
+});
+
+test('SR adapter extracts Sharpe ratio as objective', async () => {
+  const files = syntheticSR();
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.equal(run.id, 'sr_run');
+  assert.equal(run.sense, 'maximize'); // SR uses Sharpe as quality metric
+  assert.ok(run.solution);
+  assert.equal(run.solution.sharpeRatio, 1.5);
+  assert.equal(run.solution.expectedReturn, 0.18);
+  assert.equal(run.solution.volatility, 0.12);
+  // Weights are computed from x_scaled / x_scale
+  assert.equal(run.solution.weights['AAPL'], 0.5);
+  assert.equal(run.solution.weights['MSFT'], 0.5);
+});
+
+test('SR adapter handles classical baseline', async () => {
+  const files = syntheticSR(true);
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.equal(run.reduction.state, 'not_applicable');
+  assert.equal(run.reduction.applied, false);
+  // Classical run retains full domain
+  assert.deepEqual(run.retained, ['AAPL', 'MSFT']);
+});
+
+test('SR comparison uses maximize sense for Sharpe', async () => {
+  const a = adaptSharpePortfolio(await importRunSharpe(syntheticSR(true)));
+  const b = adaptSharpePortfolio(await importRunSharpe(syntheticSR()));
+  b.reduction.applied = true;
+  b.solution.sharpeRatio = 1.6; // Better Sharpe
+  b.solution.objective = 1.6;
+  const report = compareRuns(a, b);
+  // With maximize sense, higher is better
+  assert.ok(report.objective.delta > 0);
+});
+
+test('SR detects weight conflicts with selection', async () => {
+  const files = syntheticSR();
+  change(files, 'run_result.json', r => {
+    // Weight > 0 but delta <= 0.5 (not selected)
+    r.classical_result.variable_values.x_scaled__AAPL = 1.0;
+    r.classical_result.variable_values.delta__AAPL = 0.0;
+  });
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.ok(run.issues.some(i => i.includes('conflicts with selection')));
+});
+
+test('SR requires explicit adoption_status for valid solution', async () => {
+  // Without adoption_status, solution should be blocked
+  const files = syntheticSR();
+  change(files, 'run_result.json', r => {
+    delete r.run_result.adoption_status;
+  });
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.equal(run.solution, null);
+  assert.ok(run.issues.some(i => i.includes('not adopted')));
+});
+
+test('SR does not use objective_recomputed as Sharpe fallback', async () => {
+  // If sharpe_ratio metric is missing, objective should be null, not variance
+  const files = syntheticSR();
+  change(files, 'run_result.json', r => {
+    r.domain_evaluation_metrics = r.domain_evaluation_metrics.filter(m => m.metric_id !== 'sharpe_ratio');
+  });
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.ok(run.solution);  // Solution still present (weights available)
+  assert.equal(run.solution.sharpeRatio, null);
+  assert.equal(run.solution.objective, null);  // NOT objective_recomputed (which is variance)
+  assert.ok(run.warnings.some(w => w.includes('Sharpe ratio metric unavailable')));
+});
+
+const localSROutputs = ['ptf_200_classic', 'ptf_200_dwave'].every(n => fs.existsSync(path.join(__dirname, '../outputs/portfolio_sr', n, 'run_result.json')));
+test('real SR fixtures and comparison', {skip: !localSROutputs}, async () => {
+  const a = await loadSR('ptf_200_classic'), b = await loadSR('ptf_200_dwave');
+  assert.ok(a.solution);
+  assert.ok(b.solution);
+  assert.equal(a.sense, 'maximize');
+  assert.equal(b.sense, 'maximize');
+  assert.ok(a.solution.sharpeRatio > 0);
+  assert.ok(b.solution.sharpeRatio > 0);
+  const report = compareRuns(a, b);
+  assert.equal(report.sameInstance, true);
+  assert.equal(a.reduction.state, 'not_applicable');
+  assert.equal(b.reduction.state, 'available');
+  assert.ok(b.retained.length < a.originalCount);
 });

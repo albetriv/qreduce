@@ -18,6 +18,9 @@ import pytest
 from qreduce.experiments.portfolio_mv.__main__ import (
     _build_parser as build_portfolio_parser,
 )
+from qreduce.experiments.portfolio_sr.__main__ import (
+    _build_parser as build_portfolio_sr_parser,
+)
 
 
 class TestPortfolioCLICommands:
@@ -257,7 +260,7 @@ class TestPortfolioCLICommands:
 
     def test_pasqal_default_shots(self, parser: argparse.ArgumentParser) -> None:
         """Test that Pasqal shots defaults to None in CLI (UI default is 100).
-        
+
         The CLI parser defaults to None; the UI provides the default value 100.
         When the UI generates a command with shots=100, it may omit the flag
         since it matches the backend's default behavior.
@@ -284,7 +287,7 @@ class TestPortfolioCLICommands:
 
     def test_pasqal_shots_minimum_value(self, parser: argparse.ArgumentParser) -> None:
         """Test that shots can be set to minimum value 1.
-        
+
         Note: Pasqal with reduction active requires explicit budget=0.
         """
         cmd = "--run-id pasqal005 --mis-solver-id pasqal_local --pasqal-shots 1 --max-end-to-end-runtime-seconds 0"
@@ -294,7 +297,7 @@ class TestPortfolioCLICommands:
 
     def test_pasqal_shots_exponential_notation(self, parser: argparse.ArgumentParser) -> None:
         """Test that exponential notation is parsed correctly (regression for parseInt vs Number).
-        
+
         UI input like 1e3 must be interpreted as 1000, not truncated to 1.
         This test verifies the CLI accepts the correct numeric value.
         """
@@ -321,6 +324,242 @@ class TestPortfolioCLICommands:
         assert args.mis_solver_id == "pasqal_local"
         assert args.pasqal_shots == 100
         assert args.max_end_to_end_runtime_seconds == 0.0
+
+
+class TestPortfolioSRCLICommands:
+    """Test that generated portfolio SR CLI commands are valid."""
+
+    @pytest.fixture
+    def parser(self) -> argparse.ArgumentParser:
+        """Return the portfolio SR CLI parser."""
+        return build_portfolio_sr_parser()
+
+    def test_minimal_command(self, parser: argparse.ArgumentParser) -> None:
+        """Test minimal command with only required arguments."""
+        cmd = "--run-id sr001"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.run_id == "sr001"
+
+    def test_default_values(self, parser: argparse.ArgumentParser) -> None:
+        """Test that parser defaults match UI defaults."""
+        cmd = "--run-id sr001"
+        args = parser.parse_args(shlex.split(cmd))
+
+        # These should match the JS defaults
+        assert args.output_root == "outputs/portfolio_sr"
+        assert args.csv_path == "data/yahoo/SP500.csv"
+        # asset_count is None at parse time; default 50 is applied in main() when no explicit-tickers
+        assert args.asset_count is None
+        assert args.return_convention == "log"
+        assert args.annualization_factor == 252
+        assert args.selection_order == "alphabetical"
+        assert args.upper_bound == 1.0
+        assert args.edge_mode == "near_duplicate"
+        assert args.correlation_threshold == 0.80
+        assert args.near_duplicate_max_return_diff == 0.15
+        assert args.near_duplicate_max_variance_diff == 0.15
+        assert args.mis_solver_id == "local_greedy"
+        assert args.classical_solver_id == "scip"
+        assert args.max_reduction_rounds == 1
+        assert args.model_export is False
+
+    def test_baseline_command_rounds_zero(self, parser: argparse.ArgumentParser) -> None:
+        """Test classical baseline command (rounds=0)."""
+        cmd = "--run-id baseline001 --max-reduction-rounds 0"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.run_id == "baseline001"
+        assert args.max_reduction_rounds == 0
+
+    def test_explicit_tickers(self, parser: argparse.ArgumentParser) -> None:
+        """Test explicit ticker selection (mutually exclusive with asset-count)."""
+        cmd = "--run-id explicit001 --explicit-tickers AAPL,MSFT,GOOGL"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.explicit_tickers == "AAPL,MSFT,GOOGL"
+        # Note: when explicit-tickers is used, asset-count is not meaningful
+
+    def test_asset_count_selection(self, parser: argparse.ArgumentParser) -> None:
+        """Test asset count selection mode."""
+        cmd = "--run-id count001 --asset-count 25 --selection-order sharpe_descending"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.asset_count == 25
+        assert args.selection_order == "sharpe_descending"
+
+    def test_date_range(self, parser: argparse.ArgumentParser) -> None:
+        """Test date range parameters."""
+        cmd = "--run-id dates001 --start-date 2022-01-01 --end-date 2024-12-31"
+        args = parser.parse_args(shlex.split(cmd))
+        from datetime import date
+        assert args.start_date == date(2022, 1, 1)
+        assert args.end_date == date(2024, 12, 31)
+
+    def test_max_positions_cardinality(self, parser: argparse.ArgumentParser) -> None:
+        """Test max positions (cardinality constraint)."""
+        cmd = "--run-id card001 --max-positions 10"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.max_positions == 10
+
+    def test_sector_constraints(self, parser: argparse.ArgumentParser) -> None:
+        """Test sector constraints."""
+        cmd = (
+            "--run-id sector001 "
+            "--sector-min 'Technology=0.10,Health Care=0.05' "
+            "--sector-max 'Technology=0.30,Health Care=0.20'"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.sector_min == "Technology=0.10,Health Care=0.05"
+        assert args.sector_max == "Technology=0.30,Health Care=0.20"
+
+    def test_graph_policy_params(self, parser: argparse.ArgumentParser) -> None:
+        """Test all graph policy parameters."""
+        cmd = (
+            "--run-id graph001 "
+            "--edge-mode near_duplicate "
+            "--correlation-threshold 0.90 "
+            "--near-duplicate-max-return-diff 0.10 "
+            "--near-duplicate-max-variance-diff 0.12"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.edge_mode == "near_duplicate"
+        assert args.correlation_threshold == 0.90
+        assert args.near_duplicate_max_return_diff == 0.10
+        assert args.near_duplicate_max_variance_diff == 0.12
+
+    def test_all_reduction_policy_params(self, parser: argparse.ArgumentParser) -> None:
+        """Test all reduction policy parameters added in PR1.1."""
+        cmd = (
+            "--run-id policy001 "
+            "--num-source-mis-candidates 3 "
+            "--min-reduction-ratio 0.15 "
+            "--target-binary-variables 5 "
+            "--recovery-policy-on-domain-too-small retry_with_larger_domain "
+            "--candidate-domain-min-items 2 "
+            "--candidate-domain-max-items 20 "
+            "--max-end-to-end-runtime-seconds 180"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.num_source_mis_candidates == 3
+        assert args.min_reduction_ratio == 0.15
+        assert args.target_binary_variables == 5
+        assert args.recovery_policy_on_domain_too_small == "retry_with_larger_domain"
+        assert args.candidate_domain_min_items == 2
+        assert args.candidate_domain_max_items == 20
+        assert args.max_end_to_end_runtime_seconds == 180
+
+    def test_recovery_options(self, parser: argparse.ArgumentParser) -> None:
+        """Test recovery policy options."""
+        cmd = (
+            "--run-id recovery001 "
+            "--max-reduction-rounds 3 "
+            "--recovery-policy-on-infeasible retry_with_larger_domain "
+            "--recovery-policy-on-domain-too-small retry_with_larger_domain "
+            "--max-recovery-attempts 5"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.recovery_policy_on_infeasible == "retry_with_larger_domain"
+        assert args.recovery_policy_on_domain_too_small == "retry_with_larger_domain"
+        assert args.max_recovery_attempts == 5
+
+    def test_dwave_solver_with_params(self, parser: argparse.ArgumentParser) -> None:
+        """Test D-Wave solver with parameters."""
+        cmd = (
+            "--run-id dwave001 "
+            "--mis-solver-id dwave_simulated_annealing "
+            "--mis-num-reads 100 "
+            "--mis-num-sweeps 1000"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.mis_solver_id == "dwave_simulated_annealing"
+        assert args.mis_num_reads == 100
+        assert args.mis_num_sweeps == 1000
+
+    def test_pasqal_solver_with_params(self, parser: argparse.ArgumentParser) -> None:
+        """Test Pasqal solver with shots parameter."""
+        cmd = (
+            "--run-id pasqal001 "
+            "--mis-solver-id pasqal_local "
+            "--pasqal-shots 150 "
+            "--max-end-to-end-runtime-seconds 0"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.mis_solver_id == "pasqal_local"
+        assert args.pasqal_shots == 150
+        assert args.max_end_to_end_runtime_seconds == 0
+
+    def test_model_export_internal(self, parser: argparse.ArgumentParser) -> None:
+        """Test model export without path (internal)."""
+        cmd = "--run-id export001 --model-export"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.model_export is True
+        assert args.model_export_path is None
+
+    def test_model_export_external(self, parser: argparse.ArgumentParser) -> None:
+        """Test model export with external path."""
+        cmd = "--run-id export002 --model-export --model-export-path /tmp/model.lp"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.model_export is True
+        assert args.model_export_path == "/tmp/model.lp"
+
+    def test_log_config(self, parser: argparse.ArgumentParser) -> None:
+        """Test log config parameter."""
+        cmd = "--run-id log001 --log-config config/logging.yaml"
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.log_config == "config/logging.yaml"
+
+    def test_full_command_as_ui_generates(self, parser: argparse.ArgumentParser) -> None:
+        """Test a full command as generated by the UI."""
+        cmd = (
+            "--run-id sr_full_001 "
+            "--output-root outputs/portfolio_sr "
+            "--csv-path data/yahoo/SP500.csv "
+            "--asset-count 30 "
+            "--start-date 2023-01-01 "
+            "--end-date 2024-06-30 "
+            "--return-convention log "
+            "--annualization-factor 252 "
+            "--selection-order alphabetical "
+            "--upper-bound 0.8 "
+            "--max-positions 15 "
+            "--edge-mode near_duplicate "
+            "--correlation-threshold 0.85 "
+            "--near-duplicate-max-return-diff 0.12 "
+            "--near-duplicate-max-variance-diff 0.12 "
+            "--max-reduction-rounds 2 "
+            "--candidate-domain-min-items 3 "
+            "--candidate-domain-max-items 25 "
+            "--target-binary-variables 5 "
+            "--min-reduction-ratio 0.1 "
+            "--num-source-mis-candidates 2 "
+            "--max-end-to-end-runtime-seconds 120 "
+            "--mis-solver-id local_greedy "
+            "--classical-solver-id scip "
+            "--classical-time-limit-seconds 60"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.run_id == "sr_full_001"
+        assert args.asset_count == 30
+        assert args.max_positions == 15
+        assert args.max_reduction_rounds == 2
+        assert args.num_source_mis_candidates == 2
+        assert args.target_binary_variables == 5
+
+    def test_baseline_does_not_need_reduction_params(
+        self, parser: argparse.ArgumentParser
+    ) -> None:
+        """Test that baseline command doesn't need reduction-specific params.
+
+        When rounds=0, reduction params are ignored but accepted.
+        """
+        cmd = (
+            "--run-id baseline002 "
+            "--max-reduction-rounds 0 "
+            "--asset-count 20 "
+            "--max-positions 10 "
+            "--classical-solver-id cplex"
+        )
+        args = parser.parse_args(shlex.split(cmd))
+        assert args.max_reduction_rounds == 0
+        # Reduction params should still be accepted even if not used
+        assert args.mis_solver_id == "local_greedy"  # default
 
 
 class TestFacilityLocationCLICommands:
@@ -512,6 +751,11 @@ class TestUIXFileStructure:
         """Test that experiment_portfolio_mv.html exists."""
         file = Path(__file__).parent.parent / "uix" / "experiment_portfolio_mv.html"
         assert file.exists(), "uix/experiment_portfolio_mv.html should exist"
+
+    def test_experiment_portfolio_sr_html_exists(self) -> None:
+        """Test that experiment_portfolio_sr.html exists."""
+        file = Path(__file__).parent.parent / "uix" / "experiment_portfolio_sr.html"
+        assert file.exists(), "uix/experiment_portfolio_sr.html should exist"
 
     def test_experiment_facility_location_html_exists(self) -> None:
         """Test that experiment_facility_location.html exists."""

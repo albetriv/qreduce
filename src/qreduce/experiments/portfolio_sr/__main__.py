@@ -102,8 +102,8 @@ Examples:
     data_group.add_argument(
         "--asset-count",
         type=int,
-        default=50,
-        help="Number of assets to select. Default: 50.",
+        default=None,
+        help="Number of assets to select. Default: 50 (when --explicit-tickers is not used).",
     )
     data_group.add_argument(
         "--explicit-tickers",
@@ -392,10 +392,10 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
             parser.error(error)
 
 
-def _build_reduction_policy(args: argparse.Namespace) -> ReductionPolicy:
+def _build_reduction_policy(args: argparse.Namespace, asset_count: int) -> ReductionPolicy:
     """Build reduction policy from CLI arguments."""
     base = default_reduction_policy(
-        args.asset_count or 50,
+        asset_count,
         has_cardinality=args.max_positions is not None,
     )
 
@@ -467,15 +467,27 @@ def main() -> int:
         near_duplicate_max_variance_diff=args.near_duplicate_max_variance_diff,
     )
 
+    # Compute effective asset count for reduction policy
+    if explicit_tickers is not None:
+        effective_asset_count_for_policy = len(explicit_tickers)
+    elif args.asset_count is not None:
+        effective_asset_count_for_policy = args.asset_count
+    else:
+        effective_asset_count_for_policy = 50  # default
+
     # Build reduction policy
-    reduction_policy = _build_reduction_policy(args)
+    reduction_policy = _build_reduction_policy(args, effective_asset_count_for_policy)
 
     # Run experiment
     try:
+        # Apply default asset_count=50 only when no explicit tickers are provided
+        effective_asset_count = None
+        if explicit_tickers is None:
+            effective_asset_count = args.asset_count if args.asset_count is not None else 50
         run = run_sharpe_portfolio_experiment(
             args.run_id,
             csv_path=args.csv_path,
-            asset_count=args.asset_count if explicit_tickers is None else None,
+            asset_count=effective_asset_count,
             explicit_tickers=explicit_tickers,
             start_date=args.start_date,
             end_date=args.end_date,
