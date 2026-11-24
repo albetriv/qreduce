@@ -92,6 +92,16 @@
         "Accetta un budget positivo; la scadenza locale non annulla il batch remoto.",
         "Richiede <code>poetry install --with experiments</code> (include <code>pasqal-cloud</code>)."
       ]
+    },
+
+    pasqal_qpu: {
+      title: "Pasqal QPU (hardware reale): requisiti e limitazioni",
+      type: "warning",
+      items: [
+        "Un solo round di riduzione; device, shot e consenso ai costi espliciti.",
+        "Il preflight CLI compila senza inviare un batch. La discovery non conferma accesso al calcolo o crediti.",
+        "Le credenziali restano nel processo CLI. Il browser non esegue il comando."
+      ]
     }
   };
 

@@ -75,7 +75,9 @@ def run_experiment(
                 f"Experiment artifact directory already exists: {destination}"
             )
 
-        if config.mis_solver_id == BuiltinMISSolverId.PASQAL_CLOUD_EMULATOR and mis_solver_registry is None:
+        if config.mis_solver_id in {
+            BuiltinMISSolverId.PASQAL_CLOUD_EMULATOR, BuiltinMISSolverId.PASQAL_QPU,
+        } and mis_solver_registry is None:
             # This journal must survive failure/cleanup of the staged run artifacts.
             journal = destination.parent / ".pasqal-cloud-jobs" / run_id
             if any(journal.glob("pasqal_cloud_job_*.json")):

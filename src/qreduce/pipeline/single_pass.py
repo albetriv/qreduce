@@ -303,13 +303,8 @@ def _execute_reduction_round(
     with logging_context(stage="graph_construction"):
         logger.debug("Building conflict graph")
         try:
-            graph = adapter.build_conflict_graph(problem)
-            qubo = build_mwis_qubo(
-                graph,
-                _resolved_lambda_edge(config),
-                allow_noncertifying_penalty=config.allow_noncertifying_penalty,
-            )
-            canonical_problem = CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
+            canonical_problem = build_canonical_mwis_problem(problem, adapter, config)
+            graph = canonical_problem.graph
             logger.debug("Graph built: nodes=%d edges=%d", len(graph.node_ids), len(graph.edges))
         except Exception as error:  # noqa: BLE001 - Domain errors become normalized outcomes.
             logger.warning("Graph construction failed: %s", error)
@@ -1062,6 +1057,18 @@ def _select_problem_form(supported_forms: frozenset[ProblemForm]) -> ProblemForm
         if problem_form in supported_forms:
             return problem_form
     return None
+
+
+def build_canonical_mwis_problem(
+    problem: object, adapter: ReducibleProblemAdapter, config: ResolvedRunConfig,
+) -> CanonicalMWISProblem:
+    """Build the same canonical problem for reduction and compile-only preflight."""
+    graph = adapter.build_conflict_graph(problem)
+    qubo = build_mwis_qubo(
+        graph, _resolved_lambda_edge(config),
+        allow_noncertifying_penalty=config.allow_noncertifying_penalty,
+    )
+    return CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
 
 
 def _resolved_lambda_edge(config: ResolvedRunConfig) -> float:

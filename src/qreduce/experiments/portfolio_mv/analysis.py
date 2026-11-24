@@ -8,6 +8,7 @@ from pathlib import Path
 from qreduce.experiments.artifacts import (
     ExperimentArtifactError,
     ExperimentRunArtifacts,
+    first_round_canonical_problem,
     load_experiment_run,
 )
 from qreduce.experiments.portfolio_mv.execution import UNIFIED_EXPERIMENT_ID
@@ -734,20 +735,7 @@ def load_synthetic_portfolio_analysis(
             "Artifact directory does not contain the synthetic portfolio experiment."
         )
 
-    # Schema 1.1: canonical MWIS data is inside round_results
-    # Schema 1.0: canonical_mwis_problem.json is a separate file
-    graph_data = artifacts.canonical_mwis_problem
-    if graph_data is None and artifacts.round_results:
-        # Try to extract from round_results (schema 1.1)
-        round_0 = artifacts.round_results[0]
-        compilation = round_0.get("mis_compilation_result") or {}
-        job = compilation.get("compiled_job") or {}
-        graph_data = job.get("compiled_problem")
-
-    if graph_data is None:
-        raise ExperimentArtifactError(
-            "Synthetic portfolio analysis requires canonical MWIS problem data."
-        )
+    graph_data = first_round_canonical_problem(artifacts)
     graph = _rebuild_graph(graph_data)
     problem = _require_mapping(artifacts.problem, "problem.json")
     asset_ids = _string_tuple(problem.get("asset_ids"), "problem.asset_ids")

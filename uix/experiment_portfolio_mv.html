@@ -295,6 +295,7 @@
                   <option value="dwave_simulated_annealing">dwave_simulated_annealing</option>
                   <option value="pasqal_local">pasqal_local (emulazione locale)</option>
                   <option value="pasqal_cloud_emulator">Pasqal Cloud (EMU_FREE)</option>
+                  <option value="pasqal_qpu">Pasqal QPU (hardware reale)</option>
                 </select>
               </div>
               <!-- PARAM_DESC: Backend per risolvere il problema residuo dopo la riduzione (o l'intero problema in baseline). scip: solver open-source. cplex: solver commerciale IBM (richiede licenza). Usato sempre, sia in baseline che con riduzione. -->
@@ -366,6 +367,32 @@
                   non dal browser. Configurarle in <code>~/.pasqual/credentials</code> o tramite
                   variabili d'ambiente (<code>PASQAL_USERNAME</code>, <code>PASQAL_PASSWORD</code>,
                   <code>PASQAL_PROJECT_ID</code>).
+                </div>
+              </div>
+
+              <div id="pasqalQpuParams" hidden>
+                <p class="help">Richiede esattamente un round di riduzione. La pagina genera il comando CLI: non interroga Pasqal e non invia batch.</p>
+                <p class="help">Per trovare il device, esegui nel terminale <code>poetry run python -m qreduce.experiments.portfolio_mv preflight --discover</code>.</p>
+                <div class="form-grid two">
+                  <!-- PARAM_DESC: ID esatto della QPU ottenuto con preflight --discover; obbligatorio con pasqal_qpu. -->
+                  <div class="field">
+                    <label for="pasqalQpuDevice">ID dispositivo <span class="param">--pasqal-device-id</span></label>
+                    <input id="pasqalQpuDevice" type="text" spellcheck="false" autocomplete="off" data-favorite-default="">
+                    <p class="help">Inserisci l'ID esatto restituito dalla discovery.</p>
+                    <p class="error"></p>
+                  </div>
+                  <!-- PARAM_DESC: Numero esplicito di misure su hardware reale; deve essere un intero positivo e rispettare il limite del dispositivo. -->
+                  <div class="field">
+                    <label for="pasqalQpuShots">Shot QPU <span class="param">--pasqal-shots</span></label>
+                    <input id="pasqalQpuShots" type="number" min="1" step="1" data-favorite-default="">
+                    <p class="help">Obbligatorio, senza valore predefinito.</p>
+                    <p class="error"></p>
+                  </div>
+                </div>
+                <!-- PARAM_DESC: Consenso esplicito ai potenziali costi del run su hardware reale. Non viene salvato nei preferiti. -->
+                <div class="field">
+                  <label for="pasqalQpuConsent"><input id="pasqalQpuConsent" type="checkbox" data-favorite-ignore autocomplete="off"> Autorizzo i potenziali costi del run su hardware reale. <span class="param">--pasqal-cost-consent</span></label>
+                  <p class="error"></p>
                 </div>
               </div>
 

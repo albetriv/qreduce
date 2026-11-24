@@ -770,7 +770,8 @@ var QReduceCommon = (function () {
     host.appendChild(panel);
     var nameInput = $("favoriteName");
     var list = $("favoritesList");
-    var fields = Array.from(form.querySelectorAll("input[id], select[id], textarea[id]"));
+    var fields = Array.from(form.querySelectorAll("input[id], select[id], textarea[id]"))
+      .filter(function (field) { return !field.hasAttribute("data-favorite-ignore"); });
     var fieldMap = new Map(fields.map(function (field) { return [field.id, field]; }));
 
     // Name proposal tracking: sync name with runId until user customizes it
@@ -842,15 +843,16 @@ var QReduceCommon = (function () {
         }
         if (names.has(normalized(item.name))) throw new Error("Nomi duplicati nell'archivio.");
         names.add(normalized(item.name));
-        // Only the newly introduced optional MV field may be missing. Keep
-        // exact field/type validation for every other part of the archive.
-        var legacyCandidateCount = family === "portfolio_mv" &&
-          !Object.prototype.hasOwnProperty.call(item.fields, "numSourceMisCandidates");
-        if (Object.keys(item.fields).length !== fields.length - (legacyCandidateCount ? 1 : 0)) {
+        var missingAllowed = fields.filter(function (field) {
+          return !Object.prototype.hasOwnProperty.call(item.fields, field.id) &&
+            (field.hasAttribute("data-favorite-default") ||
+              (family === "portfolio_mv" && field.id === "numSourceMisCandidates"));
+        });
+        if (Object.keys(item.fields).length !== fields.length - missingAllowed.length) {
           throw new Error("Campi incompatibili con questa versione del configuratore.");
         }
         fields.forEach(function (field) {
-          if (legacyCandidateCount && field.id === "numSourceMisCandidates") return;
+          if (missingAllowed.includes(field)) return;
           if (!Object.prototype.hasOwnProperty.call(item.fields, field.id)) {
             throw new Error("Campo mancante: " + field.id);
           }
@@ -969,7 +971,8 @@ var QReduceCommon = (function () {
       var values = Object.create(null);
       fields.forEach(function (field) { values[field.id] = field.type === "checkbox" ? field.checked : field.value; });
       var next = entries.filter(function (item) { return item !== existing; });
-      next.push({ name: name, fields: values, format: getFormat(), command: $("cliPreview").textContent });
+      var hasTransientConsent = form.querySelector("input[data-favorite-ignore]:checked");
+      next.push({ name: name, fields: values, format: getFormat(), command: hasTransientConsent ? "" : $("cliPreview").textContent });
       commit(next, "Preferito salvato.");
     });
     $("loadFavorite").addEventListener("click", function () {
@@ -981,6 +984,12 @@ var QReduceCommon = (function () {
       if (family === "portfolio_mv" && !Object.prototype.hasOwnProperty.call(entry.fields, "numSourceMisCandidates")) {
         fieldMap.get("numSourceMisCandidates").value = "";
       }
+      fields.forEach(function (field) {
+        if (field.hasAttribute("data-favorite-default") && !Object.prototype.hasOwnProperty.call(entry.fields, field.id)) {
+          field.value = field.getAttribute("data-favorite-default");
+        }
+      });
+      form.querySelectorAll("input[data-favorite-ignore]").forEach(function (field) { field.checked = false; });
       Object.keys(entry.fields).forEach(function (id) {
         var field = fieldMap.get(id);
         if (field.type === "checkbox") field.checked = entry.fields[id];

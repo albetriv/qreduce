@@ -49,6 +49,8 @@ def run_portfolio_experiment(
     mis_num_reads: int | None = None,
     pasqal_shots: int | None = None,
     pasqal_emulator_service: str | None = None,
+    pasqal_device_id: str | None = None,
+    pasqal_cost_consent: bool = False,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     model_export_enabled: bool = False,
@@ -132,6 +134,8 @@ def run_portfolio_experiment(
         mis_num_reads=mis_num_reads,
         pasqal_shots=pasqal_shots,
         pasqal_emulator_service=pasqal_emulator_service,
+        pasqal_device_id=pasqal_device_id,
+        pasqal_cost_consent=pasqal_cost_consent,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
         lower_bound=lower_bound,
@@ -144,6 +148,8 @@ def run_portfolio_experiment(
     config = inputs.config
     if reduction_policy is not None:
         config = replace(config, reduction=reduction_policy)
+    if mis_solver_id == "pasqal_qpu" and config.reduction.max_reduction_rounds != 1:
+        raise ValueError("pasqal_qpu requires exactly one reduction round.")
 
     # Apply model export options
     if model_export_enabled or model_export_path is not None:

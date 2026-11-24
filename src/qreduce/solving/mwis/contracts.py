@@ -139,10 +139,13 @@ class MISCompilationResult:
     effective_compilation_parameters: Mapping[str, object] = field(default_factory=dict)
     terminal_reason: TerminalReason | None = None
     diagnostic_message: str | None = None
+    diagnostic_details: Mapping[str, object] | None = field(default=None, metadata={"omit_if_none": True})
 
     def __post_init__(self) -> None:
         _require_nonnegative_finite(self.runtime_seconds, "runtime_seconds")
         _validate_completion(self.completion_status, self.terminal_reason, self.compiled_job is not None)
+        if self.diagnostic_details is not None:
+            object.__setattr__(self, "diagnostic_details", MappingProxyType(dict(self.diagnostic_details)))
         object.__setattr__(
             self,
             "effective_compilation_parameters",

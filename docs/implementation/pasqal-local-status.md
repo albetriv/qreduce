@@ -163,9 +163,10 @@ chiudere la Fase 1 serve un corpus più rappresentativo, con densità intermedie
 e più run stocastici: riportare separatamente rifiuti, shot validi prima del
 repair, divario dall'esatto, assenza di candidati validi ed esiti con repair.
 
-L'emulazione remota e l'uso di QPU restano fasi future; non eseguire job o
-spese senza autorizzazione esplicita. I notebook restano strumenti di
-presentazione e non ospitano l'implementazione del benchmark.
+Il pilota QPU con layout custom è documentato nel
+[piano mapper](../../PIANO_MAPPER_PASQAL_QPU.md); non sostituisce questo
+benchmark locale. I notebook restano strumenti di presentazione e non
+ospitano l'implementazione del benchmark.
 
 ## Audit delle trasformazioni e presolve
 
@@ -266,6 +267,11 @@ al termine. Durante l'operazione la variabile è visibile a tutto il processo;
 non vengono modificati il contesto `ssl` globale, la shell o i file di sistema.
 
 ### Uso dalla CLI
+
+In UIX, **Portfolio MV → 03 · Solver → Backend MIS → Pasqal QPU (hardware reale)**
+genera lo stesso comando di esecuzione con un round, device, shot e consenso
+espliciti. Il browser non usa credenziali e non interroga il cloud. I preferiti
+non salvano il consenso né il comando QPU già autorizzato.
 
 ```bash
 python -m qreduce.experiments.portfolio_mv \
@@ -370,5 +376,157 @@ classi SDK reali e intercetta tutte le richieste HTTP:
 
 ```bash
 poetry run pytest tests/solving/mwis/test_pasqal_cloud_emulator_backend.py \
+  tests/experiments/portfolio_mv/test_pasqal_cloud_flow.py -v
+```
+
+
+## Fase 3: QPU reale Pasqal
+
+La Fase 3 implementa l'esecuzione su QPU reale tramite il backend `pasqal_qpu`.
+Questo backend è separato da `pasqal_cloud_emulator` e richiede:
+- Le dipendenze del gruppo Poetry `experiments`
+- Credenziali Pasqal Cloud configurate
+- Selezione esplicita del device QPU
+- Consenso esplicito ai potenziali costi
+
+### Backend `pasqal_qpu`
+
+Il backend `pasqal_qpu` compila localmente con Pulser ed esegue remotamente su
+QPU Pasqal Cloud. Caratteristiche:
+
+- **Discovery dinamica**: interroga Pasqal Cloud per i device disponibili
+- **Compilazione locale**: usa Pulser con specifiche del device target
+- **Presolve**: grafi senza archi sono risolti esattamente senza invio QPU
+- **Device esplicito**: richiede `--pasqal-device-id` (es. 'FRESNEL')
+- **Consenso**: `--pasqal-cost-consent` è richiesto per l'invio e verificato
+  nella richiesta di esecuzione; non serve per il preflight
+- **Shot espliciti**: richiede `--pasqal-shots` esplicito (nessun default)
+- **Persistenza pre-polling**: il batch ID viene salvato atomicamente prima della prima lettura
+
+### Uso dalla CLI
+
+```bash
+# 1. Scoprire i device disponibili
+python -m qreduce.experiments.portfolio_mv preflight --discover
+
+# 2. Testare la compilazione senza invio
+python -m qreduce.experiments.portfolio_mv preflight \
+  --compile --device-id FRESNEL --asset-count 6
+
+# 3. Eseguire un run completo
+python -m qreduce.experiments.portfolio_mv \
+  --run-id test-qpu \
+  --asset-count 6 --graph-edge-mode correlation_only --correlation-threshold 0.9 \
+  --mis-solver-id pasqal_qpu \
+  --pasqal-device-id FRESNEL \
+  --pasqal-shots 100 \
+  --pasqal-cost-consent
+```
+
+### Differenze da EMU_FREE
+
+| Aspetto | EMU_FREE | QPU |
+|---------|----------|-----|
+| Device ID | Fisso `cloud:emu_free` | Dinamico (es. `FRESNEL`) |
+| Cost consent | Non richiesto | Obbligatorio |
+| Shots | Default 100 | Esplicito, obbligatorio |
+| Discovery | Non necessaria | Disponibile via preflight |
+| max_runs | Non applicabile | Verificato vs limite device |
+
+### Schema di persistenza
+
+Lo schema 1.2 aggiunge:
+- `target_type`: "emulator" o "qpu" per distinguere il tipo di job
+- `device_id`: ID del device QPU (es. "FRESNEL")
+
+I job reference esistenti (schema 1.0, 1.1) restano leggibili con valori
+inferiti per i nuovi campi.
+
+### Preflight
+
+Il comando `preflight` esegue discovery o compilazione senza submission:
+
+```bash
+# Elencare i device QPU disponibili
+python -m qreduce.experiments.portfolio_mv preflight --discover
+
+# Compilare senza inviare il job
+python -m qreduce.experiments.portfolio_mv preflight \
+  --compile --device-id FRESNEL --asset-count 6
+```
+
+L'output è JSON leggibile da script per automazione. Usare un ID restituito
+dalla discovery, che non conferma accesso al calcolo o disponibilità di crediti.
+`--compile` genera un'istanza sintetica con le opzioni indicate e usa la
+stessa costruzione canonica del run. Per conservare invece il problema
+originale, usare `--from-artifacts`:
+
+```bash
+python -m qreduce.experiments.portfolio_mv preflight \
+  --from-artifacts "$RUN_DIRECTORY" --device-id "$DEVICE_ID" \
+  --compilation-time-limit-seconds 60
+```
+
+Il loader verifica gli hash del manifest e legge il modello canonico del
+round 0 senza rigenerarlo. Il mapper cerca direttamente sulle trappole
+calibrate idonee. Un registro rifiutato non esclude da solo l'intero layout.
+L'output distingue `qpu_sequence_validated` (inclusa la misura) da
+`presolve_only` e mostra diagnostica geometrica ed esito della ricerca.
+La deadline è cooperativa: non interrompe una chiamata SDK già in corso.
+
+Per un dispositivo con `accepts_new_layouts: true` nella discovery, aggiungere
+`--layout-mode custom` per provare un layout generato dal grafo, senza
+riusare le coordinate dell'emulatore. Il percorso normale resta calibrato.
+`--sequence-output "$NEW_FILE"` conserva la sequenza misurata esatta; non
+invia alcun job. Un preflight locale riuscito non prova che il nuovo layout
+sia già calibrato né che il progetto possa eseguire il batch.
+
+`submit-preflight --check-only` verifica offline il report, gli artefatti e
+la sequenza salvata. Per un invio autorizzato, il comando usa gli stessi byte
+e il journal registra l'intenzione prima del POST. In caso di esito ambiguo
+non riutilizzare il run ID né crearne uno nuovo per ripetere il tentativo:
+riconciliare prima il journal con Pasqal Cloud e, se c'è un riferimento,
+usare `recover-pasqal --reference`.
+
+### Validazioni
+
+Il backend valida:
+- Disponibilità SDK (Pulser per compilazione, pasqal-cloud per esecuzione)
+- Credenziali configurate
+- Device disponibile nel progetto
+- TLS non disabilitato
+- Coerenza payload compilato vs esecuzione
+- Target configurato vs compilato
+- Limiti del device (max_atoms, max_runs)
+- Variazione delle specifiche tra compilazione ed esecuzione
+- Archi, non-archi e margine geometrico sulle trappole finali
+
+### Limiti attuali
+
+- Un solo device alla volta (scelto esplicitamente)
+- Nessun fallback automatico tra device o a EMU
+- Un solo round e un solo tentativo di creazione. Se l'esito del POST è ignoto,
+  riconciliare con Pasqal prima di un nuovo invio
+- Il timeout locale non annulla il batch remoto
+- La cancellazione automatica non è supportata
+- La compilazione richiede connessione cloud per recuperare le specifiche del device
+- Lo smoke test su QPU reale richiede autorizzazione esplicita e crediti
+
+### Test
+
+I test non richiedono credenziali Pasqal Cloud o accesso QPU:
+- Capabilities e configurazione
+- Discovery e preflight senza invio; compilazione su un layout Pulser e
+  rifiuto delle assegnazioni fuori margine
+- Invio con consenso, rifiuto se le specifiche cambiano e distinzione tra
+  rifiuto certo ed esito ignoto, senza retry
+- Flusso con trasporto simulato: un POST, journal prima del polling, lettura
+  e recupero con verifica del device
+- Esecuzione presolve
+- Schema persistenza 1.2
+- Verifica TLS
+
+```bash
+poetry run pytest tests/solving/mwis/test_pasqal_qpu_backend.py \
   tests/experiments/portfolio_mv/test_pasqal_cloud_flow.py -v
 ```

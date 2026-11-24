@@ -118,8 +118,37 @@ Se `~/.cato/cato-ca.pem` è presente, QReduce aggiunge automaticamente la CA di
 Cato alle CA pubbliche durante l'esecuzione e il recupero Pasqal Cloud. Non
 serve un `export`; eventuali bundle espliciti di Requests hanno precedenza e
 la verifica TLS resta attiva.
-L'MVP supporta solo `emu_free`, con un limite prudenziale di 12 atomi per
-gli invii remoti. Il riferimento del batch è salvato sotto
+L'emulatore cloud supporta solo `emu_free`, con un limite prudenziale di 12
+atomi. Il backend sperimentale `pasqal_qpu` è separato e disponibile nella
+CLI Portfolio MV: iniziare da `preflight --discover`, poi usare
+`preflight --from-artifacts "$RUN_DIRECTORY" --device-id "$DEVICE_ID"` per
+validare il problema del round 0 di un run esistente, usando un ID restituito
+dalla discovery. `preflight --compile --device-id` genera invece un problema
+sintetico di prova. L'esito `qpu_sequence_validated` attesta la compilazione;
+`presolve_only` non valida una sequenza hardware.
+Per provare un layout personalizzato senza invio, aggiungere
+`--layout-mode custom` al preflight. La discovery mostra `accepts_new_layouts`;
+senza consenso del dispositivo, la compilazione rifiuta la modalità. I layout
+calibrati rimangono il default, anche nel configuratore. Con
+`--sequence-output "$NEW_FILE"` il preflight salva la sequenza misurata esatta
+in un nuovo file (senza sovrascriverlo); l'hash è riportato nel JSON.
+Per riusare la sequenza senza ricompilarla, conserva anche il report JSON e
+usa `submit-preflight` con `--preflight-report`, `--sequence`,
+`--from-artifacts`, `--device-id`, `--run-id` e `--shots`. La modalità
+`--check-only` verifica tutto ciò che è disponibile localmente e non accede
+al cloud. L'invio richiede invece `--pasqal-cost-consent` e un report con gli
+hash del progetto e del problema. Il journal riserva il run ID prima
+dell'invio: se l'esito è incerto, verifica il journal e il portale, senza
+tentare un altro invio.
+Nel configuratore Portfolio MV, in **03 · Solver → Backend MIS**, scegliere
+**Pasqal QPU (hardware reale)** con un solo round, quindi inserire ID del
+dispositivo, shot e consenso. Il browser genera soltanto il comando.
+Il preflight non crea batch. L'invio QPU richiede device, shot e consenso
+espliciti. Il flusso è coperto da test con trasporto simulato; il percorso
+`preflight --layout-mode custom` → `submit-preflight` → recupero è stato
+completato su `FRESNEL_CAN1` con 100 shot. Il pilota non valida il mapping
+calibrato della stessa istanza. Evidenze in [Piano mapper QPU](PIANO_MAPPER_PASQAL_QPU.md).
+Il riferimento del batch è salvato sotto
 `<output-root>/.pasqal-cloud-jobs/<run-id>/`, anche se il run fallisce.
 Per recuperare i campioni senza reinviare il batch:
 
@@ -128,7 +157,7 @@ poetry run python -m qreduce.experiments.portfolio_mv recover-pasqal \
   --reference "$OUTPUT_ROOT/.pasqal-cloud-jobs/$RUN_ID/pasqal_cloud_job_$BATCH_ID.json"
 ```
 
-Il flusso è verificato con SDK reale e trasporto simulato; non sul servizio reale.
+I test del flusso remoto usano l'SDK reale con trasporto simulato.
 Stato e limiti in
 `docs/implementation/pasqal-local-status.md`.
 - **Classico residuo**: `cplex`, `scip`

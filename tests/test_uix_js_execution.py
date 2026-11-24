@@ -1196,6 +1196,39 @@ class TestPortfolioPasqalCloudBackend:
         assert result["errors"]["pasqalShots"]
 
 
+class TestPortfolioPasqalQpuBackend:
+    def test_command_passes_cli_validation(self, portfolio_parser):
+        result = run_js_generator("portfolio", {
+            "misSolver": "pasqal_qpu", "maxRounds": "1", "pasqalQpuDevice": "FRESNEL_CAN1",
+            "pasqalQpuShots": "100", "pasqalQpuConsent": True,
+        })
+        assert result["isValid"] and not result["copyDisabled"], result
+        tokens = extract_cli_args(result["command"])
+        assert "--pasqal-emulator-service" not in tokens
+        args = portfolio_parser.parse_args(tokens)
+        validate_portfolio_args(portfolio_parser, args)
+        assert args.mis_solver_id == "pasqal_qpu"
+        assert args.max_reduction_rounds == 1
+        assert args.pasqal_device_id == "FRESNEL_CAN1"
+        assert args.pasqal_shots == 100 and args.pasqal_cost_consent
+
+    @pytest.mark.parametrize(("field", "value"), [
+        ("pasqalQpuDevice", ""), ("pasqalQpuDevice", "EMU_FREE"),
+        ("pasqalQpuShots", ""), ("pasqalQpuShots", "1.5"),
+        ("pasqalQpuConsent", False), ("maxRounds", "2"),
+    ])
+    def test_invalid_qpu_configuration_hides_runnable_preview(self, field, value):
+        fields = {
+            "misSolver": "pasqal_qpu", "maxRounds": "1", "pasqalQpuDevice": "FRESNEL_CAN1",
+            "pasqalQpuShots": "100", "pasqalQpuConsent": True,
+        }
+        fields[field] = value
+        result = run_js_generator("portfolio", fields)
+        assert not result["isValid"] and result["copyDisabled"], result
+        assert result["errors"][field]
+        assert "--pasqal-cost-consent" not in result["command"]
+
+
 class TestPortfolioSRPasqalBackend:
     """Test Pasqal backend in portfolio_sr configurator."""
 
@@ -1321,6 +1354,35 @@ class TestSolverInfoPanelDOMTransitions:
             {"set": {"maxRounds": "1"}, "verify": {
                 "pasqalShots": {"value": "250", "disabled": False},
                 "cliPreview": {"includes": [*cloud_flags, "--pasqal-shots 250"]},
+            }},
+        ]
+        result = self.run_transition_test("portfolio", steps)
+        assert result["success"], result
+
+    def test_pasqal_qpu_backend_transitions(self):
+        qpu_flags = ["pasqal_qpu", "--pasqal-device-id", "--pasqal-cost-consent"]
+        steps = [
+            {"set": {"misSolver": "pasqal_qpu", "pasqalQpuDevice": "FRESNEL_CAN1",
+                     "pasqalQpuShots": "100", "pasqalQpuConsent": True}, "verify": {
+                "pasqalQpuParams": {"visible": True},
+                "pasqalShots": {"visible": False, "disabled": True},
+                "cliPreview": {"includes": [*qpu_flags, "--pasqal-shots 100"]},
+                "copyCommand": {"disabled": False},
+            }},
+            {"set": {"misSolver": "pasqal_cloud_emulator"}, "verify": {
+                "pasqalQpuParams": {"visible": False},
+                "pasqalQpuConsent": {"disabled": True, "value": False},
+                "cliPreview": {"includes": "--pasqal-emulator-service emu_free", "excludes": qpu_flags},
+            }},
+            {"set": {"misSolver": "pasqal_qpu"}, "verify": {
+                "pasqalQpuShots": {"value": "100"},
+                "copyCommand": {"disabled": True},
+            }},
+            {"set": {"maxRounds": "0"}, "verify": {
+                "misSolver": {"disabled": True},
+                "pasqalQpuParams": {"visible": False},
+                "cliPreview": {"excludes": qpu_flags},
+                "copyCommand": {"disabled": False},
             }},
         ]
         result = self.run_transition_test("portfolio", steps)

@@ -180,6 +180,22 @@ def load_experiment_run(run_directory: str | Path) -> ExperimentRunArtifacts:
     )
 
 
+def first_round_canonical_problem(artifacts: ExperimentRunArtifacts) -> Mapping[str, object]:
+    """Read the persisted round-zero model, or the legacy standalone model."""
+    if artifacts.schema_version == "1.0" and artifacts.canonical_mwis_problem is not None:
+        return artifacts.canonical_mwis_problem
+    for result in artifacts.round_results:
+        if result.get("round_index") != 0:
+            continue
+        compilation = result.get("mis_compilation_result")
+        job = compilation.get("compiled_job") if isinstance(compilation, Mapping) else None
+        problem = job.get("compiled_problem") if isinstance(job, Mapping) else None
+        if isinstance(problem, Mapping):
+            return problem
+        break
+    raise ExperimentArtifactError("Artifacts do not contain a compiled canonical MWIS problem for round 0.")
+
+
 def _load_round_results(
     directory: Path, manifest: Mapping[str, object]
 ) -> tuple[tuple[Mapping[str, object], ...], dict[str, object]]:

@@ -96,6 +96,26 @@ implementazione.
 | Adapter neutral-atom, ad esempio Pasqal/Pulser | opzionale; contratto predisposto |
 | Backend MIS locale `pasqal_local` | Pulser/QuTiP nel gruppo `experiments`, mapping 2D rigoroso, massimo 12 nodi, campioni MIS e ranking MWIS classico; nessun accesso remoto |
 | Backend MIS `pasqal_cloud_emulator` | Opzionale, portfolio MV, solo `emu_free`; massimo prudenziale di 12 atomi per gli invii. Un solo tentativo di creazione; riferimento durevole prima delle letture; recupero in sola lettura nel progetto originale, senza fallback. Verificato con trasporto simulato. |
+| Backend MIS `pasqal_qpu` | Opzionale, portfolio MV, un solo round. Ricerca vincolata sulle trappole dei layout calibrati idonei, con budget e verifica del margine geometrico. Preflight senza creazione batch anche dal modello canonico persistito del round 0 (`--from-artifacts`); distingue presolve classico e sequenza QPU misurata validata. Il run richiede device, shot e consenso espliciti; invio singolo e recupero con verifica del target. Test con trasporto simulato; pilota hardware completato sul percorso custom opt-in. |
+
+La modalità `preflight --layout-mode custom` è esplicita e richiede
+`Device.accepts_new_layouts`. Genera un registro dallo stesso grafo e delega a
+Pulser la collocazione delle trappole vuote, con limite di tentativi e deadline
+cooperativa. Diagnostica e hash identificano layout, specifiche e sequenza.
+`--sequence-output` esporta esattamente i byte della sequenza misurata, solo
+dopo la validazione, senza sovrascrivere file esistenti né inviare il batch.
+Il percorso calibrato resta il default e il comportamento EMU non cambia.
+`submit-preflight` ricarica il modello verificato del round 0 e la sequenza
+esportata; non esegue la compilazione. Verifica gli hash, la geometria e
+l'ordine atomo-nodo. `--check-only` non usa la rete; l'invio richiede consenso
+e controlla progetto, specifiche correnti e limiti degli shot. Il journal
+riserva il run ID prima dell'invio e salva il riferimento del batch prima
+del polling. Il comando restituisce i campioni MIS, non esegue il postcheck
+applicativo Portfolio MV.
+
+Il configuratore Portfolio MV espone `pasqal_qpu` come opzione separata da
+`EMU_FREE`. Genera il comando solo con un round, device, shot e consenso
+espliciti; non contatta il cloud. Il consenso non viene ripristinato dai preferiti.
 
 Per invio e recupero Pasqal Cloud, la verifica TLS resta obbligatoria. Se il
 client non ha gia` un bundle CA esplicito, QReduce aggiunge la CA locale

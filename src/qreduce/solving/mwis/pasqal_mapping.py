@@ -72,6 +72,7 @@ def search_layout(
     seed: int = 0,
     min_distance: float = 0.0,
     accept: Callable[[dict[str, tuple[float, float]]], bool] | None = None,
+    before_attempt: Callable[[], None] | None = None,
 ) -> tuple[dict[str, tuple[float, float]], dict[str, object]]:
     """Place nodes next to already placed neighbors, with bounded random restarts."""
     if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
@@ -90,6 +91,8 @@ def search_layout(
         raise ValueError("target_minimum_spacing_exceeds_edge_limit")
     width = max(1.0, len(graph.node_ids) ** 0.5) * nonedge_min
     for attempt in range(attempts):
+        if before_attempt is not None:
+            before_attempt()
         remaining = list(graph.node_ids)
         rng.shuffle(remaining)
         coords: dict[str, tuple[float, float]] = {}

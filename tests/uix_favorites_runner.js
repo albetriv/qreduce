@@ -186,6 +186,8 @@ async function main() {
     for (const savedValue of [undefined, "", "3"]) {
       const compatible = JSON.parse(JSON.stringify(archive));
       compatible.entries = [compatible.entries[0]];
+      delete compatible.entries[0].fields.pasqalQpuDevice;
+      delete compatible.entries[0].fields.pasqalQpuShots;
       if (savedValue === undefined) delete compatible.entries[0].fields.numSourceMisCandidates;
       else compatible.entries[0].fields.numSourceMisCandidates = savedValue;
       // Verify both existing local archives and imported JSON.
@@ -194,10 +196,14 @@ async function main() {
         if (imported) await legacy.importData(compatible);
         const storedBeforeLoad = legacy.store.get(key);
         legacy.set("numSourceMisCandidates", "7");
+        legacy.set("pasqalQpuDevice", "FRESNEL_CAN1");
+        legacy.set("pasqalQpuShots", "100");
         legacy.select(compatible.entries[0].name);
         assert.equal(legacy.$("loadFavorite").disabled, false);
         legacy.$("loadFavorite").click();
         assert.equal(legacy.$("numSourceMisCandidates").value, savedValue || "");
+        assert.equal(legacy.$("pasqalQpuDevice").value, "");
+        assert.equal(legacy.$("pasqalQpuShots").value, "");
         if (savedValue) assert.match(legacy.$("cliPreview").textContent, /--num-source-mis-candidates\s+3/);
         else assert.doesNotMatch(legacy.$("cliPreview").textContent, /--num-source-mis-candidates/);
         assert.deepEqual(legacy.errors, []);
@@ -205,6 +211,22 @@ async function main() {
         legacy.dom.window.close();
       }
     }
+    const qpu = launch();
+    qpu.set("misSolver", "pasqal_qpu");
+    qpu.set("pasqalQpuDevice", "FRESNEL_CAN1");
+    qpu.set("pasqalQpuShots", "100");
+    qpu.set("pasqalQpuConsent", true);
+    qpu.save("QPU");
+    const saved = JSON.parse(qpu.store.get(key)).entries[0];
+    assert.equal(saved.fields.pasqalQpuDevice, "FRESNEL_CAN1");
+    assert.equal(saved.fields.pasqalQpuConsent, undefined);
+    assert.equal(saved.command, "");
+    qpu.select("QPU");
+    qpu.$("loadFavorite").click();
+    assert.equal(qpu.$("pasqalQpuConsent").checked, false);
+    assert.equal(qpu.$("copyCommand").disabled, true);
+    qpu.dom.window.close();
+
     // Compatibility must not allow arbitrary missing or unknown fields.
     for (const invalidFields of [
       { ...archive.entries[0].fields, unexpected: "value" },

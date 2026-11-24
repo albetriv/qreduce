@@ -20,19 +20,13 @@
       </div>
     </header>
 
-    <div class="notice" style="max-width: 800px;">
-      <strong>Nota:</strong> Solo i configuratori disponibili generano comandi CLI da eseguire nel terminale con Poetry.
-      Non avviano direttamente gli esperimenti e non verificano la disponibilità dei solver nel tuo ambiente.
-      Esegui i comandi dalla root del repository con l'ambiente Poetry configurato.
-    </div>
-
     <div class="catalog-grid">
       <article class="catalog-card">
         <p class="eyebrow">Famiglia principale</p>
         <h2><a class="catalog-card-link" href="experiment_portfolio_mv.html">Portfolio Media-Varianza</a></h2>
         <p>
-          Ottimizzazione media-varianza con portfolio sintetico. Supporta baseline classica,
-          single-pass e multi-round con recovery. Avversione al rischio configurabile.
+          Selezione e dimensionamento degli investimenti in un portafoglio sintetico,
+          bilanciando rendimento atteso e rischio secondo un'avversione al rischio configurabile.
         </p>
         <span class="pill">qreduce.experiments.portfolio_mv</span>
         <span class="pill">completo</span>
@@ -45,8 +39,8 @@
         <p class="eyebrow">Famiglia dimostrativa</p>
         <h2><a class="catalog-card-link" href="experiment_portfolio_sr.html">Portfolio Sharpe Ratio</a></h2>
         <p>
-          Massimizzazione Sharpe ratio con dati reali S&P500. Vincoli settoriali e cardinalità
-          facoltativa. Trasformazione in QP convesso.
+          Selezione e dimensionamento degli investimenti per massimizzare il rendimento rispetto al rischio,
+          con dati reali S&P500 e vincoli facoltativi su settori e numero di posizioni.
         </p>
         <span class="pill">qreduce.experiments.portfolio_sr</span>
         <span class="pill">completo</span>
@@ -59,8 +53,8 @@
         <p class="eyebrow">Famiglia sperimentale</p>
         <h2><a class="catalog-card-link" href="experiment_facility_location.html">Facility Location</a></h2>
         <p>
-          Capacitated facility location con istanze OR-Library. Richiede file di istanza locale.
-          Stato sperimentale, escluso dal wheel.
+          Selezione delle sedi e assegnazione della domanda per minimizzare i costi di apertura
+          e allocazione, rispettando la capacità di ciascuna sede.
         </p>
         <span class="pill">qreduce.experiments.facility_location</span>
         <span class="pill">sperimentale</span>
@@ -71,12 +65,13 @@
 
       <article class="catalog-card">
         <p class="eyebrow">Famiglia sperimentale</p>
-        <h2>Asset Liability Management (ALM)</h2>
+        <h2>Asset Liability Management</h2>
         <p>
-          Selezione e dimensionamento di swap per coprire il rischio di tasso su un bilancio sintetico.
-          Confronto tra catalogo completo e ridotto con QReduce.
+          Selezione e dimensionamento di swap per limitare il rischio di tasso su un bilancio sintetico,
+          rispettando vincoli sul margine di interesse e sulle operazioni.
         </p>
-        <span class="pill">anteprima · non eseguibile</span>
+        <span class="pill">qreduce.experiments.asset_liability_management</span>
+        <span class="pill">sperimentale</span>
         <div class="catalog-actions">
           <a href="../docs/experiments/asset-liability-management.md">Documentazione</a>
         </div>
@@ -86,10 +81,11 @@
         <p class="eyebrow">Famiglia sperimentale</p>
         <h2>Riassicurazione passiva</h2>
         <p>
-          Selezione di coperture per limitare le perdite da sinistri gravi entro un budget di premi.
-          Confronto tra catalogo completo e ridotto con QReduce.
+          Selezione di coperture riassicurative per ridurre le perdite trattenute negli scenari più gravi,
+          rispettando un budget di premi e i limiti contrattuali.
         </p>
-        <span class="pill">anteprima · non eseguibile</span>
+        <span class="pill">qreduce.experiments.reinsurance</span>
+        <span class="pill">sperimentale</span>
         <div class="catalog-actions">
           <a href="../docs/experiments/riassicurazione-passiva.md">Documentazione</a>
         </div>
@@ -99,10 +95,11 @@
         <p class="eyebrow">Famiglia sperimentale</p>
         <h2>Cessione di crediti deteriorati</h2>
         <p>
-          Selezione di offerte per lotti di crediti deteriorati, senza cedere due volte lo stesso credito.
-          Confronto tra catalogo completo e ridotto con QReduce.
+          Selezione di offerte per massimizzare il ricavo dalla cessione di crediti deteriorati,
+          raggiungendo un volume minimo senza cedere due volte lo stesso credito.
         </p>
-        <span class="pill">anteprima · non eseguibile</span>
+        <span class="pill">qreduce.experiments.non_performing_loans</span>
+        <span class="pill">sperimentale</span>
         <div class="catalog-actions">
           <a href="../docs/experiments/cessione-crediti-deteriorati.md">Documentazione</a>
         </div>
@@ -112,10 +109,11 @@
         <p class="eyebrow">Famiglia sperimentale</p>
         <h2>Pianificazione degli audit interni</h2>
         <p>
-          Selezione degli interventi per coprire le aree di rischio prioritarie con meno giornate di audit.
-          Confronto tra catalogo completo e ridotto con QReduce.
+          Selezione degli interventi di audit per coprire tutte le aree di rischio obbligatorie,
+          minimizzando il numero complessivo di giornate necessarie.
         </p>
-        <span class="pill">anteprima · non eseguibile</span>
+        <span class="pill">qreduce.experiments.internal_audit</span>
+        <span class="pill">sperimentale</span>
         <div class="catalog-actions">
           <a href="../docs/experiments/pianificazione-audit-interni.md">Documentazione</a>
         </div>

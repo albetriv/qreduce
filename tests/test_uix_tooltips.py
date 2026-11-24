@@ -47,6 +47,9 @@ PORTFOLIO_PARAMS = [
     "numSweeps",
     "embeddingProfile",
     "pasqalShots",
+    "pasqalQpuDevice",
+    "pasqalQpuShots",
+    "pasqalQpuConsent",
     "modelExport",
     "modelExportPath",
 ]

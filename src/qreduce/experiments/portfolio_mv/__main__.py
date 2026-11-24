@@ -189,7 +189,7 @@ Examples:
     solver_group = parser.add_argument_group("Solver options")
     solver_group.add_argument(
         "--mis-solver-id",
-        choices=("local_greedy", "dwave_simulated_annealing", "pasqal_local", "pasqal_cloud_emulator"),
+        choices=("local_greedy", "dwave_simulated_annealing", "pasqal_local", "pasqal_cloud_emulator", "pasqal_qpu"),
         default="local_greedy",
         help="MIS solver ID. Default: local_greedy.",
     )
@@ -216,6 +216,23 @@ Examples:
             "Currently only 'emu_free' is supported. "
             "Requires --mis-solver-id=pasqal_cloud_emulator. "
             "EMU_FREE does not require credits. No paid backend is selected automatically."
+        ),
+    )
+    solver_group.add_argument(
+        "--pasqal-device-id",
+        default=None,
+        help=(
+            "QPU device ID for pasqal_qpu (e.g., 'FRESNEL'). "
+            "Required for --mis-solver-id=pasqal_qpu. "
+            "Use 'preflight' subcommand to discover available devices."
+        ),
+    )
+    solver_group.add_argument(
+        "--pasqal-cost-consent",
+        action="store_true",
+        help=(
+            "Acknowledge that QPU execution may incur costs. "
+            "Required for --mis-solver-id=pasqal_qpu."
         ),
     )
     solver_group.add_argument(
@@ -302,8 +319,8 @@ Examples:
 def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     """Validate argument combinations."""
     # Pasqal local validation
-    if args.pasqal_shots is not None and args.mis_solver_id not in ("pasqal_local", "pasqal_cloud_emulator"):
-        parser.error("--pasqal-shots requires pasqal_local or pasqal_cloud_emulator")
+    if args.pasqal_shots is not None and args.mis_solver_id not in ("pasqal_local", "pasqal_cloud_emulator", "pasqal_qpu"):
+        parser.error("--pasqal-shots requires pasqal_local, pasqal_cloud_emulator, or pasqal_qpu")
     if args.pasqal_shots is not None and args.pasqal_shots < 1:
         parser.error("--pasqal-shots must be a positive integer")
     if (args.mis_solver_id == "pasqal_local" and args.max_reduction_rounds != 0
@@ -318,6 +335,23 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
         parser.error("--mis-solver-id=pasqal_cloud_emulator requires explicit --pasqal-emulator-service selection")
     if args.mis_solver_id == "pasqal_cloud_emulator" and args.max_reduction_rounds == 0:
         parser.error("pasqal_cloud_emulator requires reduction to be enabled (--max-reduction-rounds > 0)")
+
+    # Pasqal QPU validation
+    if args.pasqal_device_id is not None and args.mis_solver_id != "pasqal_qpu":
+        parser.error("--pasqal-device-id requires --mis-solver-id=pasqal_qpu")
+    if args.pasqal_cost_consent and args.mis_solver_id != "pasqal_qpu":
+        parser.error("--pasqal-cost-consent requires --mis-solver-id=pasqal_qpu")
+    if args.mis_solver_id == "pasqal_qpu":
+        if args.pasqal_device_id is None:
+            parser.error("--mis-solver-id=pasqal_qpu requires --pasqal-device-id")
+        if not args.pasqal_cost_consent:
+            parser.error("--mis-solver-id=pasqal_qpu requires --pasqal-cost-consent to acknowledge potential costs")
+        if args.pasqal_shots is None:
+            parser.error("--mis-solver-id=pasqal_qpu requires explicit --pasqal-shots")
+        if args.max_reduction_rounds == 0:
+            parser.error("pasqal_qpu requires reduction to be enabled (--max-reduction-rounds > 0)")
+        if args.max_reduction_rounds is not None and args.max_reduction_rounds > 1:
+            parser.error("pasqal_qpu supports at most one reduction round (--max-reduction-rounds=1)")
 
     if args.model_export_path and not args.model_export:
         parser.error("--model-export-path requires --model-export")
@@ -489,10 +523,189 @@ def _recover_pasqal_main(argv: list[str]) -> int:
     return 0 if recovery.is_success else (1 if recovery.is_terminal or recovery.error_message else 2)
 
 
+def _preflight_main(argv: list[str]) -> int:
+    """Preflight check: discover devices and optionally compile without submission.
+
+    This validates QPU configuration and compilation without creating any batch.
+    """
+    parser = argparse.ArgumentParser(
+        prog="portfolio_mv preflight",
+        description="Discover QPU devices and optionally compile without submission.",
+    )
+
+    # Mode selection
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument(
+        "--discover",
+        action="store_true",
+        help="List available QPU devices from Pasqal Cloud.",
+    )
+    mode_group.add_argument(
+        "--compile",
+        action="store_true",
+        help="Compile a synthetic test graph for the specified device without submission.",
+    )
+    mode_group.add_argument(
+        "--from-artifacts",
+        metavar="PATH",
+        help="Compile the graph from existing artifacts (output directory of a previous run).",
+    )
+
+    # Common options
+    parser.add_argument("--profile", default="default", help="Pasqal credentials profile.")
+
+    # Compile options (also used with --from-artifacts)
+    parser.add_argument("--device-id", help="Target QPU device ID (required for --compile and --from-artifacts).")
+    parser.add_argument("--layout-mode", choices=("calibrated", "custom"), default="calibrated",
+                        help="Use calibrated traps (default) or explicitly generate a custom layout.")
+    parser.add_argument("--sequence-output", type=Path, metavar="PATH",
+                        help="Save the exact validated sequence to a new file without submitting it.")
+    parser.add_argument("--compilation-time-limit-seconds", type=float, default=0.0,
+                        help="Cooperative compilation deadline (0: no time limit).")
+    parser.add_argument("--asset-count", type=int, default=6, help="Asset count for test graph. Default: 6. (--compile only)")
+    parser.add_argument(
+        "--graph-edge-mode",
+        choices=("correlation_only", "near_duplicate"),
+        default="near_duplicate",
+        help="Graph edge semantics for test. Default: near_duplicate. (--compile only)",
+    )
+    parser.add_argument(
+        "--correlation-threshold",
+        type=float,
+        default=0.90,
+        help="Correlation threshold for test graph. Default: 0.90. (--compile only)",
+    )
+
+    args = parser.parse_args(argv)
+
+    if args.compile and not args.device_id:
+        parser.error("--compile requires --device-id")
+    if args.from_artifacts and not args.device_id:
+        parser.error("--from-artifacts requires --device-id")
+    timeout_error = validate_timeout_value(args.compilation_time_limit_seconds,
+                                           "--compilation-time-limit-seconds")
+    if timeout_error:
+        parser.error(timeout_error)
+
+    try:
+        from qreduce.solving.mwis.pasqal_qpu_backend import PasqalQPUMISBackend
+
+        backend = PasqalQPUMISBackend()
+
+        if args.discover:
+            if args.layout_mode != "calibrated" or args.sequence_output is not None:
+                parser.error("--layout-mode custom and --sequence-output require --compile or --from-artifacts.")
+            # Discovery mode
+            devices, error = backend.discover_devices(profile=args.profile)
+            if error:
+                print(f"Error: {error}", file=sys.stderr)
+                return 1
+
+            if not devices:
+                print(json.dumps({"devices": [], "message": "No QPU devices available."}))
+                return 0
+
+            result = {
+                "devices": [
+                    {
+                        "device_id": d.device_id,
+                        "name": d.name,
+                        "max_atoms": d.max_atoms,
+                        "min_atom_distance": d.min_atom_distance,
+                        "has_calibrated_layouts": d.has_calibrated_layouts,
+                        "available_layouts": list(d.available_layouts),
+                        "requires_layout": d.requires_layout,
+                        "accepts_new_layouts": d.accepts_new_layouts,
+                        "max_runs": d.max_runs,
+                        "status": d.status,
+                    }
+                    for d in devices
+                ]
+            }
+            print(json.dumps(result, indent=2))
+            return 0
+
+        from hashlib import sha256
+
+        from qreduce.artifacts.metadata import sha256_hex
+        from qreduce.solving.mwis.contracts import MISCompilationRequest
+        from qreduce.status import BackendFamily, ExecutionMode, ProblemForm
+
+        context = {"source": "synthetic"}
+        if args.from_artifacts:
+            from qreduce.experiments.portfolio_mv.preflight_artifacts import load_preflight_problem
+
+            artifact_path = Path(args.from_artifacts)
+            original_run_id, problem = load_preflight_problem(artifact_path)
+            context = {"source": "artifacts", "artifact_path": str(artifact_path),
+                       "original_run_id": original_run_id}
+            run_id = f"preflight-{original_run_id}"
+        else:
+            from qreduce.experiments.portfolio_mv.inputs import build_synthetic_portfolio_inputs
+            from qreduce.pipeline.single_pass import build_canonical_mwis_problem
+
+            run_id = "preflight-test"
+            policy = default_graph_policy(edge_mode=args.graph_edge_mode,
+                                          correlation_threshold=args.correlation_threshold)
+            inputs = build_synthetic_portfolio_inputs(run_id, asset_count=args.asset_count, graph_policy=policy)
+            problem = build_canonical_mwis_problem(inputs.problem, inputs.adapter, inputs.config)
+
+        result = backend.compile(problem, MISCompilationRequest(
+            run_id=run_id, round_index=0, node_order=problem.graph.node_ids,
+            residual_time_budget_seconds=args.compilation_time_limit_seconds,
+            requested_provider_id="pasqal", requested_backend_id="pasqal_qpu",
+            requested_backend_family=BackendFamily.NEUTRAL_ATOM,
+            requested_execution_mode=ExecutionMode.REMOTE,
+            required_problem_form=ProblemForm.MIS_GRAPH, requested_device_id=args.device_id,
+            compilation_parameters={"pasqal_profile": args.profile, "layout_mode": args.layout_mode},
+        ))
+        job = result.compiled_job
+        payload = (job.provider_payload or {}) if job else {}
+        presolve = payload.get("presolve_applied", False)
+        diagnostic = payload.get("mapping_diagnostic")
+        outcome = "presolve_only" if presolve else "qpu_sequence_validated" if job else "compilation_failed"
+        sequence_output = None
+        if outcome == "qpu_sequence_validated" and args.sequence_output is not None:
+            with args.sequence_output.open("xb") as output:
+                output.write(payload["sequence_abstract_repr"].encode("utf-8"))
+            sequence_output = str(args.sequence_output)
+        print(json.dumps({
+            **context,
+            "success": job is not None, "outcome": outcome,
+            "qpu_sequence_validated": outcome == "qpu_sequence_validated",
+            "graph_hash": sha256(problem.graph.to_canonical_json().encode()).hexdigest(),
+            "problem_sha256": sha256_hex(problem),
+            "project_id_sha256": sha256(payload["project_id"].encode()).hexdigest() if payload.get("project_id") else None,
+            "node_count": len(problem.graph.node_ids), "edge_count": len(problem.graph.edges),
+            "presolve_applied": presolve, "compilation_time_seconds": result.runtime_seconds,
+            "compiled_job_id": job.compiled_job_id if job else None,
+            "device_id": payload.get("device_id"), "layout_id": payload.get("layout_id"),
+            "layout_mode": args.layout_mode, "layout_sha256": payload.get("layout_sha256"),
+            "device_spec_sha256": payload.get("device_spec_sha256"),
+            "sequence_sha256": payload.get("sequence_sha256"),
+            "sequence_output": sequence_output,
+            "mapping_diagnostic": diagnostic,
+            "mapping_result": payload.get("mapping_result") if job else result.to_dict().get("diagnostic_details"),
+            "terminal_reason": result.terminal_reason.value if result.terminal_reason else None,
+            "diagnostic_message": result.diagnostic_message,
+        }, indent=2))
+        return 0 if job else 1
+
+    except Exception as error:  # noqa: BLE001
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """CLI entry point."""
+    if sys.argv[1:2] == ["submit-preflight"]:
+        from qreduce.experiments.portfolio_mv.preflight_submission import submit_preflight_main
+
+        return submit_preflight_main(sys.argv[2:], default_output_root=Path(DEFAULT_PORTFOLIO_OUTPUT_ROOT))
     if sys.argv[1:2] == ["recover-pasqal"]:
         return _recover_pasqal_main(sys.argv[2:])
+    if sys.argv[1:2] == ["preflight"]:
+        return _preflight_main(sys.argv[2:])
     parser = _build_parser()
     args = parser.parse_args()
     _validate_args(parser, args)
@@ -550,6 +763,8 @@ def main() -> int:
         mis_num_reads=args.mis_num_reads,
         pasqal_shots=args.pasqal_shots,
         pasqal_emulator_service=args.pasqal_emulator_service,
+        pasqal_device_id=args.pasqal_device_id,
+        pasqal_cost_consent=args.pasqal_cost_consent,
         mis_num_sweeps=args.mis_num_sweeps,
         mis_embedding_profile=args.mis_embedding_profile,
         model_export_enabled=args.model_export,

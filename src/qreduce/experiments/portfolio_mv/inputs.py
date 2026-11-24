@@ -133,6 +133,8 @@ def build_synthetic_portfolio_inputs(
     mis_num_reads: int | None = None,
     pasqal_shots: int | None = None,
     pasqal_emulator_service: str | None = None,
+    pasqal_device_id: str | None = None,
+    pasqal_cost_consent: bool = False,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
     lower_bound: float = 0.0,
@@ -158,10 +160,15 @@ def build_synthetic_portfolio_inputs(
             completion or end-to-end budget exhaustion). If None, uses the
             default of 60 seconds. The limit restarts for each solve.
         mis_num_reads: Optional D-Wave num_reads parameter.
-        pasqal_shots: Local Pasqal shot count; defaults to 100 for Pasqal.
+        pasqal_shots: Local Pasqal shot count; defaults to 100 for Pasqal local/emulator.
+            Required and explicit for QPU.
         pasqal_emulator_service: Cloud emulator service for pasqal_cloud_emulator.
             Currently only 'emu_free' is supported. Requires explicit consent
             for potential costs.
+        pasqal_device_id: QPU device ID for pasqal_qpu (e.g., 'FRESNEL').
+            Required for QPU execution.
+        pasqal_cost_consent: Acknowledge that QPU execution may incur costs.
+            Required for QPU execution.
         mis_num_sweeps: Optional D-Wave num_sweeps parameter.
         mis_embedding_profile: Local embedding profile for D-Wave simulated annealing.
             Constrains sampling to hardware-like topology without QPU access.
@@ -237,7 +244,7 @@ def build_synthetic_portfolio_inputs(
         mis_execution=MISExecutionOptions(
             1,
             # Pasqal backends don't support random_seed
-            None if mis_solver_id in {"pasqal_local", "pasqal_cloud_emulator"} else 17,
+            None if mis_solver_id in {"pasqal_local", "pasqal_cloud_emulator", "pasqal_qpu"} else 17,
             1, False, 0, 0.0, 20
         ),
         classical_solve=ClassicalSolveOptions(
@@ -255,9 +262,9 @@ def build_synthetic_portfolio_inputs(
         ),
         run_identity=RunIdentity(run_id),
     )
-    # Handle pasqal_shots for Pasqal backends (local and cloud)
-    if pasqal_shots is not None and mis_solver_id not in {"pasqal_local", "pasqal_cloud_emulator"}:
-        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local' or 'pasqal_cloud_emulator'.")
+    # Handle pasqal_shots for Pasqal backends (local, cloud emulator, and QPU)
+    if pasqal_shots is not None and mis_solver_id not in {"pasqal_local", "pasqal_cloud_emulator", "pasqal_qpu"}:
+        raise ValueError("pasqal_shots requires mis_solver_id='pasqal_local', 'pasqal_cloud_emulator', or 'pasqal_qpu'.")
     if mis_solver_id == "pasqal_local":
         shots = 100 if pasqal_shots is None else pasqal_shots
         _require_positive_int(shots, "pasqal_shots")
@@ -295,6 +302,39 @@ def build_synthetic_portfolio_inputs(
     elif mis_solver_id == "pasqal_cloud_emulator":
         raise ValueError(
             "pasqal_cloud_emulator requires explicit --pasqal-emulator-service selection."
+        )
+
+    # Handle Pasqal QPU
+    if mis_solver_id == "pasqal_qpu":
+        if pasqal_device_id is None:
+            raise ValueError(
+                "pasqal_qpu requires explicit --pasqal-device-id selection."
+            )
+        if pasqal_cost_consent is not True:
+            raise ValueError(
+                "pasqal_qpu requires --pasqal-cost-consent to acknowledge potential costs."
+            )
+        if pasqal_shots is None:
+            raise ValueError(
+                "pasqal_qpu requires explicit --pasqal-shots."
+            )
+        _require_positive_int(pasqal_shots, "pasqal_shots")
+        config = replace(
+            config,
+            mis_execution=replace(
+                config.mis_execution,
+                max_distinct_samples=pasqal_shots,
+                provider_parameters={"shots": pasqal_shots, "_cost_consent": True},
+                requested_device_id=pasqal_device_id,
+            ),
+        )
+    elif pasqal_device_id is not None:
+        raise ValueError(
+            "pasqal_device_id requires mis_solver_id='pasqal_qpu'."
+        )
+    elif pasqal_cost_consent:
+        raise ValueError(
+            "pasqal_cost_consent requires mis_solver_id='pasqal_qpu'."
         )
 
     if mis_num_reads is not None or mis_num_sweeps is not None:

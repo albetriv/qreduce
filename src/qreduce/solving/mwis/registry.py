@@ -53,6 +53,7 @@ def _builtin_factories(job_reference_directory: Path | None) -> dict[str, Callab
         PasqalCloudEmulatorMISBackend,
     )
     from qreduce.solving.mwis.pasqal_local_backend import PasqalLocalMISBackend
+    from qreduce.solving.mwis.pasqal_qpu_backend import PasqalQPUMISBackend
     from qreduce.solving.solver_ids import BuiltinMISSolverId
 
     return {
@@ -61,5 +62,8 @@ def _builtin_factories(job_reference_directory: Path | None) -> dict[str, Callab
         BuiltinMISSolverId.PASQAL_LOCAL: PasqalLocalMISBackend,
         BuiltinMISSolverId.PASQAL_CLOUD_EMULATOR: partial(
             PasqalCloudEmulatorMISBackend, job_reference_directory=job_reference_directory,
+        ),
+        BuiltinMISSolverId.PASQAL_QPU: partial(
+            PasqalQPUMISBackend, job_reference_directory=job_reference_directory,
         ),
     }

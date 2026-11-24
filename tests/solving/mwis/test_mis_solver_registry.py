@@ -15,6 +15,7 @@ from qreduce.solving.mwis.pasqal_cloud_emulator_backend import (
     PasqalCloudEmulatorMISBackend,
 )
 from qreduce.solving.mwis.pasqal_local_backend import PasqalLocalMISBackend
+from qreduce.solving.mwis.pasqal_qpu_backend import PasqalQPUMISBackend
 
 
 class CallerMISBackend:
@@ -30,9 +31,11 @@ def test_builtin_registry_resolves_bundled_mis_solvers() -> None:
         "local_greedy",
         "pasqal_cloud_emulator",
         "pasqal_local",
+        "pasqal_qpu",
     )
     assert isinstance(registry.create("pasqal_local"), PasqalLocalMISBackend)
     assert isinstance(registry.create("pasqal_cloud_emulator"), PasqalCloudEmulatorMISBackend)
+    assert isinstance(registry.create("pasqal_qpu"), PasqalQPUMISBackend)
     assert isinstance(registry.create("local_greedy"), LocalGreedyMISBackend)
     assert isinstance(
         registry.create("dwave_simulated_annealing"), DWaveSimulatedAnnealingMISBackend

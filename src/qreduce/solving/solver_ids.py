@@ -10,6 +10,7 @@ class BuiltinMISSolverId(StrEnum):
     DWAVE_SIMULATED_ANNEALING = "dwave_simulated_annealing"
     PASQAL_LOCAL = "pasqal_local"
     PASQAL_CLOUD_EMULATOR = "pasqal_cloud_emulator"
+    PASQAL_QPU = "pasqal_qpu"
 
 
 class BuiltinClassicalSolverId(StrEnum):

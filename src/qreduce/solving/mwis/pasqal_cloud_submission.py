@@ -109,6 +109,22 @@ def submit_sequence(
         "backend_configuration": config.to_abstract_repr(),
         "project_id": transport.project_id,
     }
+    batch_id = create_batch_once(transport, payload, deadline=deadline)
+    result = SubmissionResult(batch_id, service, shots, time(), atom_order)
+    try:
+        on_submitted(result)
+    except Exception:
+        raise SubmissionPersistenceError(batch_id) from None
+    return result
+
+
+def create_batch_once(transport, payload: dict[str, Any], *, deadline: float | None = None) -> str:
+    """Create a batch without redirects or SDK retries; return only a validated ID."""
+    from pasqal_cloud.http_client import HTTPClient
+
+    if (_get_sdk_version() != "0.24.0" or type(transport) is not HTTPClient
+            or transport.session.verify is not True):
+        raise ValueError("Unexpected Pasqal SDK, transport or TLS settings.")
     url = transport._get_url("send_batch")
     # Resolve authentication before the creation call; it cannot replay the POST.
     token = transport.user_token()
@@ -143,12 +159,7 @@ def submit_sequence(
             "Batch creation outcome unknown. Reconcile with Pasqal before submitting again."
         ) from None
 
-    result = SubmissionResult(batch_id, service, shots, time(), atom_order)
-    try:
-        on_submitted(result)
-    except Exception:
-        raise SubmissionPersistenceError(batch_id) from None
-    return result
+    return batch_id
 
 
 def poll_batch_status(batch_id: str, connection) -> PollResult:
@@ -194,8 +205,19 @@ def read_batch_results(
     expected_project: str,
     expected_shots: int | None,
     job_ids: tuple[str, ...] | None = None,
+    expected_device_type: str | None = None,
 ) -> BatchResults:
-    """Read one completed SDK Job and its Pulser Results, not the batch wrapper."""
+    """Read one completed SDK Job and its Pulser Results, not the batch wrapper.
+
+    Args:
+        batch_id: Pasqal batch identifier.
+        connection: PasqalCloudConnection instance.
+        expected_project: Project ID to validate against.
+        expected_shots: Expected shot count, or None to skip validation.
+        job_ids: Optional job IDs to validate against.
+        expected_device_type: Expected device type (e.g., "EMU_FREE", "FRESNEL").
+            If None, accepts EMU_FREE for backwards compatibility.
+    """
     from pasqal_cloud.errors import BatchFetchingError
     from pulser import Sequence
     from pulser.backend.results import Results
@@ -204,8 +226,20 @@ def read_batch_results(
         batch = connection.cloud_client.get_batch(batch_id)
     except BatchFetchingError:
         raise RuntimeError("Cannot read Pasqal batch data.") from None
+
+    # Validate device type
+    allowed_device_types = {expected_device_type} if expected_device_type else {"EMU_FREE"}
+    # For QPU, accept any non-emulator device type
+    is_qpu_target = expected_device_type and expected_device_type not in ("EMU_FREE", "EMU_SV", "EMU_MPS")
+    if is_qpu_target:
+        # QPU: device type must match exactly or be the target
+        if batch.device_type not in (expected_device_type,):
+            raise ValueError(f"Unexpected device type: {batch.device_type}, expected {expected_device_type}.")
+    elif batch.device_type not in allowed_device_types:
+        raise ValueError(f"Unexpected device type: {batch.device_type}.")
+
     if (batch.id != batch_id or batch.project_id != expected_project
-            or batch.device_type != "EMU_FREE" or batch.status != "DONE" or batch.open):
+            or batch.status != "DONE" or batch.open):
         raise ValueError("Unexpected Pasqal batch identity or state.")
     jobs = batch.ordered_jobs
     if len(jobs) != 1 or (job_ids is not None and (jobs[0].id,) != job_ids):
@@ -250,13 +284,25 @@ def decode_results_to_samples(
     batch_results: BatchResults,
     node_order: tuple[str, ...],
     compiled_job_id: str,
-    service: PasqalCloudEmulatorService,
+    service: PasqalCloudEmulatorService | str,
     compilation_params: dict[str, Any],
     weight_encoding_mode: str,
     *,
     atom_to_node_map: Mapping[str, str],
+    source_backend_id: str = "pasqal_cloud_emulator",
 ) -> list[RawMISSample]:
-    """Translate provider bit positions into the original canonical node order."""
+    """Translate provider bit positions into the original canonical node order.
+
+    Args:
+        batch_results: Results from read_batch_results.
+        node_order: Canonical node order from the compiled job.
+        compiled_job_id: Identifier for the compiled job.
+        service: Emulator service or "qpu" for QPU jobs.
+        compilation_params: Compilation parameters to include in samples.
+        weight_encoding_mode: Weight encoding mode string.
+        atom_to_node_map: Mapping from atom IDs (q0, q1, ...) to node IDs.
+        source_backend_id: Backend identifier for samples (default: pasqal_cloud_emulator).
+    """
     atoms = batch_results.atom_order
     if (_validate_counts(batch_results.counts, atoms) != batch_results.total_shots
             or set(atoms) != set(atom_to_node_map) or len(atoms) != len(node_order)
@@ -269,6 +315,13 @@ def decode_results_to_samples(
         (tuple(int(bits[pos]) for pos in positions), count)
         for bits, count in batch_results.counts.items()
     )
+
+    # Determine service value for execution parameters
+    if isinstance(service, str):
+        service_value = service
+    else:
+        service_value = service.value
+
     return [
         RawMISSample(
             raw_sample_id=f"{compiled_job_id}:sample:{i:04d}",
@@ -276,12 +329,12 @@ def decode_results_to_samples(
             delta=delta,
             occurrence_count=count,
             source_provider_id="pasqal",
-            source_backend_id="pasqal_cloud_emulator",
+            source_backend_id=source_backend_id,
             effective_compilation_parameters=compilation_params,
             effective_execution_parameters={
                 "shots": batch_results.total_shots,
                 "batch_id": batch_results.batch_id,
-                "emulator_service": service.value,
+                "emulator_service": service_value,
                 "weight_encoding_mode": weight_encoding_mode,
             },
         )

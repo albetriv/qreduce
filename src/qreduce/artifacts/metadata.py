@@ -27,6 +27,7 @@ def to_primitive(value: object) -> object:
         return {
             dataclass_field.name: to_primitive(getattr(value, dataclass_field.name))
             for dataclass_field in fields(value)
+            if not (dataclass_field.metadata.get("omit_if_none") and getattr(value, dataclass_field.name) is None)
         }
     if isinstance(value, Enum):
         return value.value

@@ -41,7 +41,7 @@ from qreduce.solving.mwis.pasqal_credentials import resolve_pasqal_credentials
 logger = logging.getLogger(__name__)
 
 # Schema version for job reference files
-JOB_REFERENCE_SCHEMA_VERSION = "1.1"  # Updated for unified schema
+JOB_REFERENCE_SCHEMA_VERSION = "1.2"  # Updated for QPU support
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,14 +55,18 @@ class PasqalCloudJobReference:
 
     Does NOT contain credentials - those are resolved at recovery time.
 
-    Schema version 1.1 adds:
+    Schema version 1.2 adds:
+    - target_type: "emulator" or "qpu" to distinguish job type
+    - device_id: QPU device ID (for QPU jobs)
+
+    Schema version 1.1 added:
     - atom_to_node_map: mapping from SDK atom names (q0, q1...) to node IDs
     - project_id: non-secret identifier for audit (NOT credentials)
     """
 
     # Pasqal Cloud identifiers
     batch_id: str
-    emulator_service: str
+    emulator_service: str  # "emu_free", "emu_sv", "emu_mps" or "qpu" for QPU jobs
     project_id: str  # Non-secret, for audit only
 
     # QReduce job context
@@ -83,6 +87,10 @@ class PasqalCloudJobReference:
     # Optional - may not be available immediately
     job_ids: tuple[str, ...] | None = None
 
+    # QPU-specific fields (schema 1.2)
+    target_type: str = "emulator"  # "emulator" or "qpu"
+    device_id: str | None = None  # QPU device ID (e.g., "FRESNEL")
+
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary."""
         return {
@@ -100,13 +108,15 @@ class PasqalCloudJobReference:
             "pasqal_profile": self.pasqal_profile,
             "sdk_version": self.sdk_version,
             "job_ids": list(self.job_ids) if self.job_ids else None,
+            "target_type": self.target_type,
+            "device_id": self.device_id,
         }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PasqalCloudJobReference":
         """Create a job reference from a dictionary."""
         schema = data.get("schema_version")
-        if schema not in {"1.0", "1.1", JOB_REFERENCE_SCHEMA_VERSION}:
+        if schema not in {"1.0", "1.1", "1.2", JOB_REFERENCE_SCHEMA_VERSION}:
             raise ValueError(f"Unsupported job reference schema: {schema}")
 
         # Handle backwards compatibility with schema 1.0
@@ -118,9 +128,18 @@ class PasqalCloudJobReference:
 
         project_id = data.get("project_id", "unknown")
 
+        # Schema 1.2 fields with defaults for older schemas
+        target_type = data.get("target_type", "emulator")
+        device_id = data.get("device_id")
+
+        # Infer target_type from emulator_service if not explicitly set
+        emulator_service = data["emulator_service"]
+        if target_type == "emulator" and emulator_service == "qpu":
+            target_type = "qpu"
+
         return cls(
             batch_id=data["batch_id"],
-            emulator_service=data["emulator_service"],
+            emulator_service=emulator_service,
             project_id=project_id,
             compiled_job_id=data["compiled_job_id"],
             run_id=data["run_id"],
@@ -132,6 +151,8 @@ class PasqalCloudJobReference:
             pasqal_profile=data["pasqal_profile"],
             sdk_version=data["sdk_version"],
             job_ids=tuple(data["job_ids"]) if data.get("job_ids") else None,
+            target_type=target_type,
+            device_id=device_id,
         )
 
 
@@ -161,6 +182,18 @@ def prepare_job_reference_directory(directory: Path) -> None:
         probe.write(b"qreduce")
         probe.flush()
         os.fsync(probe.fileno())
+    _sync_directory(directory)
+
+
+def reserve_qpu_submission(directory: Path, intent: Mapping[str, Any]) -> None:
+    """Reserve a fresh run journal before any possible paid operation."""
+    prepare_job_reference_directory(directory.parent)
+    directory.mkdir(mode=0o700, exist_ok=False)
+    _sync_directory(directory.parent)
+    with (directory / "submission_intent.json").open("x", encoding="utf-8") as stream:
+        stream.write(pretty_json(intent) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
     _sync_directory(directory)
 
 
@@ -334,14 +367,26 @@ def recover_job_results(
     """Recover a submitted batch using its original project and shot count."""
     from qreduce.solving.mwis.pasqal_cloud_submission import valid_batch_id
 
-    if (not valid_batch_id(reference.batch_id) or reference.emulator_service != "emu_free"
+    # Validate common fields
+    if (not valid_batch_id(reference.batch_id)
             or not reference.project_id or reference.project_id == "unknown"
             or type(reference.shots) is not int or reference.shots <= 0):
         raise PasqalCloudJobRecoveryError("Invalid or incomplete Pasqal job reference.")
+
+    expected_device_type = None
+    if reference.target_type == "qpu" and reference.emulator_service == "qpu":
+        expected_device_type = reference.device_id
+        if (not isinstance(expected_device_type, str) or not expected_device_type.strip()
+                or expected_device_type.startswith("EMU_")):
+            raise PasqalCloudJobRecoveryError("QPU recovery requires the original device ID.")
+    elif reference.target_type != "emulator" or reference.emulator_service != "emu_free":
+        raise PasqalCloudJobRecoveryError("Unsupported or inconsistent Pasqal job target.")
+
     return _recover_batch(
         reference.batch_id, profile=profile or reference.pasqal_profile,
         timeout_seconds=timeout_seconds, project_id=reference.project_id,
         shots=reference.shots, node_order=reference.node_order, job_ids=reference.job_ids,
+        expected_device_type=expected_device_type,
     )
 
 
@@ -359,6 +404,7 @@ def recover_batch_counts(
 def _recover_batch(
     batch_id: str, *, profile: str, timeout_seconds: float, project_id: str,
     shots: int | None = None, node_order: tuple[str, ...] = (), job_ids: tuple[str, ...] | None = None,
+    expected_device_type: str | None = None,
 ) -> JobRecoveryResult:
     from time import perf_counter
 
@@ -402,7 +448,8 @@ def _recover_batch(
             )
         phase = "read_results"
         batch = read_batch_results(batch_id, connection, expected_project=project_id,
-                                   expected_shots=shots, job_ids=job_ids)
+                                   expected_shots=shots, job_ids=job_ids,
+                                   expected_device_type=expected_device_type)
         if deadline is not None and perf_counter() >= deadline:
             return JobRecoveryResult(batch_id, "local_timeout", False, False, None, node_order, shots, None)
         return JobRecoveryResult(batch_id, "completed", True, True, batch.counts, node_order,
@@ -460,7 +507,15 @@ def recover_job_to_samples(
         total_shots=recovery.shots_received or 0,
     )
 
-    service = PasqalCloudEmulatorService(reference.emulator_service)
+    # Determine source backend based on target type
+    is_qpu = reference.target_type == "qpu" or reference.emulator_service == "qpu"
+
+    if is_qpu:
+        # For QPU jobs, use a placeholder service for decode_results_to_samples
+        # but override the source_backend_id in the resulting samples
+        service = PasqalCloudEmulatorService.EMU_FREE  # Placeholder for decoding
+    else:
+        service = PasqalCloudEmulatorService(reference.emulator_service)
 
     try:
         samples = decode_results_to_samples(
@@ -476,6 +531,26 @@ def recover_job_to_samples(
         raise PasqalCloudJobRecoveryError(
             f"Pasqal samples do not match the original node mapping. Batch ID: {reference.batch_id}."
         ) from None
+
+    # For QPU jobs, update the samples with correct backend info
+    if is_qpu:
+        qpu_samples = []
+        for sample in samples:
+            qpu_samples.append(RawMISSample(
+                raw_sample_id=sample.raw_sample_id.replace("pasqal_cloud_emulator", "pasqal_qpu"),
+                node_order=sample.node_order,
+                delta=sample.delta,
+                occurrence_count=sample.occurrence_count,
+                source_provider_id="pasqal",
+                source_backend_id="pasqal_qpu",
+                effective_compilation_parameters=sample.effective_compilation_parameters,
+                effective_execution_parameters={
+                    **sample.effective_execution_parameters,
+                    "device_id": reference.device_id,
+                    "recovered": True,
+                },
+            ))
+        samples = qpu_samples
 
     return samples, recovery
 

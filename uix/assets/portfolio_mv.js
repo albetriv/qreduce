@@ -43,6 +43,9 @@
     numSweeps: "",
     embeddingProfile: "none",
     pasqalShots: "",
+    pasqalQpuDevice: "",
+    pasqalQpuShots: "",
+    pasqalQpuConsent: false,
     modelExport: false,
     modelExportPath: "",
   };
@@ -87,6 +90,10 @@
    */
   function isPasqalCloudSolver() {
     return C.value("misSolver") === "pasqal_cloud_emulator";
+  }
+
+  function isPasqalQpuSolver() {
+    return C.value("misSolver") === "pasqal_qpu";
   }
 
   /**
@@ -369,6 +376,17 @@
         }
       }
 
+      if (isPasqalQpuSolver()) {
+        var qpuDevice = C.value("pasqalQpuDevice");
+        var qpuShots = C.number("pasqalQpuShots");
+        require("maxRounds", maxRounds === 1, "Pasqal QPU richiede esattamente un round.");
+        require("pasqalQpuDevice", /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(qpuDevice) && !qpuDevice.startsWith("EMU_"),
+          "Inserisci l'ID di una QPU restituito dalla discovery.");
+        require("pasqalQpuShots", !C.$("pasqalQpuShots").validity.badInput && Number.isSafeInteger(qpuShots) && qpuShots >= 1,
+          "Inserisci un numero intero positivo di shot.");
+        require("pasqalQpuConsent", C.bool("pasqalQpuConsent"), "Conferma i potenziali costi per generare il comando.");
+      }
+
       if (isAnyPasqalSolver()) {
         var pasqalShots = C.number("pasqalShots");
         var shotsInput = C.$("pasqalShots");
@@ -493,7 +511,7 @@
 
     // Reduction policy - max-reduction-rounds is key
     var maxRounds = C.number("maxRounds");
-    if (maxRounds !== null && maxRounds !== 1) {
+    if (maxRounds !== null && (maxRounds !== 1 || (reductionActive && isPasqalQpuSolver()))) {
       args.push({ flag: "--max-reduction-rounds", value: maxRounds });
     }
 
@@ -603,6 +621,12 @@
 
       if (isPasqalCloudSolver()) {
         args.push({ flag: "--pasqal-emulator-service", value: "emu_free" });
+      }
+
+      if (isPasqalQpuSolver()) {
+        args.push({ flag: "--pasqal-device-id", value: C.value("pasqalQpuDevice") });
+        args.push({ flag: "--pasqal-shots", value: C.number("pasqalQpuShots") });
+        args.push({ flag: "--pasqal-cost-consent", value: true, isFlag: true });
       }
 
       if (isAnyPasqalSolver()) {
@@ -738,6 +762,13 @@
     var pasqalActive = reductionActive && isAnyPasqalSolver();
     C.$("pasqalShotField").hidden = !pasqalActive;
     C.$("pasqalShots").disabled = !pasqalActive;
+
+    var qpuActive = reductionActive && isPasqalQpuSolver();
+    C.$("pasqalQpuParams").hidden = !qpuActive;
+    ["pasqalQpuDevice", "pasqalQpuShots", "pasqalQpuConsent"].forEach(function (id) {
+      C.$(id).disabled = !qpuActive;
+    });
+    if (!qpuActive) C.$("pasqalQpuConsent").checked = false;
 
     // Update dynamic solver info panels
     updateSolverInfoPanels(reductionActive);
@@ -955,7 +986,9 @@
     var isValid = validate();
 
     // Update preview
-    C.$("cliPreview").textContent = generateCommand();
+    C.$("cliPreview").textContent = !isValid && isReductionActive() && isPasqalQpuSolver()
+      ? "Completa i campi evidenziati per generare il comando QPU."
+      : generateCommand();
 
     // Update summary
     C.$("summaryRunId").textContent = C.value("runId") || "run ID mancante";
@@ -1019,7 +1052,7 @@
     C.initTooltips();
 
     C.$("copyCommand").addEventListener("click", function () {
-      C.copy(generateCommand(), "Comando CLI copiato negli appunti.");
+      if (validate()) C.copy(generateCommand(), "Comando CLI copiato negli appunti.");
     });
 
     C.$("resetDefaults").addEventListener("click", resetDefaults);
