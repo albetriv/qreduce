@@ -16,7 +16,7 @@ budget errors and full portfolio CLI validation. Native-browser layout and scree
 reader verification remain separate from jsdom checks.
 
 `PIANO_UIX_IMPATTO_QREDUCE.md` supersedes the presentation in
-`PIANO_UIX_CONFRONTO_RUN.md`. The current **Impatto di QReduce** panel presents
+`PIANO_UIX_CONFRONTO_RUN.md`. The current **Confronto tra run** panel presents
 an in-page dashboard and expandable technical details. It has no Markdown
 report generation or download. The dashboard renders charts and the core's gated
 verdict, or explains why an overall verdict is unavailable.

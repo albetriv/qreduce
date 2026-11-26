@@ -125,6 +125,10 @@ da filesystem senza server.
 
 Il catalogo [`uix/index.html`](../../uix/index.html) elenca i configuratori
 disponibili e le anteprime con la rispettiva documentazione.
+I collegamenti alla documentazione aprono i file Markdown: a seconda del browser
+e dell'ambiente possono mostrare il testo sorgente o scaricare il file, anziché
+renderizzarlo. Per la formattazione e le formule usare un visualizzatore Markdown
+compatibile con la sintassi matematica dei documenti.
 
 I configuratori:
 - generano comandi CLI con sintassi Bash/Zsh;

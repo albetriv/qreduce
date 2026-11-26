@@ -847,15 +847,15 @@ class TestUIXHtmlContent:
         parser.feed(content)
         assert parser.cards == [
             [["experiment_portfolio_mv.html", "Portfolio Media-Varianza"],
-             ["../docs/experiments/portfolio.html", "Documentazione"]],
+             ["../docs/experiments/portfolio.md", "Documentazione"]],
             [["experiment_portfolio_sr.html", "Portfolio Sharpe Ratio"],
-             ["../docs/experiments/portfolio-sr.html", "Documentazione"]],
+             ["../docs/experiments/portfolio-sr.md", "Documentazione"]],
             [["experiment_facility_location.html", "Facility Location"],
-             ["../docs/experiments/facility-location.html", "Documentazione"]],
-            [["../docs/experiments/asset-liability-management.html", "Documentazione"]],
-            [["../docs/experiments/riassicurazione-passiva.html", "Documentazione"]],
-            [["../docs/experiments/cessione-crediti-deteriorati.html", "Documentazione"]],
-            [["../docs/experiments/pianificazione-audit-interni.html", "Documentazione"]],
+             ["../docs/experiments/facility-location.md", "Documentazione"]],
+            [["../docs/experiments/asset-liability-management.md", "Documentazione"]],
+            [["../docs/experiments/riassicurazione-passiva.md", "Documentazione"]],
+            [["../docs/experiments/cessione-crediti-deteriorati.md", "Documentazione"]],
+            [["../docs/experiments/pianificazione-audit-interni.md", "Documentazione"]],
         ]
         assert parser.resources == [
             ["../docs/experiments/README.md", "Guida esperimenti"],
@@ -882,9 +882,8 @@ class TestUIXHtmlContent:
             assert '<span class="pill">sperimentale</span>' in card
             assert "<button" not in card
             doc_text = (index_file.parent / links[0][0]).read_text(encoding="utf-8")
-            assert '<html lang="it">' in doc_text
+            assert doc_text.startswith("# ")
             assert "Non disponibile: l’esperimento non è ancora eseguibile." in doc_text
-            assert (index_file.parent / links[0][0]).with_suffix(".md").is_file()
         reinsurance = next(card for card in cards if "<h2>Riassicurazione passiva</h2>" in card)
         assert "Selezione di coperture riassicurative per ridurre le perdite trattenute" in reinsurance
 

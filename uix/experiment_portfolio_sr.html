@@ -507,35 +507,42 @@
         </form>
 
         <!-- Tab 6: Comparison (outside form) -->
-        <section class="tab-content" id="comparison">
+        <section class="tab-content" id="comparison" aria-labelledby="comparison-title">
           <div class="section-head">
             <div>
-              <h2>Confronto tra run</h2>
+              <h2 id="comparison-title">Confronto tra run</h2>
               <p>Seleziona due run dal catalogo locale per confrontare baseline e riduzione.</p>
             </div>
+            <div class="comparison-refresh-wrapper">
+              <button id="comparison-refresh" class="button ghost comparison-icon" type="button" title="Ricarica il catalogo dal disco" aria-label="Ricarica il catalogo dal disco">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v5h-5 M20 9a8 8 0 1 0 0 6"/></svg>
+              </button>
+              <span class="tooltip-wrapper">
+                <button type="button" class="info-icon" aria-label="Informazioni sul catalogo" aria-expanded="false">i</button>
+                <span class="tooltip" role="tooltip">Questo pulsante ricarica il catalogo già presente su disco. Per aggiungere nuovi run al catalogo, esegui prima:<br><code style="display:block;margin-top:6px;font-size:0.78rem;">poetry run python -m qreduce.experiments.portfolio_sr.run_catalog</code></span>
+              </span>
+            </div>
           </div>
 
-          <div class="form-grid" style="margin-bottom:1rem">
+          <div class="comparison-selectors">
             <div class="field">
               <label for="comparison-a">Baseline</label>
-              <select id="comparison-a" aria-label="Run baseline per il confronto">
+              <select id="comparison-a" aria-label="Run baseline per il confronto" disabled>
                 <option value="">Seleziona un run</option>
               </select>
             </div>
+            <button id="comparison-swap" class="button ghost comparison-icon" type="button" title="Inverti i run" aria-label="Inverti i run" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4 M20 16H4m4-4-4 4 4 4"/></svg>
+            </button>
             <div class="field">
               <label for="comparison-b">Run di confronto</label>
-              <select id="comparison-b" aria-label="Run di confronto">
+              <select id="comparison-b" aria-label="Run di confronto" disabled>
                 <option value="">Seleziona un run</option>
               </select>
             </div>
           </div>
 
-          <div class="actions" style="margin-bottom:1rem;gap:0.5rem">
-            <button type="button" class="button ghost" id="comparison-swap" disabled title="Inverti baseline e confronto">⇄ Inverti</button>
-            <button type="button" class="button ghost" id="comparison-refresh" title="Ricarica catalogo">↻</button>
-          </div>
-
-          <p class="help" id="comparison-status">Caricamento catalogo…</p>
+          <p class="help" id="comparison-status" role="status">Caricamento catalogo…</p>
 
           <div id="comparison-report"></div>
         </section>

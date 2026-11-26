@@ -57,6 +57,23 @@ function launch(store = new Map(), mode = "normal") {
 }
 
 async function main() {
+  if (family === "portfolio_mv") {
+    const preset = launch();
+    for (const name of ["portfolio_500_classic", "portfolio_500_dwave"]) {
+      const archive = JSON.parse(fs.readFileSync(path.join(root, "favorites", name + ".json"), "utf8"));
+      await preset.importData(archive);
+      assert.match(preset.$("favoritesMessage").textContent, /Importati 1 preferiti/);
+      preset.select(name);
+      preset.$("loadFavorite").click();
+      for (const [id, value] of Object.entries(archive.entries[0].fields)) {
+        const field = preset.$(id);
+        assert.equal(field.type === "checkbox" ? field.checked : field.value, value, id);
+      }
+      assert.equal(preset.$("cliPreview").textContent, archive.entries[0].command);
+      assert.equal(preset.$("copyCommand").disabled, false);
+    }
+    preset.dom.window.close();
+  }
   // Name proposals must behave identically in all three configurators.
   const names = launch();
   const initialRunId = names.$("runId").value;

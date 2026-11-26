@@ -49,6 +49,11 @@ function entry(id, classical, sharpe) {
     const a = document.getElementById('comparison-a'), b = document.getElementById('comparison-b');
     const status = document.getElementById('comparison-status'), report = document.getElementById('comparison-report');
     const swap = document.getElementById('comparison-swap'), refresh = document.getElementById('comparison-refresh');
+    const selectors = document.querySelector('#comparison .comparison-selectors');
+    assert.deepEqual([...selectors.children].map(element => element.id || element.className), ['field', 'comparison-swap', 'field']);
+    assert.equal(refresh.closest('.comparison-refresh-wrapper').parentElement.className, 'section-head');
+    assert.match(document.querySelector('#comparison .tooltip').textContent, /qreduce\.experiments\.portfolio_sr\.run_catalog/);
+    assert.equal(status.getAttribute('role'), 'status');
     document.querySelector('[data-tab="comparison"]').click();
     try { await waitFor(() => !a.disabled && a.options.length === 3); }
     catch (error) { throw new Error(`${error.message}: ${status.textContent}; ${errors.map(e => e.message).join('; ')}`); }
