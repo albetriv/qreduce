@@ -323,8 +323,6 @@ python -m qreduce.experiments.portfolio_mv.run_catalog
 
 Il comando legge gli output già pubblicati in `outputs/portfolio_mv` e genera
 `outputs/portfolio_mv/run_catalog.js`, uno snapshot locale non tracciato da Git.
-Per requisiti dei file, stato delle verifiche e limiti del confronto si veda la
-[nota di implementazione](./docs/implementation/uix-portfolio-comparison.md).
 
 ## Notebook di visualizzazione
 

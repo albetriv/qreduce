@@ -44,8 +44,7 @@ storiche e le precedenti schede delle milestone sono nella cronologia Git.
 
 La disponibilità dei backend dipende da dipendenze, capability e ambiente.
 Per il backend neutral-atom si vedano [integrazione Pasqal](pasqal-integration.md)
-e i limiti delle singole CLI. Il [confronto UIX](uix-portfolio-comparison.md)
-descrive controlli e limiti dell'analisi degli artifact. Altre estensioni e
+e i limiti delle singole CLI. Altre estensioni e
 benchmark opzionali sono descritti nelle specifiche: non sono requisiti
 implementati solo perché vi compaiono.
 
