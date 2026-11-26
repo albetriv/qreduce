@@ -327,9 +327,8 @@ Per requisiti dei file, stato delle verifiche e limiti del confronto si veda la
 
 ## Notebook di visualizzazione
 
-I notebook in `notebooks/tasks/` sono esempi didattici sintetici in memoria:
-grafo MWIS ed equivalenza QUBO/Ising. La logica risiede in
-`src/qreduce/notebooks/examples.py`; non esportano artifact.
+I notebook in `notebooks/experiments/` visualizzano gli artifact degli
+esperimenti utilizzando la logica dei moduli Python del progetto.
 
 ```bash
 poetry install --with notebooks

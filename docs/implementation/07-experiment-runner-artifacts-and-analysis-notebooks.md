@@ -34,7 +34,7 @@ Il manifest conserva configurazione, hash, policy provenance redatta, stato e me
 
 Gli artifact multi-round includono un risultato per ciascun round e gli eventuali recovery attempt. Per la baseline classical-only registrano zero round, nessun file `round_XX_result.json` e un manifest con origine `no_reduction`.
 
-I notebook in `notebooks/experiments/` leggono artifact attraverso `qreduce.experiments.load_experiment_run`. I notebook didattici in `notebooks/tasks/` richiamano la logica presente nei moduli Python e non sono la fonte della business logic.
+I notebook in `notebooks/experiments/` leggono artifact attraverso `qreduce.experiments.load_experiment_run`.
 
 ## Test e verifica
 

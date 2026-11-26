@@ -86,7 +86,6 @@ src/qreduce/        package applicativo
 src/qreduce/experiments/ runner interno al repository, escluso dal wheel
 tests/              test permanenti
 docs/               specifiche e decisioni di implementazione
-notebooks/tasks/    notebook didattici in memoria
 notebooks/experiments/ notebook di analisi di artifact persistiti
 {output_root}/{run_id}/ artifact prodotti dal runner interno
 .cline-tmp/         file temporanei dell'agente, ignorati da Git
