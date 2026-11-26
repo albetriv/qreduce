@@ -847,7 +847,7 @@ class TestUIXHtmlContent:
         parser.feed(content)
         assert parser.cards == [
             [["experiment_portfolio_mv.html", "Portfolio Media-Varianza"],
-             ["../docs/experiments/portfolio.md", "Documentazione"]],
+             ["../docs/experiments/portfolio-mv.md", "Documentazione"]],
             [["experiment_portfolio_sr.html", "Portfolio Sharpe Ratio"],
              ["../docs/experiments/portfolio-sr.md", "Documentazione"]],
             [["experiment_facility_location.html", "Facility Location"],

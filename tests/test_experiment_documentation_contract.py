@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 GUIDES = ROOT / "docs" / "experiments"
 EXECUTABLE = {
-    "portfolio": "qreduce.experiments.portfolio_mv",
+    "portfolio-mv": "qreduce.experiments.portfolio_mv",
     "portfolio-sr": "qreduce.experiments.portfolio_sr",
     "facility-location": "qreduce.experiments.facility_location.run",
 }
@@ -24,7 +24,7 @@ FLAG = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*")
 
 
 @pytest.mark.parametrize(("name", "url"), [
-    ("portfolio", "https://arxiv.org/abs/2607.01037"),
+    ("portfolio-mv", "https://arxiv.org/abs/2607.01037"),
     ("portfolio-sr", "https://arxiv.org/abs/2302.12291"),
 ])
 def test_required_paper_reference_in_source(name, url):
@@ -67,7 +67,7 @@ def test_cli_and_artifact_contract(name):
         assert cli == f"```bash\npoetry run python -m {EXECUTABLE[name]} --help\n```"
         assert text.count("```") == 2
         assert "--output-root" in artifacts
-        root = {"portfolio": "portfolio_mv", "portfolio-sr": "portfolio_sr",
+        root = {"portfolio-mv": "portfolio_mv", "portfolio-sr": "portfolio_sr",
                 "facility-location": "facility_location"}[name]
         assert f"outputs/{root}" in artifacts
     else:

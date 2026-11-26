@@ -20,7 +20,7 @@ def test_portfolio_modules_import(name):
     assert importlib.import_module(f"qreduce.experiments.portfolio_mv.{name}")
 
 
-@pytest.mark.parametrize("document", ["README.md", "portfolio.md", "portfolio-sr.md"])
+@pytest.mark.parametrize("document", ["README.md", "portfolio-mv.md", "portfolio-sr.md"])
 def test_experiment_documentation_local_links_exist(document):
     root = Path(__file__).resolve().parents[3]
     path = root / "docs/experiments" / document
@@ -31,7 +31,7 @@ def test_experiment_documentation_local_links_exist(document):
 
 def test_portfolio_documentation_has_required_sections():
     root = Path(__file__).resolve().parents[3]
-    content = (root / "docs/experiments/portfolio.md").read_text(encoding="utf-8")
+    content = (root / "docs/experiments/portfolio-mv.md").read_text(encoding="utf-8")
     assert "## 2. Formulazione matematica" in content
     assert "## 3. CLI unificata" in content
     assert "## 4. Parametri" in content

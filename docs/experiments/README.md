@@ -95,7 +95,7 @@ L'architettura comune è descritta in
 
 | Famiglia            | Stato         | Guida                                    |
 |---------------------|---------------|------------------------------------------|
-| portfolio_mv        | completo      | [portfolio.md](./portfolio.md)           |
+| portfolio_mv        | completo      | [portfolio-mv.md](./portfolio-mv.md)     |
 | portfolio_sr        | completo      | [portfolio-sr.md](./portfolio-sr.md)     |
 | facility_location   | sperimentale  | [facility-location.md](./facility-location.md) |
 
