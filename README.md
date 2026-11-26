@@ -84,164 +84,6 @@ I dependency groups `experiments` e `notebooks` sono definiti nel
 poetry install --without experiments,notebooks
 ```
 
-## Selezione dei solver
-
-L'applicazione seleziona i solver tramite ID pubblici. La pipeline risolve
-automaticamente gli ID forniti da QReduce.
-
-```python
-mis_solver_id = "local_greedy"        # oppure "dwave_simulated_annealing"
-classical_solver_id = "scip"          # oppure "cplex"
-```
-
-Il catalogo iniziale contiene:
-- **MWIS**: `local_greedy`, `dwave_simulated_annealing`, `pasqal_local` (opt-in),
-  `pasqal_cloud_emulator` (opt-in, richiede credenziali)
-
-Il gruppo `experiments` include `pulser-simulation` (con `pulser-core`) e
-`pasqal-cloud`: installare con `poetry install --with experiments` sia per
-l'emulazione locale sia per il backend cloud. Non serve un gruppo separato.
-Nelle CLI portfolio MV e SR selezionare `--mis-solver-id pasqal_local`, con
-`--max-end-to-end-runtime-seconds=0` e, facoltativamente, `--pasqal-shots 100`
-(valore predefinito). Il backend accetta al massimo 12 nodi, non richiede
-credenziali e non esegue job cloud. I pesi MWIS sono valutati dalla pipeline.
-
-Il backend cloud della CLI portfolio MV si seleziona con
-`--mis-solver-id pasqal_cloud_emulator --pasqal-emulator-service emu_free`.
-Nel configuratore Portfolio MV, selezionare **Pasqal Cloud (EMU_FREE)** con
-la riduzione attiva. Lasciare vuoto il campo Shot per usare il valore
-predefinito della CLI (100). Il browser genera solo il comando: le credenziali
-sono lette dal processo CLI che lo esegue.
-L'esecuzione remota richiede credenziali Pasqal Cloud, configurabili in
-`~/.pasqual/credentials`; l'installazione dell'SDK non le richiede.
-Se `~/.cato/cato-ca.pem` è presente, QReduce aggiunge automaticamente la CA di
-Cato alle CA pubbliche durante l'esecuzione e il recupero Pasqal Cloud. Non
-serve un `export`; eventuali bundle espliciti di Requests hanno precedenza e
-la verifica TLS resta attiva.
-L'emulatore cloud supporta solo `emu_free`, con un limite prudenziale di 12
-atomi. Il backend sperimentale `pasqal_qpu` è separato e disponibile nella
-CLI Portfolio MV: iniziare da `preflight --discover`, poi usare
-`preflight --from-artifacts "$RUN_DIRECTORY" --device-id "$DEVICE_ID"` per
-validare il problema del round 0 di un run esistente, usando un ID restituito
-dalla discovery. `preflight --compile --device-id` genera invece un problema
-sintetico di prova. L'esito `qpu_sequence_validated` attesta la compilazione;
-`presolve_only` non valida una sequenza hardware.
-Per provare un layout personalizzato senza invio, aggiungere
-`--layout-mode custom` al preflight. La discovery mostra `accepts_new_layouts`;
-senza consenso del dispositivo, la compilazione rifiuta la modalità. I layout
-calibrati rimangono il default, anche nel configuratore. Con
-`--sequence-output "$NEW_FILE"` il preflight salva la sequenza misurata esatta
-in un nuovo file (senza sovrascriverlo); l'hash è riportato nel JSON.
-Per riusare la sequenza senza ricompilarla, conserva anche il report JSON e
-usa `submit-preflight` con `--preflight-report`, `--sequence`,
-`--from-artifacts`, `--device-id`, `--run-id` e `--shots`. La modalità
-`--check-only` verifica tutto ciò che è disponibile localmente e non accede
-al cloud. L'invio richiede invece `--pasqal-cost-consent` e un report con gli
-hash del progetto e del problema. Il journal riserva il run ID prima
-dell'invio: se l'esito è incerto, verifica il journal e il portale, senza
-tentare un altro invio.
-Nel configuratore Portfolio MV, in **03 · Solver → Backend MIS**, scegliere
-**Pasqal QPU (hardware reale)** con un solo round, quindi inserire ID del
-dispositivo, shot e consenso. Il browser genera soltanto il comando.
-Il preflight non crea batch. L'invio QPU richiede device, shot e consenso
-espliciti. Il flusso è coperto da test con trasporto simulato; il percorso
-`preflight --layout-mode custom` → `submit-preflight` → recupero è stato
-completato su `FRESNEL_CAN1` con 100 shot. Il pilota non valida il mapping
-calibrato della stessa istanza. Questo README riporta il resoconto del pilota;
-il documento di evidenza precedentemente citato non è presente nel repository.
-Il riferimento del batch è salvato sotto
-`<output-root>/.pasqal-cloud-jobs/<run-id>/`, anche se il run fallisce.
-Per recuperare i campioni senza reinviare il batch:
-
-```bash
-poetry run python -m qreduce.experiments.portfolio_mv recover-pasqal \
-  --reference "$OUTPUT_ROOT/.pasqal-cloud-jobs/$RUN_ID/pasqal_cloud_job_$BATCH_ID.json"
-```
-
-I test del flusso remoto usano l'SDK reale con trasporto simulato.
-Stato e limiti in
-`docs/implementation/pasqal-integration.md`.
-- **Classico residuo**: `cplex`, `scip`
-
-Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non
-disponibile produce un failure esplicito. I parametri provider-specifici sono
-documentati nelle docstring dei backend.
-
-## Logging
-
-QReduce usa il modulo `logging` standard di Python con configurazione YAML
-esterna.
-
-### Uso come libreria
-
-All'import QReduce aggiunge solo un `NullHandler` al logger `qreduce`, senza
-configurare destinazioni o livelli. L'applicazione ospite mantiene il controllo
-della propria configurazione logging.
-
-Per integrare i log di QReduce nella propria applicazione, configurare il logger
-`qreduce` e i suoi figli secondo le proprie esigenze, senza chiamare
-`configure_logging()`.
-
-### Configurazione nelle CLI degli esperimenti
-
-Le CLI degli esperimenti chiamano `configure_logging()`, che applica
-`dictConfig()` all'intero processo. Questa funzione è destinata agli entry
-point che controllano la configurazione del processo.
-
-**Attenzione**: `configure_logging()` può chiudere o riconfigurare handler
-precedentemente impostati dall'applicazione ospite. Non usarla se si vuole
-integrare QReduce in un'applicazione con logging già configurato.
-
-Le tre sorgenti per la configurazione, in ordine di precedenza:
-
-1. Opzione `--log-config <path>` (esplicita)
-2. Variabile d'ambiente `QREDUCE_LOG_CONFIG`
-3. File predefinito `config/logging.yaml` del repository
-
-Un percorso esplicito inesistente o malformato produce un errore all'avvio.
-Senza configurazione il logging resta silenzioso (solo `NullHandler`).
-
-Il file predefinito del repository non è disponibile quando QReduce è installato
-come pacchetto esterno; in quel caso usare `--log-config` o la variabile
-d'ambiente.
-
-### Percorsi e destinazioni
-
-Il file YAML predefinito configura:
-- Console su `stderr` a livello `INFO`
-- File con rotazione in `logs/qreduce.log` a livello `DEBUG`
-
-All'avvio di un run da CLI, il log a livello `DEBUG` include il `run_id` e la
-riga di comando Python con gli argomenti quotati per Bash/Zsh. Sono esclusi i
-wrapper esterni (ad esempio `poetry run`) e le variabili d'ambiente.
-
-I percorsi relativi nel YAML (es. `filename: "../logs/qreduce.log"`) sono
-risolti rispetto alla directory del file YAML, non rispetto alla directory di
-lavoro. Le directory di destinazione vengono create automaticamente.
-
-I log sono tenuti separati dagli artifact degli esperimenti per preservare la
-diagnostica anche in caso di errori di pubblicazione.
-
-La rotazione su file condiviso da più processi concorrenti non è supportata;
-per quel caso usare file separati per processo o un writer centralizzato.
-
-### Contesto e campi
-
-Gli eventi di logging possono includere campi contestuali:
-- `run_id`: identificatore del run corrente
-- `round_index`: indice del round di riduzione
-- `stage`: fase della pipeline (graph_construction, mwis_execution, ...)
-- `solver_id`: identificatore del solver attivo
-
-Il filtro `ContextDefaultsFilter` inietta valori predefiniti (`-`) per i campi
-non impostati, evitando errori di formattazione.
-
-### Sicurezza
-
-Il file YAML è caricato con `yaml.safe_load()`, ma `dictConfig()` può
-istanziare oggetti indicati nella configurazione. Caricare solo file YAML
-da sorgenti fidate.
-
 ## Esperimenti interni
 
 Gli esperimenti sono organizzati per famiglia di problemi:
@@ -256,68 +98,31 @@ Runner e loader degli artifact sono condivisi; adapter e parametri appartengono
 alle singole famiglie. I notebook caricano artifact gia` prodotti tramite
 `load_experiment_run` e non eseguono direttamente la pipeline.
 
-Famiglie disponibili:
-- **portfolio_mv**: ottimizzazione media-varianza sintetica;
-- **facility_location**: esperimento sperimentale con istanze OR-Library.
-
 Un run con esito `failed` viene comunque salvato come risultato analizzabile.
 Modelli, parametri CLI e directory degli artifact sono descritti nelle guide
 delle famiglie in [`docs/experiments/`](./docs/experiments/).
 
-### Configuratori HTML
+## Configuratori HTML
 
 La directory [`uix/`](./uix/) contiene configuratori HTML per generare comandi
 CLI. Le pagine sono statiche, apribili direttamente da filesystem senza server.
 Il catalogo [`uix/index.html`](./uix/index.html) elenca i configuratori
 disponibili.
 
-Ogni parametro ha un'icona informativa (ⓘ) che mostra una descrizione al
-passaggio del mouse o con focus/tocco. Le descrizioni documentano scopo,
-effetto e condizioni d'uso di ciascun parametro.
-
-Nella scheda Solver, parametri e informazioni MIS sono contestuali al backend
-selezionato; gli avvisi di embedding compaiono solo con un profilo attivo.
-In baseline il MIS non è utilizzato, mentre le informazioni del solver classico
-restano disponibili. Cambiare backend o disattivare la riduzione conserva i
-valori inattivi senza includerli nel comando. I pannelli descrivono requisiti,
-non verificano SDK installati o licenze. Gli errori bloccanti sono associati ai
-campi da correggere, incluso il budget end-to-end per Pasqal.
-
-I configuratori includono un pannello espandibile con la formulazione
-matematica del problema configurato, renderizzata con MathJax quando
-disponibile.
-
-Nel pannello destro, **Comandi preferiti** permette di salvare, caricare e
-cancellare configurazioni con elenco alfabetico. I dati restano nel browser:
-nessun archivio viene creato nel workspace. Import/export JSON consente il
-trasferimento manuale tra browser e macchine, salvando il file fuori dal repository.
-Con pagine `file://`, verificare la persistenza dopo la riapertura del browser;
-se lo storage non e disponibile, la UI segnala la modalita solo in memoria.
-Dettagli e procedura di verifica in [Configuratori HTML](docs/experiments/README.md#comandi-preferiti).
-
-Il nome proposto segue l'ID del run finché non viene personalizzato; svuotandolo,
-la proposta riprende alla successiva modifica dell'ID. Carica conserva il nome
-salvato, mentre Ripristina default riallinea la proposta all'ID ripristinato.
-Nel portfolio MV, **Candidati MIS da aggregare** espone
-`--num-source-mis-candidates`: vuoto omette il flag (default CLI 1), in baseline
-è disabilitato e non viene emesso. Non cambia il numero di shot del backend MIS.
+I configuratori offrono informazioni sui parametri, formulazione matematica e
+comandi preferiti salvati nel browser, con import/export JSON. Non verificano
+la disponibilita` di SDK o licenze. Dettagli sui preferiti nella
+[guida agli esperimenti](docs/experiments/README.md#comandi-preferiti).
 
 Nel configuratore **Portfolio Mean–Variance**, la scheda **05 · Confronto**
-permette di scegliere **Baseline** e **Run di confronto** da due tendine di run ID,
-senza selezionare cartelle, avviare un server o rilanciare i solver. La dashboard mostra indicatori,
-grafici del dominio, motivi registrati per round, posizioni della baseline, tempi e
-un verdetto complessivo quando sono soddisfatte le condizioni di confrontabilita;
-in caso contrario ne indica i motivi. I dettagli tecnici sono espandibili e il report
-resta nella pagina, senza generazione o download Markdown. Le differenze descrivono
-i run osservati, non provano un effetto causale.
+mostra indicatori e dettagli di una baseline e di un altro run, senza rilanciare
+i solver. Le differenze descrivono i run osservati e non provano causalita`.
 
 Per creare il catalogo locale o aggiornarlo dopo aver aggiunto, rimosso o
-rigenerato dei run, eseguire dalla root del repository (con l'ambiente del progetto
-attivo), poi premere **↻** nella scheda **Confronto** per ricaricare il catalogo.
-Non occorre ricaricare la pagina; le selezioni restano valide finché i relativi
-run sono presenti nel catalogo.
+rigenerato dei run, eseguire dalla root del repository con l'ambiente del progetto
+attivo, poi premere **↻** nella scheda **Confronto** per ricaricarlo:
 
-```powershell
+```bash
 python -m qreduce.experiments.portfolio_mv.run_catalog
 ```
 
@@ -331,7 +136,6 @@ esperimenti utilizzando la logica dei moduli Python del progetto.
 
 ```bash
 poetry install --with notebooks
-poetry run jupyter lab
 ```
 
 ## Documentazione
@@ -348,29 +152,3 @@ Le fonti autorevoli sono:
 
 Questo README riassume le capacita` utilizzabili e le istruzioni operative del
 repository; non sostituisce le specifiche ne` la documentazione tecnica.
-
-### Post-processing dei candidati MWIS
-
-Il completamento greedy è un'opzione classica esplicita, disabilitata per
-default: impostare insieme `completion_enabled=true` e
-`completion_policy_id="greedy_by_weight"` (oppure `greedy_by_degree` o
-`greedy_weight_degree`). Il repair resta indipendente da questa opzione.
-Gli artefatti distinguono campione originale, riparazione e completamento;
-i candidati finali uguali vengono aggregati prima della selezione.
-Il confronto UI mostra le aggiunte classiche separatamente dalle riparazioni.
-
-### Notebook portfolio MV: MWIS e Pasqal 2D
-
-Il notebook `notebooks/experiments/portfolio_mv/001_mwis_pasqal_2d.ipynb`
-analizza i run salvati senza avviare solver o simulatori. Impostare `RUN_ID`,
-`BASELINE_RUN_ID` (opzionale) e `ROUND_INDEX` nella cella di configurazione.
-Mostra correlazioni e incompatibilità, grafo MWIS, coordinate Pasqal, congruenza
-degli archi geometrici, diagnostiche fisiche, selezioni raw Pulser, candidati e
-cap del dominio, quindi le allocazioni finali a confronto con la baseline.
-La logica è in `src/qreduce/notebooks/portfolio_mv.py`. Il confronto delle
-allocazioni richiede lo stesso problema originale e soluzioni adottate con
-postcheck superato; l'enumerazione MWIS è diagnostica e limitata esplicitamente.
-
-Il grafico dei campioni distingue conflitti MIS (arancione), selezioni
-indipendenti ma non fattibili come portafoglio (rosso) e selezioni che
-superano entrambi i controlli (verde).
