@@ -41,6 +41,60 @@ def section(text, number):
     return match.group(1)
 
 
+def validate_math_delimiters(text, name, *, require_block=False):
+    """Check the guides' math delimiters without interpreting LaTeX."""
+    in_fence = False
+    block_start = None
+    block_content = False
+    blocks = 0
+    for line_number, line in enumerate(text.splitlines(), 1):
+        location = f"{name}:{line_number}"
+        if re.match(r"^\s*```", line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        # Ignore ordinary inline code, but not GitHub's $`math`$ form.
+        clean = re.sub(r"\$`([^`]+)`\$", lambda match: f"${match.group(1)}$", line)
+        clean = re.sub(r"(`+)(?!`)(.*?)(?<!`)\1(?!`)", "", clean)
+        assert not re.search(r"\\[()\[\]]", clean), f"{location}: obsolete delimiter"
+        if clean.strip() == "$$":
+            if block_start is None:
+                block_start = line_number
+                block_content = False
+            else:
+                assert block_content, f"{location}: empty block from line {block_start}"
+                blocks += 1
+                block_start = None
+            continue
+        if block_start is not None:
+            block_content |= bool(clean.strip())
+            continue
+        # A backslash escapes a literal dollar; paired backslashes do not.
+        dollars = re.findall(r"(?<!\\)(?:\\\\)*\$", clean)
+        assert len(dollars) % 2 == 0, f"{location}: unpaired inline dollar"
+        assert "$$" not in clean, f"{location}: block delimiter must occupy its own line"
+    assert block_start is None, f"{name}:{block_start}: unclosed block"
+    if require_block:
+        assert blocks, f"{name}: missing math block"
+
+
+@pytest.mark.parametrize(("text", "error"), [
+    ("inline $x$ and $`y`$; literal \\$5; code `\\(x\\)`", None),
+    ("$$\n\\begin{aligned}\nx &= 1\n\\end{aligned}\n$$", None),
+    ("$$\nx", "unclosed block"),
+    ("$$\n\n$$", "empty block"),
+    (r"old \(x\)", "obsolete delimiter"),
+    ("orphan $x", "unpaired inline dollar"),
+])
+def test_math_delimiter_validation(text, error):
+    if error:
+        with pytest.raises(AssertionError, match=error):
+            validate_math_delimiters(text, "example")
+    else:
+        validate_math_delimiters(text, "example")
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_section_structure_and_formulation(name):
     text = source(name)
@@ -51,7 +105,8 @@ def test_section_structure_and_formulation(name):
     assert headings[:len(expected)] == expected
     assert headings[len(expected):] in (["6. Riferimenti"], ["6. Note specifiche", "7. Riferimenti"])
     math = section(text, 2)
-    assert r"\[" in math and r"\]" in math
+    validate_math_delimiters(text, name)
+    validate_math_delimiters(math, name, require_block=True)
     assert not re.search(r"(?m)^```", math)
     subsections = re.findall(r"(?m)^### (\d+)\.(\d+)\b", text)
     assert all(int(major) == 4 and int(minor) == i

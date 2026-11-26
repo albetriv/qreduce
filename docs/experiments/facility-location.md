@@ -14,24 +14,24 @@ positive; i costi sono finiti e non negativi.
 
 ## 2. Formulazione matematica
 
-Siano \(I\) l'insieme delle sedi e \(J\) quello dei clienti. Per ogni sede
-\(i\), \(u_i\) è la capacità e \(f_i\) il costo fisso; per ogni cliente \(j\),
-\(d_j\) è la domanda e \(c_{ji}\) il costo di assegnare alla sede \(i\)
-l'intera domanda del cliente \(j\). Il costo di una frazione è proporzionale a
-quella frazione: non si moltiplica nuovamente \(c_{ji}\) per \(d_j\).
+Siano $I$ l'insieme delle sedi e $J$ quello dei clienti. Per ogni sede
+$i$, $u_i$ è la capacità e $f_i$ il costo fisso; per ogni cliente $j$,
+$d_j$ è la domanda e $c_{ji}$ il costo di assegnare alla sede $i$
+l'intera domanda del cliente $j$. Il costo di una frazione è proporzionale a
+quella frazione: non si moltiplica nuovamente $c_{ji}$ per $d_j$.
 
-La variabile binaria \(\delta_i\) indica l'apertura della sede; la variabile
-continua \(x_{ij}\) è la frazione della domanda del cliente \(j\) assegnata a
-\(i\). Il modello minimizza
+La variabile binaria $\delta_i$ indica l'apertura della sede; la variabile
+continua $x_{ij}$ è la frazione della domanda del cliente $j$ assegnata a
+$i$. Il modello minimizza
 
-\[
+$$
 \min \quad \sum_{i\in I} f_i\delta_i +
 \sum_{i\in I}\sum_{j\in J} c_{ji}x_{ij}
-\]
+$$
 
 soggetto ai seguenti vincoli, sempre attivi:
 
-\[
+$$
 \begin{aligned}
 \sum_{i\in I} x_{ij} &= 1 && \forall j\in J && \text{(domanda)},\\
 \sum_{j\in J} d_j x_{ij} &\le u_i\delta_i && \forall i\in I && \text{(capacità)},\\
@@ -39,10 +39,10 @@ x_{ij} &\le \delta_i && \forall i\in I,\ j\in J && \text{(collegamento)},\\
 \delta_i &\in \{0,1\} && \forall i\in I,\\
 0\le x_{ij} &\le 1 && \forall i\in I,\ j\in J.
 \end{aligned}
-\]
+$$
 
 Quando la riduzione esclude una sede, il modello residuo aggiunge i fissaggi
-\(\delta_i=0\) e \(x_{ij}=0\) per tutti i suoi clienti. Questi fissaggi
+$\delta_i=0$ e $x_{ij}=0$ per tutti i suoi clienti. Questi fissaggi
 sono euristici e non garantiscono la conservazione dell'ottimo originale.
 
 ## 3. CLI unificata

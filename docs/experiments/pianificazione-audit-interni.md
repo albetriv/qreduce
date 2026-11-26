@@ -8,16 +8,16 @@ tutte le aree obbligatorie minimizzando le giornate complessive.
 
 ## 2. Formulazione matematica
 
-Siano \(I\) gli interventi candidati e \(R\) le aree obbligatorie. La variabile
-\(\delta_i \in \{0,1\}\) indica la selezione dell'intervento \(i\). Il modello
+Siano $I$ gli interventi candidati e $R$ le aree obbligatorie. La variabile
+$\delta_i \in \{0,1\}$ indica la selezione dell'intervento $i$. Il modello
 proposto di copertura è:
 
-\[
+$$
 \begin{aligned}
 \min\quad & \sum_{i\in I} c_i\delta_i \\
 \text{s.t.}\quad & \sum_{i\in I} a_{ri}\delta_i \ge 1 && r\in R.
 \end{aligned}
-\]
+$$
 
 Tutti i vincoli di copertura sono attivi. Se un'area non è coperta da alcun
 intervento candidato, il modello è infattibile.
@@ -28,9 +28,9 @@ Non disponibile: l’esperimento non è ancora eseguibile.
 
 ## 4. Parametri
 
-- \(c_i \ge 0\): giornate richieste dall'intervento \(i\).
-- \(a_{ri} \in \{0,1\}\): indica se l'intervento \(i\) copre l'area \(r\).
-- \(I\) e \(R\): catalogo degli interventi e insieme delle aree obbligatorie.
+- $c_i \ge 0$: giornate richieste dall'intervento $i$.
+- $a_{ri} \in \{0,1\}$: indica se l'intervento $i$ copre l'area $r$.
+- $I$ e $R$: catalogo degli interventi e insieme delle aree obbligatorie.
 
 ## 5. Directory degli artifact
 

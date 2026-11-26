@@ -9,14 +9,14 @@ rimanendo nel budget e impedendo doppi recuperi.
 
 ## 2. Formulazione matematica
 
-Siano \(I\) le offerte, \(S\) un insieme non vuoto di scenari e \(G\) gli
-strati di rischio disgiunti. Ogni offerta appartiene a uno strato; \(I_g\) è
-l'insieme delle offerte per lo strato \(g\). La variabile
-\(\delta_i \in \{0,1\}\) indica l'acquisto, mentre \(x_{\mathrm{worst}}\) è
+Siano $I$ le offerte, $S$ un insieme non vuoto di scenari e $G$ gli
+strati di rischio disgiunti. Ogni offerta appartiene a uno strato; $I_g$ è
+l'insieme delle offerte per lo strato $g$. La variabile
+$\delta_i \in \{0,1\}$ indica l'acquisto, mentre $x_{\mathrm{worst}}$ è
 continua e libera. Come scelta modellistica proposta, si minimizza la massima
 perdita trattenuta sugli scenari, senza includere i premi nella perdita:
 
-\[
+$$
 \begin{aligned}
 \min\quad & x_{\mathrm{worst}} \\
 \text{s.t.}\quad
@@ -24,15 +24,15 @@ perdita trattenuta sugli scenari, senza includere i premi nella perdita:
 & \sum_{i\in I} p_i\delta_i \le B, \\
 & \sum_{i\in I_g}\delta_i \le 1 && g\in G.
 \end{aligned}
-\]
+$$
 
-Tutti i vincoli sono attivi. Per ogni scenario, sia \(L_{sg}\ge 0\) la
-perdita attribuita allo strato disgiunto \(g\). I dati devono soddisfare:
+Tutti i vincoli sono attivi. Per ogni scenario, sia $L_{sg}\ge 0$ la
+perdita attribuita allo strato disgiunto $g$. I dati devono soddisfare:
 
-\[
+$$
 \sum_{g\in G} L_{sg}\le L_s,\qquad
 0\le r_{si}\le L_{sg}\quad (g\in G,\ i\in I_g,\ s\in S).
-\]
+$$
 
 Gli indennizzi sono precalcolati. Questi limiti e la mutua esclusione delle
 offerte alternative impediscono doppi recuperi e assicurano che l'indennizzo
@@ -44,13 +44,13 @@ Non disponibile: l’esperimento non è ancora eseguibile.
 
 ## 4. Parametri
 
-- \(L_s \ge 0\): perdita lorda nello scenario \(s\).
-- \(L_{sg} \ge 0\): perdita dello strato \(g\) nello scenario \(s\), con somma
-  sugli strati non superiore a \(L_s\).
-- \(r_{si} \ge 0\): indennizzo dell'offerta \(i\) nello scenario \(s\),
+- $L_s \ge 0$: perdita lorda nello scenario $s$.
+- $L_{sg} \ge 0$: perdita dello strato $g$ nello scenario $s$, con somma
+  sugli strati non superiore a $L_s$.
+- $r_{si} \ge 0$: indennizzo dell'offerta $i$ nello scenario $s$,
   precalcolato secondo soglia e limite contrattuale.
-- \(p_i \ge 0\): premio dell'offerta; \(B \ge 0\): budget totale dei premi.
-- \(I\), \(S\), \(G\) e \(I_g\): offerte, scenari, strati e assegnazione
+- $p_i \ge 0$: premio dell'offerta; $B \ge 0$: budget totale dei premi.
+- $I$, $S$, $G$ e $I_g$: offerte, scenari, strati e assegnazione
   delle offerte agli strati.
 
 ## 5. Directory degli artifact

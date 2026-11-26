@@ -9,12 +9,12 @@ calo NII, il nozionale complessivo e il numero di operazioni.
 
 ## 2. Formulazione matematica
 
-Siano \(I\) gli swap e \(S\) un insieme non vuoto di scenari. Le variabili sono
-il nozionale continuo \(x_i \ge 0\), l'attivazione binaria
-\(\delta_i \in \{0,1\}\) e la perdita massima continua libera \(x_{\mathrm{worst}}\).
+Siano $I$ gli swap e $S$ un insieme non vuoto di scenari. Le variabili sono
+il nozionale continuo $x_i \ge 0$, l'attivazione binaria
+$\delta_i \in \{0,1\}$ e la perdita massima continua libera $x_{\mathrm{worst}}$.
 Con impatti additivi per unità di nozionale, il modello proposto è:
 
-\[
+$$
 \begin{aligned}
 \min\quad & x_{\mathrm{worst}} \\
 \text{s.t.}\quad
@@ -23,7 +23,7 @@ Con impatti additivi per unità di nozionale, il modello proposto è:
 & 0 \le x_i \le U_i\delta_i && i\in I, \\
 & \sum_{i\in I} x_i \le B, \qquad \sum_{i\in I}\delta_i \le K.
 \end{aligned}
-\]
+$$
 
 Tutti i vincoli indicati sono attivi. Una perdita massima negativa rappresenta
 un guadagno EVE anche nello scenario peggiore; non si impone un minimo nozionale
@@ -35,11 +35,11 @@ Non disponibile: l’esperimento non è ancora eseguibile.
 
 ## 4. Parametri
 
-- \(L_s\): perdita EVE iniziale nello scenario; \(N_s\): variazione NII iniziale.
-- \(a_{si}\): variazione EVE e \(b_{si}\): variazione NII per unità di
-  nozionale dello swap, con segno; \(D_s \ge 0\): calo NII massimo ammesso.
-- \(U_i \ge 0\): nozionale massimo individuale; \(B \ge 0\): tetto totale;
-  \(K\): numero massimo intero non negativo di operazioni.
+- $L_s$: perdita EVE iniziale nello scenario; $N_s$: variazione NII iniziale.
+- $a_{si}$: variazione EVE e $b_{si}$: variazione NII per unità di
+  nozionale dello swap, con segno; $D_s \ge 0$: calo NII massimo ammesso.
+- $U_i \ge 0$: nozionale massimo individuale; $B \ge 0$: tetto totale;
+  $K$: numero massimo intero non negativo di operazioni.
 
 ## 5. Directory degli artifact
 

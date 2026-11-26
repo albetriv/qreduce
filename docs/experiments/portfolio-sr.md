@@ -10,55 +10,55 @@ dai rendimenti e annualizzate. Il tasso privo di rischio è fissato a zero.
 
 ## 2. Formulazione matematica
 
-Sia \(I\) l'insieme degli asset e \(I_s\) il sottoinsieme del settore \(s\).
-Per ogni \(i\), \(\mu_i>0\) è il rendimento medio annualizzato, \(U_i>0\)
-il limite di peso e \(x_i\geq 0\) il peso continuo. La matrice di covarianza
-annualizzata \(\Sigma\) è semidefinita positiva. I limiti settoriali sono
-\(L_s,H_s\); se è richiesta cardinalità, \(K\) è il massimo di posizioni e
-\(\delta_i\in\{0,1\}\) indica la selezione.
+Sia $I$ l'insieme degli asset e $I_s$ il sottoinsieme del settore $s$.
+Per ogni $i$, $\mu_i>0$ è il rendimento medio annualizzato, $U_i>0$
+il limite di peso e $x_i\geq 0$ il peso continuo. La matrice di covarianza
+annualizzata $\Sigma$ è semidefinita positiva. I limiti settoriali sono
+$L_s,H_s$; se è richiesta cardinalità, $K$ è il massimo di posizioni e
+$\delta_i\in\{0,1\}$ indica la selezione.
 
 Il problema di dominio, per portafogli a varianza positiva, è:
 
-\[
+$$
 \max_x\quad SR(x)=\frac{\mu^T x}{\sqrt{x^T\Sigma x}}
-\]
-\[
+$$
+$$
 \sum_{i\in I}x_i=1,\qquad 0\leq x_i\leq U_i\quad(i\in I).
-\]
+$$
 
 Quando configurati si aggiungono i vincoli settoriali e di cardinalità:
 
-\[
+$$
 L_s\leq\sum_{i\in I_s}x_i\leq H_s,\qquad
 x_i\leq U_i\delta_i,\quad \sum_{i\in I}\delta_i\leq K.
-\]
+$$
 
 La trasformazione usa la positività di tutti i rendimenti selezionati e il
-budget: ponendo \(x_{scale}=1/(\mu^T x)>0\) e \(x_{scaled,i}=x_{scale}x_i\), con \(x_{scaled}\) e \(x_{scale}\)
+budget: ponendo $x_{scale}=1/(\mu^T x)>0$ e $x_{scaled,i}=x_{scale}x_i$, con $x_{scaled}$ e $x_{scale}$
 variabili continue, si ottiene il QP seguente:
 
-\[
+$$
 \begin{aligned}
 \min_{x_{scaled},x_{scale}}\quad & x_{scaled}^T\Sigma x_{scaled}\\
 \text{soggetto a}\quad & \mu^T x_{scaled}=1,\quad \sum_i x_{scaled,i}=x_{scale},\\
 & 0\leq x_{scaled,i}\leq U_i x_{scale},\quad
 1/\mu_{\max}\leq x_{scale}\leq 1/\mu_{\min}.
 \end{aligned}
-\]
+$$
 
-Qui \(\mu_{\min}\) e \(\mu_{\max}\) sono rispettivamente minimo e massimo
+Qui $\mu_{\min}$ e $\mu_{\max}$ sono rispettivamente minimo e massimo
 dei rendimenti degli asset. I vincoli opzionali diventano:
 
-\[
+$$
 L_s x_{scale}\leq\sum_{i\in I_s}x_{scaled,i}\leq H_s x_{scale},\qquad
  x_{scaled,i}\leq\frac{U_i}{\mu_{\min}}\delta_i,\quad
 \sum_i\delta_i\leq K,\quad \delta_i\in\{0,1\}.
-\]
+$$
 
-Il collegamento big-M è lineare e si aggiunge al limite \(x_{scaled,i}\leq U_i x_{scale}\).
+Il collegamento big-M è lineare e si aggiunge al limite $x_{scaled,i}\leq U_i x_{scale}$.
 Senza cardinalità il modello è un QP convesso; con cardinalità è un MIQP.
-La ricostruzione è \(x_i=x_{scaled,i}/x_{scale}\); se il valore ottimo \(v=x_{scaled}^T\Sigma x_{scaled}\)
-è positivo, lo Sharpe è \(1/\sqrt v\). Una covarianza semidefinita può
+La ricostruzione è $x_i=x_{scaled,i}/x_{scale}$; se il valore ottimo $v=x_{scaled}^T\Sigma x_{scaled}$
+è positivo, lo Sharpe è $1/\sqrt v$. Una covarianza semidefinita può
 ammettere varianza nulla: in tal caso il rapporto e questa ricostruzione dello
 Sharpe non sono matematicamente definiti. La metrica implementata restituisce
 zero quando la volatilità calcolata non è positiva.

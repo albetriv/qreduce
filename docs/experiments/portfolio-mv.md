@@ -6,24 +6,24 @@ Si decide la quota di capitale da investire in ciascun asset, bilanciando rendim
 
 ## 2. Formulazione matematica
 
-Sia \(I=\{1,\ldots,n\}\) l'insieme degli asset. I parametri sono il rendimento atteso \(\mu_i\), la covarianza \(\Sigma_{ij}\), l'avversione al rischio \(\lambda>0\), i limiti di investimento \(0\leq l_i\leq u_i\) e, se richiesti, le cardinalità \(K_{\min}\) e \(K_{\max}\). La CLI usa gli stessi limiti per tutti gli asset. Le variabili sono i pesi continui \(x_i\geq0\) e le selezioni binarie \(\delta_i\in\{0,1\}\).
+Sia $I=\{1,\ldots,n\}$ l'insieme degli asset. I parametri sono il rendimento atteso $\mu_i$, la covarianza $\Sigma_{ij}$, l'avversione al rischio $\lambda>0$, i limiti di investimento $0\leq l_i\leq u_i$ e, se richiesti, le cardinalità $K_{\min}$ e $K_{\max}$. La CLI usa gli stessi limiti per tutti gli asset. Le variabili sono i pesi continui $x_i\geq0$ e le selezioni binarie $\delta_i\in\{0,1\}$.
 
-\[
+$$
 \min_{x,\delta}\quad \lambda\sum_{i\in I}\sum_{j\in I}\Sigma_{ij}x_i x_j-\sum_{i\in I}\mu_i x_i
-\]
+$$
 
 I vincoli sempre attivi sono:
 
-\[
+$$
 \sum_{i\in I}x_i=1,\qquad l_i\delta_i\leq x_i\leq u_i\delta_i\quad(i\in I).
-\]
+$$
 
 Se specificati, si aggiungono rispettivamente i vincoli:
 
-\[
+$$
 \sum_{i\in I}\delta_i\geq K_{\min},\qquad
 \sum_{i\in I}\delta_i\leq K_{\max}.
-\]
+$$
 
 Con limite inferiore nullo, una selezione binaria attiva può avere peso nullo: la cardinalità conta le binarie, non necessariamente i pesi strettamente positivi. Nel problema ridotto, gli asset esclusi hanno sia peso sia selezione fissati a zero.
 

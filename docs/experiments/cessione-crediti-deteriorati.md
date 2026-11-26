@@ -9,18 +9,18 @@ impedendo che un credito sia ceduto più volte.
 
 ## 2. Formulazione matematica
 
-Siano \(I\) le offerte e \(C\) i crediti. La variabile
-\(\delta_i \in \{0,1\}\) indica la selezione dell'offerta \(i\). Assumendo
+Siano $I$ le offerte e $C$ i crediti. La variabile
+$\delta_i \in \{0,1\}$ indica la selezione dell'offerta $i$. Assumendo
 che il volume sia additivo per credito, il modello proposto è:
 
-\[
+$$
 \begin{aligned}
 \max\quad & \sum_{i\in I} r_i\delta_i \\
 \text{s.t.}\quad
 & \sum_{i\in I} a_{ci}\delta_i \le 1 && c\in C, \\
 & \sum_{i\in I}\left(\sum_{c\in C} v_c a_{ci}\right)\delta_i \ge V.
 \end{aligned}
-\]
+$$
 
 Entrambi i vincoli sono attivi. Il primo impedisce la doppia cessione; grazie
 ad esso il volume nel secondo non conta due volte lo stesso credito.
@@ -31,12 +31,12 @@ Non disponibile: l’esperimento non è ancora eseguibile.
 
 ## 4. Parametri
 
-- \(r_i\): ricavo netto atteso dell'offerta \(i\), eventualmente negativo.
-- \(a_{ci} \in \{0,1\}\): indica se il credito \(c\) appartiene al lotto
-  dell'offerta \(i\).
-- \(v_c \ge 0\): volume del credito \(c\); \(V \ge 0\): volume minimo richiesto,
+- $r_i$: ricavo netto atteso dell'offerta $i$, eventualmente negativo.
+- $a_{ci} \in \{0,1\}$: indica se il credito $c$ appartiene al lotto
+  dell'offerta $i$.
+- $v_c \ge 0$: volume del credito $c$; $V \ge 0$: volume minimo richiesto,
   nella stessa unità.
-- \(I\) e \(C\): catalogo delle offerte e insieme dei crediti.
+- $I$ e $C$: catalogo delle offerte e insieme dei crediti.
 
 ## 5. Directory degli artifact
 
