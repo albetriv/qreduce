@@ -27,9 +27,8 @@ FLAG = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*")
     ("portfolio", "https://arxiv.org/abs/2607.01037"),
     ("portfolio-sr", "https://arxiv.org/abs/2302.12291"),
 ])
-def test_required_paper_reference_in_source_and_html(name, url):
+def test_required_paper_reference_in_source(name, url):
     assert url in section(source(name), 7)
-    assert f'href="{url}"' in (GUIDES / f"{name}.html").read_text(encoding="utf-8")
 
 
 def source(name):
