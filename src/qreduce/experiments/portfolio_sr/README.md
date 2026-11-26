@@ -235,9 +235,9 @@ Ogni confronto usa gli stessi dati, vincoli e solver finale.
 
 ## Riferimenti
 
-- Specifiche complete: [`docs/specifications.md`](../../../docs/specifications.md)
-- Guida operativa: [`docs/experiments/portfolio-sr.md`](../../../docs/experiments/portfolio-sr.md)
-- Configuratore HTML: [`uix/experiment_portfolio_sr.html`](../../../uix/experiment_portfolio_sr.html)
+- Specifiche complete: [`docs/specifications.md`](../../../../docs/specifications.md)
+- Guida operativa: [`docs/experiments/portfolio-sr.md`](../../../../docs/experiments/portfolio-sr.md)
+- Configuratore HTML: [`uix/experiment_portfolio_sr.html`](../../../../uix/experiment_portfolio_sr.html)
 
 ## Artifact verificabili
 
@@ -248,6 +248,8 @@ Verificano metriche e obiettivo senza assertion condizionali sulla loro presenza
 L'analisi presenta solo soluzioni adottate con post-check superato e valori
 completi e finiti. Le esposizioni usano sempre i settori del problema originale;
 le classifiche escludono i fallimenti e trattano correttamente runtime zero.
+I settori con esposizione zero restano visibili. La soglia di visualizzazione
+dei pesi è solo un filtro e non rinormalizza il portafoglio.
 
 NumPy è dichiarato direttamente nel gruppo `experiments`. Il loader registra
 nei metadati le esclusioni delle serie incomplete, gestisce CSV con quoting e

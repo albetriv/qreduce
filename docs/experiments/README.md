@@ -16,6 +16,10 @@ outputs/<famiglia>/<run_id>/           # artifact serializzati
 
 Le famiglie sono indipendenti: ogni adapter implementa il contratto
 `ReducibleProblemAdapter` con la propria semantica di dominio.
+Parser e loader sono separati dagli adapter; non si deduce un adapter
+universale da modelli MIP generici. Gli esperimenti restano nel repository e
+sono esclusi dal wheel. I benchmark del solo core MWIS sono distinti dagli
+esperimenti end-to-end.
 
 ## Infrastruttura condivisa
 
@@ -87,9 +91,6 @@ presentazione.
 3. Aggiungere entry point CLI (es. `single_pass.py`, `multi_round.py`).
 4. Creare `notebooks/experiments/<famiglia>/` per l'analisi.
 5. Documentare comandi e parametri in `docs/experiments/<famiglia>.md`.
-
-L'architettura comune è descritta in
-[`docs/implementation/experiment-organization.md`](../implementation/experiment-organization.md).
 
 ## Famiglie disponibili
 

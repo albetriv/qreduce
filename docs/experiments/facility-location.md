@@ -114,6 +114,17 @@ Con collegamenti completi e domanda frazionabile, una capacità complessiva
 sufficiente permette di soddisfare la domanda. L'ottimalità del residuo non
 certifica quella del modello originale.
 
+Le istanze OR-Library sono dati esterni acquisiti separatamente dall'utente;
+non è previsto il download automatico. Il manifest descrive i byte locali,
+ma non ne certifica provenienza o diritti di redistribuzione.
+
+Il recovery espande il dominio nel round corrente, senza aumentare il cap.
+Configurare più round non garantisce che vengano eseguiti: la pipeline può
+terminare al primo round con successo o successo parziale. Nei confronti con
+la baseline usare tempi di ambito coerente: il tempo della pipeline include
+i tentativi, mentre il caricamento è registrato separatamente; il solo tempo
+dell'ultimo solve non è confrontabile con il tempo end-to-end della baseline.
+
 ## 7. Riferimenti
 
 - [OR-Library: capacitated warehouse location](https://people.brunel.ac.uk/~mastjjb/jeb/orlib/capinfo.html): formato e istanze benchmark del problema.

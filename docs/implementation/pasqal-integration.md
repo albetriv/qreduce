@@ -1,87 +1,22 @@
 # Integrazione Pasqal: stato e limiti
 
-Il piano `PIANO_INTEGRAZIONE_PASQAL.md` descrive anche funzionalita future;
-non e una dichiarazione che tutte le fasi siano completate. L'integrazione
-locale usa il backend `pasqal_local`, con Pulser/QuTiP e dispositivo
-`AnalogDevice`. Il gruppo Poetry `experiments` installa `pulser-simulation`,
-`pulser-core` e `pasqal-cloud` con `poetry install --with experiments`.
-Il backend locale non usa credenziali o servizi cloud. Per lo stato del
-backend remoto, vedere la Fase 2; non è registrato un backend QPU.
+QReduce offre tre backend distinti: `pasqal_local`,
+`pasqal_cloud_emulator` e `pasqal_qpu`. Il gruppo Poetry `experiments`
+installa Pulser e l'SDK cloud; il backend locale non richiede credenziali.
+Per installare le dipendenze usare `poetry install --with experiments`.
+La disponibilità effettiva dipende dalle versioni installate e dall'accesso
+al servizio; le funzionalità cloud di Pasqal non sono tutte supportate da QReduce.
 
-## Miglioramenti implementati (Piano correzione MWIS)
+Il presolve Pasqal risolve esattamente i grafi senza archi prima del mapping.
+Il risultato è deterministico e non rappresenta una misura fisica. I pesi MWIS
+sono usati nel ranking classico, non codificati nell'Hamiltoniana. La
+diagnostica del payload include geometria, impulso e confronto con l'ottimo
+canonico per grafi piccoli; il completamento classico è opzionale e
+disabilitato per default.
 
-A partire dalla versione corrente, il backend Pasqal include:
+## Backend locale `pasqal_local`
 
-### Presolve esatto per grafi senza archi
-Grafi senza archi (tutti i nodi compatibili) vengono risolti in modo esatto
-senza invocare il backend. Per un grafo di 12 nodi senza archi, il presolve
-seleziona tutti i 12 nodi (risolvendo il problema osservato dove l'impulso
-costante selezionava solo 8/12). Il presolve è:
-- Certificato ottimale
-- Trasparente (dichiarato nel payload e nei sample metadata)
-- Backend-agnostico (eseguito prima del mapping)
-
-### Strategia di impulso parametrica
-L'impulso costante originale è sostituito da un annealing parametrico:
-- Durata: 4000 ns (4 µs)
-- Ampiezza: rampa 0→max→max→0 (15% ramp-up, 15% ramp-down)
-- Detuning: sweep lineare da -10 a +10 rad/µs
-- L'impulso costante legacy è disponibile con `use_legacy_pulse=True`
-
-### Codifica pesi dichiarata esplicitamente
-Il backend dichiara `WeightEncodingMode.CLASSICAL_RANKING`:
-- I pesi NON sono codificati fisicamente nell'Hamiltoniana
-- I pesi sono usati solo per il ranking classico dei campioni
-- Questa trasparenza evita fraintendimenti sulla natura del solver
-
-### Diagnostica impulso e geometria
-Il payload compilato include:
-- Configurazione della strategia di impulso
-- Diagnostica delle interazioni (distanza minima, rapporti)
-- Diagnostica di geometria (fedeltà mapping, interazioni spurie)
-- Confronto minimo fisico vs ottimo canonico (per grafi piccoli)
-- Metadati per audit e debugging
-
-### Correzioni builder e validazioni
-- Builder pubblico (`build_pulse_sequence`): corretto per usare limiti canale-specifici
-  invece di `device.max_amp`, e tempi normalizzati [0, 1] per `InterpolatedWaveform`
-- Validazioni uniformi: identità job, shots, random_seed e time budget sono validati
-  PRIMA del branch presolve/Pulser, garantendo comportamento coerente
-- Provenienza presolve corretta: `occurrence_count=1` (risultato deterministico) e
-  `source_provider_id="qreduce"` (computato da QReduce, non dal backend)
-
-## Moduli aggiunti
-
-- `audit.py`: Contratti per tre livelli di audit (raw sample, validated candidate, final domain)
-- `presolve.py`: Presolve esatto per grafi trivialmente risolvibili
-- `pulse_strategy.py`: Configurazioni parametriche per sequenze di impulso
-- `completion.py`: Completamento classico opzionale (default disabilitato)
-- `geometry_diagnostics.py`: Diagnostica fedeltà geometria-Hamiltoniana
-
-## Integrazione diagnostica e completamento
-
-### Diagnostica geometria nel payload compilato
-Il payload di compilazione include:
-- `geometry_diagnostics`: Analisi delle interazioni fisiche rispetto alla struttura del grafo
-  - `is_valid`: Se tutti gli archi hanno interazioni forti e nessun non-arco ha interazioni spurie
-  - `fidelity_score`: Score 0-1 che misura la corrispondenza geometria-grafo
-  - `weak_edge_count`: Archi con interazione insufficiente per imporre indipendenza
-  - `spurious_interaction_count`: Non-archi con interazione significativa
-  - `warnings`: Problemi rilevati nel mapping
-
-- `physical_vs_canonical`: Confronto stato fondamentale fisico vs ottimo MWIS canonico
-  - Solo per grafi piccoli (≤12 nodi) dove l'enumerazione è trattabile
-  - `ground_state_matches_optimum`: Se il minimo fisico coincide con l'ottimo
-  - `energy_gap_to_optimum`: Gap energetico tra stato fondamentale e ottimo
-
-### Completamento classico opzionale
-Il completamento è integrato nella pipeline (`single_pass.py`):
-- Disabilitato per default (`completion_enabled=False`)
-- Configurabile in `MISExecutionOptions`:
-  - `completion_enabled`: Abilita/disabilita il completamento
-  - `completion_policy_id`: Policy da usare (default: "disabled")
-- Applicato DOPO repair, solo a campioni validi
-- Produce independent set massimali (non ottimali)
+Il backend usa Pulser/QuTiP con `AnalogDevice` ed esegue localmente.
 
 ## Mapping e geometria
 
@@ -143,31 +78,6 @@ portfolio MV e SR, una riduzione con questo backend richiede esplicitamente
 `--max-end-to-end-runtime-seconds=0`: l'emulatore non puo garantire il rispetto
 di una scadenza.
 
-## Verifica locale e copertura residua
-
-Un run CLI portfolio MV con 6 asset, 64 shot e solver residuo SCIP ha
-completato anche il postcheck. Una verifica preliminare del solo backend ha
-usato i grafi MV sintetici di 6, 8, 10 e 12 asset, con generazione e seed del
-layout predefiniti. Con la policy `near_duplicate` predefinita i grafi erano
-senza archi: tutti compilati, 400/400 shot validi senza repair o cap e divario
-relativo dal peso esatto del 34,7%, 49,4%, 36,1% e 49,1% rispettivamente.
-Con `correlation_only` e soglia 0,35 i grafi erano clique: nessuno è stato
-compilato (`layout_search_exhausted`, non una prova di impossibilità).
-Il mapper supera invece i test di regressione su C4 e K4.
-
-**Con il presolve**, i grafi senza archi sono ora risolti in modo esatto con
-divario 0% dall'ottimo.
-
-Il primo confronto non prova utilità su grafi con conflitti reali. Per
-chiudere la Fase 1 serve un corpus più rappresentativo, con densità intermedie
-e più run stocastici: riportare separatamente rifiuti, shot validi prima del
-repair, divario dall'esatto, assenza di candidati validi ed esiti con repair.
-
-Il pilota QPU con layout custom è documentato nel
-[piano mapper](../../PIANO_MAPPER_PASQAL_QPU.md); non sostituisce questo
-benchmark locale. I notebook restano strumenti di presentazione e non
-ospitano l'implementazione del benchmark.
-
 ## Audit delle trasformazioni e presolve
 
 Il presolve controlla versione, ordine dei nodi, valori binari, peso, cardinalità,
@@ -195,9 +105,9 @@ ricompilati: non vengono eseguiti implicitamente senza le nuove verifiche fisich
 Questo riguarda il contratto di esecuzione, non la lettura UI degli artefatti storici.
 
 
-## Fase 2: Emulatori cloud Pasqal
+## Emulatore cloud `pasqal_cloud_emulator`
 
-La Fase 2 implementa l'esecuzione remota su emulatori Pasqal Cloud tramite il
+QReduce implementa l'esecuzione remota su emulatori Pasqal Cloud tramite il
 backend `pasqal_cloud_emulator`. Questo backend è separato da `pasqal_local` e
 richiede:
 - Le dipendenze del gruppo Poetry `experiments`
@@ -356,8 +266,7 @@ Il backend valida:
 - Solo `emu_free` supportato (nessun MPS, SV, o QPU)
 - Nessun fallback automatico tra servizi
 - Il timeout locale non annulla il job remoto
-- QReduce limita prudenzialmente l'invio a 12 atomi, seguendo la scheda
-  dettagliata del catalogo Pasqal. Il limite non si applica al presolve locale.
+- QReduce limita prudenzialmente l'invio a 12 atomi, come limite dell'integrazione QReduce. Il limite non si applica al presolve locale.
 - Se la creazione fallisce senza ID e senza un rifiuto certo, l'esito è ignoto:
   riconciliare con Pasqal prima di qualsiasi nuovo invio.
 - Lo smoke test su servizio reale richiede autorizzazione esplicita
@@ -380,9 +289,9 @@ poetry run pytest tests/solving/mwis/test_pasqal_cloud_emulator_backend.py \
 ```
 
 
-## Fase 3: QPU reale Pasqal
+## QPU reale `pasqal_qpu`
 
-La Fase 3 implementa l'esecuzione su QPU reale tramite il backend `pasqal_qpu`.
+QReduce implementa l'esecuzione su QPU reale tramite il backend `pasqal_qpu`.
 Questo backend è separato da `pasqal_cloud_emulator` e richiede:
 - Le dipendenze del gruppo Poetry `experiments`
 - Credenziali Pasqal Cloud configurate

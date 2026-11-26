@@ -147,7 +147,8 @@ Il preflight non crea batch. L'invio QPU richiede device, shot e consenso
 espliciti. Il flusso è coperto da test con trasporto simulato; il percorso
 `preflight --layout-mode custom` → `submit-preflight` → recupero è stato
 completato su `FRESNEL_CAN1` con 100 shot. Il pilota non valida il mapping
-calibrato della stessa istanza. Evidenze in [Piano mapper QPU](PIANO_MAPPER_PASQAL_QPU.md).
+calibrato della stessa istanza. Questo README riporta il resoconto del pilota;
+il documento di evidenza precedentemente citato non è presente nel repository.
 Il riferimento del batch è salvato sotto
 `<output-root>/.pasqal-cloud-jobs/<run-id>/`, anche se il run fallisce.
 Per recuperare i campioni senza reinviare il batch:
@@ -159,7 +160,7 @@ poetry run python -m qreduce.experiments.portfolio_mv recover-pasqal \
 
 I test del flusso remoto usano l'SDK reale con trasporto simulato.
 Stato e limiti in
-`docs/implementation/pasqal-local-status.md`.
+`docs/implementation/pasqal-integration.md`.
 - **Classico residuo**: `cplex`, `scip`
 
 Un ID sconosciuto e` un errore di configurazione; un ID noto con binding non
@@ -323,7 +324,7 @@ python -m qreduce.experiments.portfolio_mv.run_catalog
 Il comando legge gli output già pubblicati in `outputs/portfolio_mv` e genera
 `outputs/portfolio_mv/run_catalog.js`, uno snapshot locale non tracciato da Git.
 Per requisiti dei file, stato delle verifiche e limiti del confronto si veda la
-[nota di implementazione](./docs/implementation/uix-portfolio-comparison-findings.md).
+[nota di implementazione](./docs/implementation/uix-portfolio-comparison.md).
 
 ## Notebook di visualizzazione
 
@@ -342,7 +343,7 @@ Le fonti autorevoli sono:
 - [`docs/specifications.md`](./docs/specifications.md): feature previste,
   requisiti e garanzie;
 - [`docs/implementation/00-implementation-overview.md`](./docs/implementation/00-implementation-overview.md):
-  roadmap, stato ed evidenze di implementazione;
+  sintesi dello stato di implementazione;
 - [`docs/experiments/`](./docs/experiments/): guide operative degli esperimenti
   per famiglia;
 - docstring nei moduli `src/qreduce/`: contratti operativi delle API.

@@ -3,7 +3,7 @@
 ## 1. Scopo
 
 L'esperimento repository facility location e descritto in
-`implementation/facility-location-experiment.md`; non estende il contratto del
+`experiments/facility-location.md`; non estende il contratto del
 kernel e non promuove le altre famiglie pianificate.
 
 QReduce e` un framework per ridurre il dominio combinatorio di grandi problemi di ottimizzazione mista prima della loro risoluzione classica.
@@ -36,12 +36,10 @@ feature previste per il progetto, i relativi requisiti, le garanzie, i
 non-obiettivi e i criteri di accettazione. La presenza di un requisito in queste
 specifiche non implica che esso sia gia` implementato nel repository.
 
-Lo stato di implementazione, la sequenza delle milestone, le dipendenze tecniche
-e le evidenze di verifica sono mantenuti in
-`docs/implementation/00-implementation-overview.md`. I documenti di milestone
-in `docs/implementation/` dettagliano i task necessari per soddisfare i
-requisiti qui definiti, senza introdurre requisiti funzionali in conflitto con
-questo documento.
+Lo stato di implementazione e una sintesi delle milestone sono mantenuti in
+`docs/implementation/00-implementation-overview.md`. Le verifiche storiche
+sono consultabili nella cronologia Git. Questo documento rimane la fonte
+normativa per i requisiti e le garanzie.
 
 ## 2. Obiettivi
 
