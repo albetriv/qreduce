@@ -338,114 +338,11 @@
       </aside>
     </div>
 
-    <!-- Mathematical Formulation Panel -->
-    <section class="panel math-panel" id="mathPanel" aria-label="Formulazione matematica">
-      <details open>
-        <summary class="math-panel-summary">
-          <span class="math-panel-title">Formulazione matematica</span>
-          <span class="math-panel-subtitle">Capacitated Facility Location Problem</span>
-        </summary>
-
-        <div class="math-content" id="mathContent">
-          <!-- Original Problem -->
-          <div class="math-section">
-            <h3>Problema originale</h3>
-            <p class="math-description">
-              Facility location capacitato con domanda frazionabile: minimizzazione dei costi
-              di apertura e allocazione soggetta a vincoli di capacità e copertura della domanda.
-            </p>
-
-            <div class="math-block">
-              <div class="math-label">Obiettivo:</div>
-              <div class="math-formula" id="mathObjective">
-                <span class="math-latex">\[\min \quad \sum_{i \in I} f_i \cdot \delta_i + \sum_{i \in I} \sum_{j \in J} c_{ij} \cdot x_{ij}\]</span>
-                <span class="math-fallback">min  Σᵢ fᵢ·δᵢ + Σᵢ Σⱼ cᵢⱼ·xᵢⱼ</span>
-              </div>
-            </div>
-
-            <div class="math-block">
-              <div class="math-label">Vincoli:</div>
-              <div class="math-formula" id="mathConstraints">
-                <span class="math-latex">
-                  \[\begin{aligned}
-                  \sum_{i \in I} x_{ij} &= 1 && \forall j \in J && \text{(copertura domanda)} \\[4pt]
-                  \sum_{j \in J} d_j \cdot x_{ij} &\leq u_i \cdot \delta_i && \forall i \in I && \text{(capacità)} \\[4pt]
-                  x_{ij} &\leq \delta_i && \forall i \in I, \forall j \in J && \text{(linking)} \\[4pt]
-                  0 \leq x_{ij} &\leq 1 && \forall i \in I, \forall j \in J \\[4pt]
-                  \delta_i &\in \{0, 1\} && \forall i \in I
-                  \end{aligned}\]
-                </span>
-                <span class="math-fallback">
-                  Σᵢ xᵢⱼ = 1  ∀j ∈ J  (copertura domanda)
-                  Σⱼ dⱼ·xᵢⱼ ≤ uᵢ·δᵢ  ∀i ∈ I  (capacità)
-                  xᵢⱼ ≤ δᵢ  ∀i ∈ I, ∀j ∈ J  (linking)
-                  0 ≤ xᵢⱼ ≤ 1  ∀i, ∀j
-                  δᵢ ∈ {0, 1}  ∀i ∈ I
-                </span>
-              </div>
-            </div>
-
-            <div class="math-values">
-              <h4>Dimensioni (dall'istanza)</h4>
-              <p class="math-note" style="margin-top: 0;">
-                Le dimensioni e i coefficienti dipendono dal file istanza OR-Library specificato.
-                Il configuratore non legge il contenuto dell'istanza nel browser.
-              </p>
-              <ul class="math-values-list">
-                <li><span class="math-var">|I|</span> = numero di sedi (facility)</li>
-                <li><span class="math-var">|J|</span> = numero di clienti</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Legend -->
-          <div class="math-section">
-            <h3>Legenda</h3>
-            <dl class="math-legend">
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(\delta_i\)</span><span class="math-fallback">δᵢ</span></dt>
-                <dd>Indicatore binario di apertura: 1 se la sede <em>i</em> è aperta, 0 altrimenti</dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(x_{ij}\)</span><span class="math-fallback">xᵢⱼ</span></dt>
-                <dd>Frazione continua della domanda del cliente <em>j</em> servita dalla sede <em>i</em></dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(f_i\)</span><span class="math-fallback">fᵢ</span></dt>
-                <dd>Costo fisso di apertura della sede <em>i</em></dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(d_j\)</span><span class="math-fallback">dⱼ</span></dt>
-                <dd>Domanda del cliente <em>j</em></dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(u_i\)</span><span class="math-fallback">uᵢ</span></dt>
-                <dd>Capacità della sede <em>i</em></dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(c_{ij}\)</span><span class="math-fallback">cᵢⱼ</span></dt>
-                <dd>Costo di allocazione dell'intera domanda del cliente <em>j</em> alla sede <em>i</em>
-                    (non un costo unitario: il modello non moltiplica ulteriormente per la domanda)</dd>
-              </div>
-            </dl>
-          </div>
-
-          <!-- Reduction Section -->
-          <div class="math-section" id="mathReductionSection">
-            <h3>Riduzione euristica</h3>
-            <div id="mathReductionContent">
-              <!-- Content updated by JS based on mode -->
-            </div>
-          </div>
-        </div>
-      </details>
-    </section>
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="assets/common.js"></script>
-  <script src="assets/math_formulation.js"></script>
   <script src="assets/solver_info.js"></script>
   <script src="assets/facility_location.js"></script>
 </body>

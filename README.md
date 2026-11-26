@@ -109,7 +109,7 @@ CLI. Le pagine sono statiche, apribili direttamente da filesystem senza server.
 Il catalogo [`uix/index.html`](./uix/index.html) elenca i configuratori
 disponibili.
 
-I configuratori offrono informazioni sui parametri, formulazione matematica e
+I configuratori offrono informazioni sui parametri e
 comandi preferiti salvati nel browser, con import/export JSON. Non verificano
 la disponibilita` di SDK o licenze. Dettagli sui preferiti nella
 [guida agli esperimenti](docs/experiments/README.md#comandi-preferiti).

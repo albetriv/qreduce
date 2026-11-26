@@ -591,221 +591,11 @@
       </aside>
     </div>
 
-    <!-- Mathematical Formulation Panel -->
-    <section class="panel math-panel" id="mathPanel" aria-label="Formulazione matematica">
-      <details open>
-        <summary class="math-panel-summary">
-          <span class="math-panel-title">Formulazione matematica</span>
-          <span class="math-panel-subtitle">Modello Sharpe ratio configurato</span>
-        </summary>
-
-        <div class="math-content" id="mathContent">
-          <!-- Original Problem -->
-          <div class="math-section">
-            <h3>Problema originale</h3>
-            <p class="math-description">
-              Massimizzazione Sharpe ratio con vincoli long-only e budget unitario.
-            </p>
-
-            <div class="math-block">
-              <div class="math-label">Obiettivo:</div>
-              <div class="math-formula" id="mathObjective">
-                <span class="math-latex">\[\max_{\mathbf{x}} \quad \frac{\boldsymbol{\mu}^\top \mathbf{x}}{\sqrt{\mathbf{x}^\top \boldsymbol{\Sigma} \mathbf{x}}}\]</span>
-                <span class="math-fallback">max  μ'x / √(x'Σx)</span>
-              </div>
-            </div>
-
-            <div class="math-block">
-              <div class="math-label">Vincoli base:</div>
-              <div class="math-formula" id="mathConstraints">
-                <span class="math-latex">
-                  \[\begin{aligned}
-                  \sum_{i=1}^{n} x_i &= 1 && \text{(budget totale)} \\[4pt]
-                  0 \leq x_i &\leq U && \forall i \text{ (bounds)}
-                  \end{aligned}\]
-                </span>
-                <span class="math-fallback">
-                  Σᵢ xᵢ = 1  (budget totale)
-                  0 ≤ xᵢ ≤ U  ∀i (bounds)
-                </span>
-              </div>
-            </div>
-
-            <div class="math-block" id="mathCardinalityBlock" style="display: none;">
-              <div class="math-label">Cardinalità:</div>
-              <div class="math-formula" id="mathCardinality">
-                <span class="math-latex" id="mathCardinalityLatex">\[\sum_{i=1}^{n} \delta_i \leq K, \quad x_i \leq U \cdot \delta_i, \quad \delta_i \in \{0,1\}\]</span>
-                <span class="math-fallback" id="mathCardinalityFallback">Σᵢ δᵢ ≤ K,  xᵢ ≤ U·δᵢ,  δᵢ ∈ {0,1}</span>
-              </div>
-            </div>
-
-            <div class="math-block" id="mathSectorBlock" style="display: none;">
-              <div class="math-label">Vincoli settoriali:</div>
-              <div class="math-formula" id="mathSector">
-                <span class="math-latex" id="mathSectorLatex">\[L_s \leq \sum_{i \in s} x_i \leq U_s \quad \forall s \in \mathcal{S}\]</span>
-                <span class="math-fallback" id="mathSectorFallback">Lₛ ≤ Σᵢ∈ₛ xᵢ ≤ Uₛ  ∀s ∈ S</span>
-              </div>
-            </div>
-
-            <div class="math-values">
-              <h4>Valori configurati</h4>
-              <ul class="math-values-list">
-                <li><span class="math-var">n</span> = <strong id="mathAssetCount">50</strong> asset</li>
-                <li><span class="math-var">U</span> = <strong id="mathUpperBound">1.0</strong> (peso massimo per asset)</li>
-                <li id="mathMaxPosRow" style="display: none;"><span class="math-var">K</span> = <strong id="mathMaxPositions">—</strong> (max posizioni)</li>
-                <li id="mathSectorRow" style="display: none;">
-                  Vincoli settoriali: <span id="mathSectorDetails">—</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Transformed Problem -->
-          <div class="math-section">
-            <h3>Problema trasformato</h3>
-            <p class="math-description">
-              Riformulazione convessa: minimizzazione varianza con rendimento normalizzato.
-            </p>
-
-            <div class="math-block">
-              <div class="math-label">Obiettivo:</div>
-              <div class="math-formula">
-                <span class="math-latex">\[\min_{\mathbf{x}_s, \kappa} \quad \mathbf{x}_s^\top \boldsymbol{\Sigma} \mathbf{x}_s\]</span>
-                <span class="math-fallback">min  xₛ'Σxₛ</span>
-              </div>
-            </div>
-
-            <div class="math-block">
-              <div class="math-label">Vincoli trasformati:</div>
-              <div class="math-formula">
-                <span class="math-latex">
-                  \[\begin{aligned}
-                  \boldsymbol{\mu}^\top \mathbf{x}_s &= 1 && \text{(rendimento normalizzato)} \\[4pt]
-                  \sum_{i=1}^{n} x_{s,i} &= \kappa && \text{(budget scalato)} \\[4pt]
-                  0 \leq x_{s,i} &\leq U \cdot \kappa && \forall i \\[4pt]
-                  \frac{1}{\mu_{\max}} \leq \kappa &\leq \frac{1}{\mu_{\min}} && \text{(bounds scala)}
-                  \end{aligned}\]
-                </span>
-                <span class="math-fallback">
-                  μ'xₛ = 1  (rendimento normalizzato)
-                  Σᵢ xₛᵢ = κ  (budget scalato)
-                  0 ≤ xₛᵢ ≤ U·κ  ∀i
-                  1/μₘₐₓ ≤ κ ≤ 1/μₘᵢₙ  (bounds scala)
-                </span>
-              </div>
-            </div>
-
-            <!-- Transformed sector constraints - shown when sectors configured -->
-            <div class="math-block" id="mathTransformedSectorBlock" style="display: none;">
-              <div class="math-label">Vincoli settoriali scalati:</div>
-              <div class="math-formula">
-                <span class="math-latex">
-                  \[\begin{aligned}
-                  L_s \cdot \kappa &\leq \sum_{i \in s} x_{s,i} \leq U_s \cdot \kappa && \forall s \in \mathcal{S}
-                  \end{aligned}\]
-                </span>
-                <span class="math-fallback">
-                  Lₛ·κ ≤ Σᵢ∈ₛ xₛᵢ ≤ Uₛ·κ  ∀s
-                </span>
-              </div>
-              <p class="math-description" id="mathTransformedSectorNote">Vincoli settoriali configurati.</p>
-            </div>
-
-            <!-- Transformed cardinality constraints - shown when cardinality configured -->
-            <div class="math-block" id="mathTransformedCardinalityBlock" style="display: none;">
-              <div class="math-label">Vincoli cardinalità (big-M):</div>
-              <div class="math-formula">
-                <span class="math-latex">
-                  \[\begin{aligned}
-                  \sum_{i=1}^{n} \delta_i &\leq K \\[4pt]
-                  x_{s,i} &\leq M_i \cdot \delta_i && \forall i \\[4pt]
-                  M_i &= \frac{U_i}{\mu_{\min}}, \quad \delta_i \in \{0, 1\}
-                  \end{aligned}\]
-                </span>
-                <span class="math-fallback">
-                  Σᵢ δᵢ ≤ K
-                  xₛᵢ ≤ Mᵢ·δᵢ  ∀i
-                  Mᵢ = Uᵢ/μₘᵢₙ,  δᵢ ∈ {0, 1}
-                </span>
-              </div>
-              <p class="math-description">I coefficienti big-M dipendono dal dataset caricato.</p>
-            </div>
-
-            <p class="math-note">
-              <strong>Nota:</strong> senza cardinalità il problema è un QP convesso.
-              Con cardinalità configurata diventa MIQP con variabili binarie δᵢ
-              (anche se <span class="math-var">K</span> = <span class="math-var">n</span>).
-            </p>
-          </div>
-
-          <!-- Reconstruction -->
-          <div class="math-section">
-            <h3>Ricostruzione</h3>
-            <p class="math-description">
-              Recupero della soluzione originale dal problema trasformato.
-            </p>
-
-            <div class="math-block">
-              <div class="math-formula">
-                <span class="math-latex">
-                  \[x_i = \frac{x_{s,i}}{\kappa}, \quad SR = \frac{1}{\sqrt{obj^*}}\]
-                </span>
-                <span class="math-fallback">xᵢ = xₛᵢ / κ,  SR = 1 / √(obj*)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Legend -->
-          <div class="math-section">
-            <h3>Legenda</h3>
-            <dl class="math-legend">
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(x_i\)</span><span class="math-fallback">xᵢ</span></dt>
-                <dd>Peso originale dell'asset <em>i</em></dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(x_{s,i}\)</span><span class="math-fallback">xₛᵢ</span></dt>
-                <dd>Peso scalato dell'asset <em>i</em> nel problema trasformato</dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(\kappa\)</span><span class="math-fallback">κ</span></dt>
-                <dd>Variabile di scala: κ = 1/(μᵀx)</dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(\delta_i\)</span><span class="math-fallback">δᵢ</span></dt>
-                <dd>Indicatore binario di selezione (solo con cardinalità)</dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(\boldsymbol{\mu}\)</span><span class="math-fallback">μ</span></dt>
-                <dd>Vettore rendimenti attesi (tutti positivi dopo preprocessing)</dd>
-              </div>
-              <div class="math-legend-item">
-                <dt><span class="math-latex">\(\boldsymbol{\Sigma}\)</span><span class="math-fallback">Σ</span></dt>
-                <dd>Matrice di covarianza (semidefinita positiva)</dd>
-              </div>
-            </dl>
-            <p class="math-note">
-              <strong>Nota:</strong> Il tasso risk-free è fisso a 0 nella versione corrente.
-              I coefficienti big-M per i vincoli di cardinalità dipendono dal dataset.
-            </p>
-          </div>
-
-          <!-- Reduction Section -->
-          <div class="math-section" id="mathReductionSection">
-            <h3>Riduzione euristica</h3>
-            <div id="mathReductionContent">
-              <!-- Content updated by JS based on mode -->
-            </div>
-          </div>
-        </div>
-      </details>
-    </section>
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="assets/common.js"></script>
-  <script src="assets/math_formulation.js"></script>
   <script src="assets/solver_info.js"></script>
   <script>
     // Alias for common utilities
@@ -858,9 +648,6 @@
     const copyBtn = document.getElementById('copyCommand');
     const resetBtn = document.getElementById('resetDefaults');
 
-    // Dynamic element IDs that should NOT be preserved (rebuilt by JS on each update)
-    const DYNAMIC_IDS = ['mathReductionContent'];
-
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       setupTabs();
@@ -868,11 +655,6 @@
       initTooltips();
       setupRiskFreeFixed();
       updateEnabled();
-      // Initialize math formulation panel with container and dynamic IDs
-      if (typeof QReduceMath !== "undefined") {
-        var mathContent = $('mathContent');
-        QReduceMath.initialize(mathContent, DYNAMIC_IDS);
-      }
       update();
       form.addEventListener('input', update);
       form.addEventListener('change', update);
@@ -1066,7 +848,7 @@
       QReduceSolverInfo.renderClassicalPanel('classicalSolverInfoContainer', classicalSolverId);
     }
 
-    // Share parsing between validation and mathematical presentation.
+    // Parse and validate numeric inputs.
     function readNumber(id, min, max, integer, optional) {
       const raw = $(id).value.trim();
       const value = raw === '' ? null : Number(raw);
@@ -1447,117 +1229,6 @@
       return buildCommand(`poetry run python -m ${CLI_MODULE}`, args, getFormat());
     }
 
-    function updateMathFormulation() {
-      // Check if math module is available
-      if (typeof QReduceMath === "undefined") {
-        return;
-      }
-
-      // 1. Collect and validate values outside the queue (read-only)
-      var state = readProblemState();
-      var hasSectorConstraints = state.sectors.present;
-      var hasCardinality = state.positions.present;
-
-      // 2. Format values with placeholders for invalid
-      var formattedAssetCount = state.assets.valid ? state.assets.value : "?";
-      var formattedUpperBound = state.upper.valid ? QReduceMath.formatNumber(state.upper.value) : "?";
-      var formattedMaxPositions = state.positions.valid ? (hasCardinality ? state.positions.value : "—") : "Non valido";
-
-      // Build sector details HTML (outside callback for safety)
-      var sectorDetailsHTML = state.sectors.valid ?
-        buildSectorDetailsHTML(state.sectors.min, state.sectors.max) :
-        'Vincoli settoriali non validi: correggere i campi evidenziati.';
-
-      // Build reduction content
-      var reductionContent = state.rounds.valid ? buildReductionContent(state.rounds.value) :
-        '<p class="math-description">Modalità non determinabile: correggere i round.</p>';
-
-      // 3. Request render - all DOM updates in callback
-      var mathContent = $('mathContent');
-      if (mathContent) {
-        QReduceMath.requestRender(function () {
-          // Update configured values
-          var mathAssetCount = $('mathAssetCount');
-          if (mathAssetCount) {
-            mathAssetCount.textContent = formattedAssetCount;
-          }
-
-          var mathUpperBound = $('mathUpperBound');
-          if (mathUpperBound) {
-            mathUpperBound.textContent = formattedUpperBound;
-          }
-
-          var mathMaxPositions = $('mathMaxPositions');
-          if (mathMaxPositions) {
-            mathMaxPositions.textContent = formattedMaxPositions;
-          }
-
-          // Show/hide cardinality block
-          var cardBlock = $('mathCardinalityBlock');
-          var maxPosRow = $('mathMaxPosRow');
-          if (cardBlock) {
-            cardBlock.style.display = hasCardinality ? "" : "none";
-          }
-          if (maxPosRow) {
-            maxPosRow.style.display = hasCardinality ? "" : "none";
-          }
-
-          // Show/hide sector block (original problem)
-          var sectorBlock = $('mathSectorBlock');
-          var sectorRow = $('mathSectorRow');
-          var sectorDetails = $('mathSectorDetails');
-          if (sectorBlock) {
-            sectorBlock.style.display = hasSectorConstraints ? "" : "none";
-          }
-          if (sectorRow) {
-            sectorRow.style.display = hasSectorConstraints ? "" : "none";
-          }
-          if (sectorDetails) {
-            sectorDetails.innerHTML = sectorDetailsHTML;
-          }
-          $('mathTransformedSectorNote').innerHTML = sectorDetailsHTML;
-          [cardBlock, $('mathTransformedCardinalityBlock')].forEach(function (block) {
-            block.querySelector('.math-formula').style.display = state.positions.valid ? '' : 'none';
-          });
-          [sectorBlock, $('mathTransformedSectorBlock')].forEach(function (block) {
-            block.querySelector('.math-formula').style.display = state.sectors.valid ? '' : 'none';
-          });
-
-          // Show/hide transformed sector block
-          var transformedSectorBlock = $('mathTransformedSectorBlock');
-          if (transformedSectorBlock) {
-            transformedSectorBlock.style.display = hasSectorConstraints ? "" : "none";
-          }
-
-          // Show/hide transformed cardinality block
-          var transformedCardBlock = $('mathTransformedCardinalityBlock');
-          if (transformedCardBlock) {
-            transformedCardBlock.style.display = hasCardinality ? "" : "none";
-          }
-
-          // Update reduction content
-          var reductionEl = $('mathReductionContent');
-          if (reductionEl) {
-            reductionEl.innerHTML = reductionContent;
-          }
-
-          return mathContent;
-        });
-      }
-    }
-
-    function buildReductionContent(maxRounds) {
-      if (maxRounds === 0) {
-        return '<p class="math-description">Modalità baseline: problema risolto direttamente senza riduzione MWIS.</p>';
-      }
-      if (maxRounds === 1) {
-        return '<p class="math-description">Single-pass: un round di riduzione seguito dal solve del problema residuo.</p>' +
-          '<p class="math-note">Gli asset esclusi dal dominio candidato vengono fissati a peso zero.</p>';
-      }
-      return '<p class="math-description">Multi-round: fino a ' + maxRounds + ' round di riduzione con possibile recovery.</p>' +
-        '<p class="math-note">La pipeline si arresta al primo successo o successo parziale.</p>';
-    }
-
     /**
      * Parse sector constraints from "Sector=value,Sector2=value2" format.
      * Return a distinct absent, valid or invalid state; never accept partial input.
@@ -1611,52 +1282,6 @@
         state.error = 'La somma dei minimi settoriali non può superare 1';
       }
       return state;
-    }
-
-    /**
-     * Build sector details HTML from min/max constraints.
-     * Returns HTML string with escaped sector names.
-     */
-    function buildSectorDetailsHTML(minConstraints, maxConstraints) {
-      // Collect all sectors
-      var allSectors = Object.create(null);
-      if (minConstraints) {
-        for (var s in minConstraints) {
-          if (Object.prototype.hasOwnProperty.call(minConstraints, s)) {
-            allSectors[s] = allSectors[s] || {};
-            allSectors[s].min = minConstraints[s];
-          }
-        }
-      }
-      if (maxConstraints) {
-        for (var s in maxConstraints) {
-          if (Object.prototype.hasOwnProperty.call(maxConstraints, s)) {
-            allSectors[s] = allSectors[s] || {};
-            allSectors[s].max = maxConstraints[s];
-          }
-        }
-      }
-
-      var sectors = Object.keys(allSectors);
-      if (sectors.length === 0) return '—';
-
-      var parts = [];
-      for (var i = 0; i < sectors.length; i++) {
-        var sector = sectors[i];
-        var constraints = allSectors[sector];
-        // Escape HTML in sector name to prevent XSS
-        var safeSector = sector.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        var range;
-        if (constraints.min !== undefined && constraints.max !== undefined) {
-          range = QReduceMath.formatNumber(constraints.min) + '–' + QReduceMath.formatNumber(constraints.max);
-        } else if (constraints.min !== undefined) {
-          range = '≥' + QReduceMath.formatNumber(constraints.min);
-        } else {
-          range = '≤' + QReduceMath.formatNumber(constraints.max);
-        }
-        parts.push('<strong>' + safeSector + '</strong>: ' + range);
-      }
-      return parts.join(', ');
     }
 
     function update() {
@@ -1714,7 +1339,6 @@
       // updateValidationStatus is called here because validate() does not call it
       updateValidationStatus(valid);
 
-      updateMathFormulation();
     }
 
     function copyCommand() {

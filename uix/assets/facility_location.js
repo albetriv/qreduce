@@ -346,90 +346,6 @@
   }
 
   /**
-   * Update the mathematical formulation panel with current mode.
-   * All DOM updates are serialized through the MathJax render queue.
-   */
-  function updateMathFormulation() {
-    // Check if math module is available
-    if (typeof QReduceMath === "undefined") {
-      return;
-    }
-
-    // 1. Collect values OUTSIDE the queue (safe: read-only)
-    var rounds = C.number("rounds");
-
-    // 2. Build reduction content OUTSIDE the queue (pure function)
-    var reductionContent = buildReductionContent(rounds);
-
-    // 3. Request render - ALL DOM updates happen inside the callback
-    var mathContent = C.$("mathContent");
-    if (mathContent) {
-      QReduceMath.requestRender(function () {
-        // Update reduction section
-        var reductionEl = C.$("mathReductionContent");
-        if (reductionEl) {
-          reductionEl.innerHTML = reductionContent;
-        }
-
-        // Return the element to typeset
-        return mathContent;
-      });
-    }
-  }
-
-  /**
-   * Build the reduction section HTML content.
-   * This is a pure function that returns a string, no DOM access.
-   * @param {number|null} rounds
-   * @returns {string}
-   */
-  function buildReductionContent(rounds) {
-    var reductionActive = rounds !== null && rounds > 0;
-
-    if (!reductionActive) {
-      // Baseline mode: no reduction
-      return [
-        '<p class="math-description">',
-        '<strong>Modalità baseline</strong> (<code>--rounds 0</code>): ',
-        'nessuna riduzione attiva. Il problema originale viene risolto direttamente ',
-        'dal solver classico senza esclusioni euristiche.',
-        '</p>',
-      ].join("");
-    }
-
-    // Reduction active
-    var modeLabel = rounds === 1 ? "single-pass" : "multi-round (" + rounds + " round)";
-
-    return [
-      '<p class="math-description">',
-      '<strong>Modalità ' + modeLabel + '</strong>: la pipeline costruisce un grafo ',
-      'di ridondanza tra sedi e risolve un problema MWIS ausiliario per selezionare ',
-      'un sottoinsieme di facility da mantenere come candidate.',
-      '</p>',
-      '<div class="math-block">',
-      '<div class="math-label">Dominio candidato:</div>',
-      '<div class="math-formula">',
-      '<span class="math-latex">\\[I_{\\text{candidato}} \\subseteq I\\]</span>',
-      '<span class="math-fallback">I_candidato ⊆ I</span>',
-      '</div>',
-      '</div>',
-      '<div class="math-block">',
-      '<div class="math-label">Fixing nel residuo:</div>',
-      '<div class="math-formula">',
-      '<span class="math-latex">\\[\\forall i \\notin I_{\\text{candidato}}: \\quad \\delta_i = 0, \\quad x_{ij} = 0 \\; \\forall j \\in J\\]</span>',
-      '<span class="math-fallback">∀i ∉ I_candidato:  δᵢ = 0,  xᵢⱼ = 0 ∀j ∈ J</span>',
-      '</div>',
-      '</div>',
-      '<p class="math-note">',
-      '<strong>Nota euristica:</strong> le esclusioni sono determinate dal MWIS e non ',
-      'certificano l\'ottimalità del problema originale. Il grafo di ridondanza è costruito ',
-      'in base a overlap dei profili clienti e similarità di capacità: gli archi non rappresentano ',
-      'incompatibilità formali ma ridondanza euristica tra sedi.',
-      '</p>',
-    ].join("");
-  }
-
-  /**
    * Update enabled/disabled state of fields based on current selections.
    */
   function updateEnabled() {
@@ -531,8 +447,6 @@
     C.updateValidationStatus(isValid);
     C.setButtonsEnabled(isValid, ["copyCommand"]);
 
-    // Update mathematical formulation panel
-    updateMathFormulation();
   }
 
   // Favorites control object (assigned during initialization)
@@ -581,17 +495,5 @@
     update();
     favoritesControl = C.setupFavorites("facility_location", update);
 
-    // Initialize MathJax for formulation panel
-    // Exclude dynamic elements (reduction section) from TeX source preservation
-    // because they are rebuilt by JS on each update
-    if (typeof QReduceMath !== "undefined") {
-      var mathContent = C.$("mathContent");
-      if (mathContent) {
-        var dynamicIds = [
-          "mathReductionContent",     // Reduction section - rebuilt on each update
-        ];
-        QReduceMath.initialize(mathContent, dynamicIds);
-      }
-    }
   });
 })();

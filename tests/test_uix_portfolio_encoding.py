@@ -13,13 +13,13 @@ class TextDOM(HTMLParser):
         self.text.append(data)
 
 
-def test_portfolio_dom_preserves_accents_and_math_symbols():
+def test_portfolio_dom_preserves_accents():
     page = Path(__file__).resolve().parents[1] / "uix" / "experiment_portfolio_mv.html"
     dom = TextDOM()
     dom.feed(page.read_bytes().decode("utf-8", errors="strict"))
     text = " ".join(dom.text)
 
-    for expected in ("01 · Esperimento", "Identità e portfolio sintetico", "δᵢ", "λ", "Σ", "μ", "cardinalità"):
+    for expected in ("01 · Esperimento", "Identità e portfolio sintetico", "cardinalità"):
         assert expected in text
     for corrupted in ("Ã", "Â·", "Î´", "�"):
         assert corrupted not in text

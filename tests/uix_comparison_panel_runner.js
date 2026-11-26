@@ -60,7 +60,6 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     const refresh = document.getElementById('comparison-refresh');
     const tab = document.querySelector('[data-tab="comparison"]');
     const panel = document.getElementById('comparison');
-    const math = document.getElementById('mathPanel');
     for (const icon of [refresh, swap]) {
       assert.ok(icon.querySelector('svg[aria-hidden="true"]'));
       assert.ok(icon.getAttribute('aria-label'));
@@ -70,9 +69,7 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     assert.equal(tab.previousElementSibling.dataset.tab, 'export');
     assert.equal(dom.window.getComputedStyle(panel).display, 'none');
     tab.click();
-    assert.ok(math.hidden);
     document.querySelector('[data-tab="export"]').click();
-    assert.ok(!math.hidden);
     tab.click();
     assert.equal(dom.window.getComputedStyle(panel).display, 'block');
     assert.equal(dom.window.getComputedStyle(document.getElementById('experiment')).display, 'none');

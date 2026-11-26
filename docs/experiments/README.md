@@ -136,7 +136,6 @@ I configuratori:
 - supportano formato inline (una riga) e multilinea;
 - includono solo i flag con valori diversi dai default;
 - mostrano icone informative (ⓘ) con descrizioni dei parametri;
-- mostrano la formulazione matematica del problema configurato;
 - non verificano la disponibilità dei solver o l'esistenza dei file.
 
 ### Comandi preferiti
@@ -217,29 +216,6 @@ e i relativi flag non vengono aggiunti al comando. Riattivando la riduzione,
 i valori tornano utilizzabili e vengono nuovamente validati. Nei portfolio le
 tolleranze di rendimento e varianza sono utilizzate soltanto in modalità
 `near_duplicate`; in `correlation_only` rimangono conservate ma inattive.
-
-### Pannello formulazione matematica
-
-Ogni configuratore include un pannello espandibile che mostra:
-
-- **Obiettivo e vincoli**: la formulazione matematica del problema
-  (media-varianza per portfolio, CFLP per facility location)
-- **Legenda**: significato di variabili e coefficienti
-- **Valori configurati**: parametri numerici aggiornati dinamicamente
-- **Riduzione euristica**: descrizione della modalità baseline/riduzione
-
-Le formule sono renderizzate con MathJax (da CDN) quando disponibile. Se
-MathJax non è caricabile (offline, policy di rete), viene mostrata una
-rappresentazione testuale leggibile.
-
-I vincoli opzionali (es. cardinalità nel portfolio) appaiono solo quando i
-relativi campi sono compilati. La sezione riduzione distingue baseline
-(classical-only) e modalità con riduzione attiva.
-
-**Nota**: il pannello presenta le formule del modello configurato, non il
-risultato dell'esecuzione. Il dominio residuo effettivo e i fixing sono
-determinati dalla pipeline; il configuratore mostra solo la struttura del
-problema originale e la semantica delle esclusioni.
 
 ### Test dei configuratori
 

@@ -6,11 +6,6 @@
   const status = document.getElementById('comparison-status'), report = document.getElementById('comparison-report');
   const swap = document.getElementById('comparison-swap');
   const refresh = document.getElementById('comparison-refresh');
-  const mathPanel = document.getElementById('mathPanel');
-  const comparisonPanel = document.getElementById('comparison');
-  document.querySelector('.portfolio-tabs').addEventListener('click', () => {
-    mathPanel.hidden = comparisonPanel.classList.contains('active');
-  });
   const runs = [null, null], names = ['', ''], versions = [0, 0];
   const catalog = new Map();
   const missing = 'Dato non registrato';
