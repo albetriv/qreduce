@@ -338,6 +338,56 @@ test('SR adapter handles classical baseline', async () => {
   assert.deepEqual(run.retained, ['AAPL', 'MSFT']);
 });
 
+test('SR adapter distinguishes ticker minima from a uniform or historical zero minimum', async () => {
+  const files = syntheticSR();
+  const legacy = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.equal(legacy.lowerBound, 0);
+  assert.equal(legacy.lowerBounds, null);
+  change(files, 'problem.json', p => { p.lower_bounds = {AAPL: 0.2}; });
+  const individual = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.equal(individual.lowerBound, null);
+  assert.deepEqual(individual.lowerBounds, {AAPL: 0.2});
+});
+
+test('SR adapter distinguishes recorded binary selection from invested positions', async () => {
+  const files = syntheticSR();
+  const problem = JSON.parse(files['problem.json']);
+  const result = JSON.parse(files['run_result.json']);
+  problem.min_selected_assets = 2;
+  Object.assign(result.classical_result.variable_values, {
+    x_scaled__AAPL: result.classical_result.variable_values.x_scale,
+    x_scaled__MSFT: 0, delta__AAPL: 1, delta__MSFT: 1,
+  });
+  result.domain_evaluation_metrics.push(
+    {metric_id: 'selected_count', value: 2}, {metric_id: 'position_count', value: 1}
+  );
+  files['problem.json'] = JSON.stringify(problem);
+  files['run_result.json'] = JSON.stringify(result);
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.deepEqual(run.issues, []);
+  assert.deepEqual(run.cardinality, {min: 2, max: 2});
+  assert.equal(run.solution.selectedCount, 2);
+  assert.equal(run.solution.investedCount, 1);
+});
+
+test('SR historical weights do not imply binary selection', async () => {
+  const files = syntheticSR(true);
+  change(files, 'run_result.json', r => {
+    delete r.classical_result.variable_values.delta__AAPL;
+    delete r.classical_result.variable_values.delta__MSFT;
+  });
+  const historical = adaptSharpePortfolio(await importRunSharpe(files));
+  const modern = adaptSharpePortfolio(await importRunSharpe(syntheticSR()));
+  assert.ok(historical.solution);
+  assert.equal(historical.solution.selected, null);
+  assert.equal(historical.solution.selectedCount, null);
+  assert.equal(historical.solution.weights.AAPL, 0.5);
+  const report = compareRuns(historical, modern);
+  assert.deepEqual(report.composition, []);
+  assert.equal(report.baselineExcludedCount, null);
+  assert.equal(report.dashboard.positions, null);
+});
+
 test('SR comparison uses maximize sense for Sharpe', async () => {
   const a = adaptSharpePortfolio(await importRunSharpe(syntheticSR(true)));
   const b = adaptSharpePortfolio(await importRunSharpe(syntheticSR()));
@@ -358,6 +408,38 @@ test('SR detects weight conflicts with selection', async () => {
   });
   const run = adaptSharpePortfolio(await importRunSharpe(files));
   assert.ok(run.issues.some(i => i.includes('conflicts with selection')));
+});
+
+test('SR accepts weight noise within the recorded postcheck tolerance', async () => {
+  const files = syntheticSR(true);
+  change(files, 'run_result.json', r => {
+    r.postcheck_result.tolerances_used = {primal_feasibility: 1e-6, integrality: 1e-6};
+    Object.assign(r.classical_result.variable_values, {
+      x_scale: 10, x_scaled__AAPL: 9.9999995, x_scaled__MSFT: 5e-7, delta__MSFT: 0,
+    });
+  });
+  const run = adaptSharpePortfolio(await importRunSharpe(files));
+  assert.deepEqual(run.issues, []);
+  assert.deepEqual(run.solution.selected, ['AAPL']);
+  assert.equal(run.solution.weights.MSFT, 5e-8);
+});
+
+test('SR checks excluded weights in scaled coordinates and uses binary tolerance', async () => {
+  for (const [weight, binary, conflict] of [
+    [5e-7, -5e-7, false], [2e-6, 0, true], [-2e-6, 0, true], [0, -2e-6, true],
+  ]) {
+    const files = syntheticSR();
+    change(files, 'run_result.json', r => {
+      r.final_retained_item_ids = ['AAPL'];
+      r.postcheck_result.tolerances_used = {primal_feasibility: 1e-6, integrality: 1e-6};
+      Object.assign(r.classical_result.variable_values, {
+        x_scale: 10, x_scaled__AAPL: 10 - weight, x_scaled__MSFT: weight, delta__MSFT: binary,
+      });
+    });
+    const run = adaptSharpePortfolio(await importRunSharpe(files));
+    assert.equal(run.issues.includes('Selected asset outside retained domain'), conflict);
+    assert.equal(Boolean(run.solution), !conflict);
+  }
 });
 
 test('SR requires explicit adoption_status for valid solution', async () => {

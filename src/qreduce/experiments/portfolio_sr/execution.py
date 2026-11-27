@@ -17,7 +17,7 @@ The execution flow:
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
 
@@ -213,8 +213,11 @@ def run_sharpe_portfolio_experiment(
     # Problem configuration
     risk_free_rate: float = 0.0,
     upper_bound: float = 1.0,
+    lower_bound: float = 0.0,
     sector_constraints: SectorConstraints | None = None,
     max_positions: int | None = None,
+    min_selected_assets: int | None = None,
+    lower_bounds: Mapping[str, float] | None = None,
     # Graph configuration
     graph_policy: SharpeGraphPolicy | None = None,
     # Solver configuration
@@ -249,8 +252,11 @@ def run_sharpe_portfolio_experiment(
         annualization_factor: Trading days per year.
         risk_free_rate: Risk-free rate. Must be 0.0 in current version.
         upper_bound: Maximum weight per asset.
+        lower_bound: Minimum weight per selected asset.
         sector_constraints: Optional sector diversification constraints.
         max_positions: Optional cardinality constraint.
+        min_selected_assets: Optional minimum number of selected assets.
+        lower_bounds: Optional per-ticker minimum weights instead of a positive scalar.
         graph_policy: MWIS graph construction policy.
         mis_solver_id: MIS solver ID ("local_greedy" or "dwave_simulated_annealing").
         classical_solver_id: Classical solver ID ("scip" or "cplex").
@@ -294,8 +300,11 @@ def run_sharpe_portfolio_experiment(
         annualization_factor=annualization_factor,
         risk_free_rate=risk_free_rate,
         upper_bound=upper_bound,
+        lower_bound=lower_bound,
         sector_constraints=sector_constraints,
         max_positions=max_positions,
+        min_selected_assets=min_selected_assets,
+        lower_bounds=lower_bounds,
         graph_policy=graph_policy,
         selection_order=selection_order,
         random_seed=random_seed,
@@ -305,8 +314,10 @@ def run_sharpe_portfolio_experiment(
     if reduction_policy is None:
         reduction_policy = default_reduction_policy(
             inputs.problem.ticker_count,
-            has_cardinality=inputs.problem.max_positions is not None,
+            has_cardinality=inputs.problem.has_selection_binaries,
+            min_selected_assets=inputs.problem.min_selected_assets,
         )
+    _validate_reduction_cardinality(reduction_policy, inputs.problem.min_selected_assets)
 
     # Build execution options
     mis_execution = _build_mis_execution_options(
@@ -351,6 +362,8 @@ def run_sharpe_portfolio_experiment(
             "ticker_count": inputs.problem.ticker_count,
             "sector_count": len(set(inputs.problem.sectors.values())),
             "max_positions": inputs.problem.max_positions,
+            "min_selected_assets": inputs.problem.min_selected_assets,
+            "lower_bound": inputs.problem.lower_bound,
             "has_sector_constraints": inputs.problem.sector_constraints is not None,
         },
     }
@@ -372,6 +385,11 @@ def run_sharpe_portfolio_experiment(
         output_root=output_root,
         experiment_metadata=metadata,
     )
+
+
+def _validate_reduction_cardinality(policy: ReductionPolicy, minimum: int | None) -> None:
+    if policy.max_reduction_rounds > 0 and policy.candidate_domain_max_items < (minimum or 0):
+        raise ValueError("candidate_domain_max_items must be at least min_selected_assets.")
 
 
 def run_sharpe_portfolio_from_inputs(
@@ -417,8 +435,10 @@ def run_sharpe_portfolio_from_inputs(
     if reduction_policy is None:
         reduction_policy = default_reduction_policy(
             inputs.problem.ticker_count,
-            has_cardinality=inputs.problem.max_positions is not None,
+            has_cardinality=inputs.problem.has_selection_binaries,
+            min_selected_assets=inputs.problem.min_selected_assets,
         )
+    _validate_reduction_cardinality(reduction_policy, inputs.problem.min_selected_assets)
 
     # Build execution options
     mis_execution = _build_mis_execution_options(

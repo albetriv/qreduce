@@ -6,7 +6,7 @@ This module validates final solutions from the classical solver:
 - Budget constraint: sum x = 1
 - Upper bounds: x_i <= upper_i
 - Sector constraints: min_s <= sum_{i in s} x_i <= max_s
-- Cardinality constraint: positions <= max_positions, binary domain
+- Selection: binary domain, cardinality limits, conditional investment floors
 - Fixing compliance: excluded tickers have zero weight
 - Objective verification: recomputed vs solver-reported
 
@@ -94,42 +94,34 @@ def _validate_cardinality_constraint_strict(
     delta_values: Mapping[str, float],
     weight_tolerance: float,
     integrality_tolerance: float,
-) -> tuple[bool, list[str]]:
-    """Validate cardinality constraint with full binary validation.
-
-    Checks:
-    1. Each delta is in {0, 1}
-    2. Number of active deltas <= max_positions
-    3. Weight-delta consistency: x_i > 0 implies delta_i = 1
-    4. Weight-delta consistency: delta_i = 0 implies x_i = 0
-
-    Returns:
-        (is_valid, list of error messages)
-    """
+) -> tuple[bool, list[str], int | None]:
+    """Return binary compliance, constraint messages, and the count when known."""
     messages: list[str] = []
 
-    if problem.max_positions is None:
-        return True, []
-
     # Validate each delta is binary
-    active_count = 0
+    selected_count = 0
+    integrality_compliant = True
     for ticker in problem.tickers:
         if ticker not in delta_values:
             messages.append(f"missing_delta:{ticker}")
+            integrality_compliant = False
             continue
 
         delta = delta_values[ticker]
         valid, error = _validate_binary_variable(delta, ticker, integrality_tolerance)
         if not valid:
             messages.append(error or f"invalid_delta:{ticker}")
+            integrality_compliant = False
             continue
 
         delta_rounded = round(delta)
         weight = original_weights.get(ticker, 0.0)
 
-        # Count active positions
+        # A zero-weight asset can be selected if its floor is zero.
         if delta_rounded == 1:
-            active_count += 1
+            selected_count += 1
+            if weight < problem.effective_lower_bound(ticker) - weight_tolerance:
+                messages.append(f"lower_bound_violated:{ticker}:weight={weight:.6g}")
 
         # Consistency checks
         if weight > weight_tolerance and delta_rounded == 0:
@@ -141,13 +133,17 @@ def _validate_cardinality_constraint_strict(
                 f"delta_zero_with_weight:{ticker} has delta=0 but weight={weight:.6g}"
             )
 
-    # Check cardinality limit
-    if active_count > problem.max_positions:
+    if (integrality_compliant and problem.min_selected_assets is not None
+            and selected_count < problem.min_selected_assets):
         messages.append(
-            f"cardinality_exceeded:active={active_count}>max={problem.max_positions}"
+            f"min_cardinality_violation:selected={selected_count}<min={problem.min_selected_assets}"
+        )
+    if problem.max_positions is not None and selected_count > problem.max_positions:
+        messages.append(
+            f"cardinality_exceeded:active={selected_count}>max={problem.max_positions}"
         )
 
-    return len(messages) == 0, messages
+    return integrality_compliant, messages, selected_count if integrality_compliant else None
 
 
 def validate_sharpe_solution(
@@ -274,25 +270,25 @@ def validate_sharpe_solution(
     # Reconstruct original weights
     original_weights = {t: scaled_weights[t] / x_scale for t in original_problem.tickers}
 
-    # Phase 3: Binary variables (if cardinality)
+    # Phase 3: Selection binaries.
     delta_values: dict[str, float] = {}
-    if original_problem.max_positions is not None and mapping.delta_by_ticker:
-        for ticker in original_problem.tickers:
-            delta_name = mapping.delta_by_ticker[ticker]
-            if delta_name in variable_values:
-                delta_values[ticker] = variable_values[delta_name]
+    deltas = mapping.require_deltas()
+    for ticker in original_problem.tickers:
+        delta_name = deltas[ticker]
+        if delta_name in variable_values:
+            delta_values[ticker] = variable_values[delta_name]
 
-        card_valid, card_messages = _validate_cardinality_constraint_strict(
-            original_problem, original_weights, delta_values, tol, int_tol
-        )
-        if not card_valid:
-            messages.extend(card_messages)
-            is_valid = False
-            # Check if any are integrality issues
-            if any("integrality" in m or "delta" in m.lower() for m in card_messages):
-                integrality_compliant = False
-            if any("cardinality" in m or "inconsistent" in m for m in card_messages):
-                constraint_compliant = False
+    integrality_compliant, card_messages, selected_count = _validate_cardinality_constraint_strict(
+        original_problem, original_weights, delta_values, tol, int_tol
+    )
+    if card_messages:
+        messages.extend(card_messages)
+        is_valid = False
+        if any(m.startswith(("cardinality_exceeded:", "weight_delta_inconsistent:",
+                             "delta_zero_with_weight:", "lower_bound_violated:",
+                             "min_cardinality_violation:"))
+               for m in card_messages):
+            constraint_compliant = False
 
     # Phase 4: Transformed constraints
     # Validate x_scale bounds
@@ -362,18 +358,17 @@ def validate_sharpe_solution(
                 is_valid = False
                 fixing_compliant = False
 
-        # Check delta is fixed to zero (if present)
-        if mapping.delta_by_ticker:
-            delta_name = mapping.delta_by_ticker.get(ticker)
-            if delta_name and delta_name in entry.variable_values:
-                expected = entry.variable_values[delta_name]
-                actual = delta_values.get(ticker, 0.0)
-                if abs(actual - expected) > int_tol:
-                    messages.append(
-                        f"fixing_violated:{ticker}:delta={actual:.6g}!=expected={expected:.6g}"
-                    )
-                    is_valid = False
-                    fixing_compliant = False
+        # Check any recorded fixing for the selection variable.
+        delta_name = deltas.get(ticker)
+        if delta_name and delta_name in entry.variable_values:
+            expected = entry.variable_values[delta_name]
+            actual = delta_values.get(ticker, 0.0)
+            if abs(actual - expected) > int_tol:
+                messages.append(
+                    f"fixing_violated:{ticker}:delta={actual:.6g}!=expected={expected:.6g}"
+                )
+                is_valid = False
+                fixing_compliant = False
 
     # Phase 7: Objective verification
     objective_value = compute_transformed_objective(original_problem, scaled_weights)
@@ -412,6 +407,8 @@ def validate_sharpe_solution(
     tolerances_map["sharpe_ratio"] = sharpe_ratio
     tolerances_map["x_scale"] = x_scale
     tolerances_map["position_count"] = metrics.effective_positions
+    if selected_count is not None:
+        tolerances_map["selected_count"] = selected_count
 
     return FinalSolutionValidationResult(
         postcheck_feasible=is_valid,
@@ -441,6 +438,7 @@ def extract_solution_summary(
     variable_values: Mapping[str, float],
     *,
     weight_tolerance: float = 1e-9,
+    integrality_tolerance: float = 1e-6,
 ) -> dict[str, object]:
     """Extract summary statistics from a solution.
 
@@ -448,6 +446,7 @@ def extract_solution_summary(
         problem: The original problem.
         variable_values: Solution variable values.
         weight_tolerance: Minimum weight to count as invested.
+        integrality_tolerance: Tolerance for counting binary selections.
 
     Returns:
         Dictionary with key metrics.
@@ -476,13 +475,13 @@ def extract_solution_summary(
         problem, original_weights, weight_tolerance=weight_tolerance
     )
 
-    # Get selected assets (by weight > tolerance)
+    # Get invested assets (by weight > tolerance)
     invested_tickers = [
         t for t in problem.tickers
         if original_weights[t] > weight_tolerance
     ]
 
-    return {
+    summary: dict[str, object] = {
         "x_scale": x_scale,
         "objective_value": objective,
         "sharpe_ratio": sharpe,
@@ -493,3 +492,11 @@ def extract_solution_summary(
         "weights": original_weights,
         "sector_exposures": dict(metrics.sector_exposures),
     }
+    delta_values = {t: variable_values[var] for t, var in mapping.require_deltas().items()
+                    if var in variable_values}
+    _, _, selected_count = _validate_cardinality_constraint_strict(
+        problem, original_weights, delta_values, weight_tolerance, integrality_tolerance,
+    )
+    if selected_count is not None:
+        summary["selected_count"] = selected_count
+    return summary

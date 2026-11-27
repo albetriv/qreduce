@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from qreduce.artifacts.metadata import pretty_json
 from qreduce.domains.contracts import FixingEntry, FixingManifest
 from qreduce.experiments.artifacts import load_experiment_run
 from qreduce.experiments.portfolio_sr.adapter import SharpePortfolioAdapter
@@ -29,6 +30,110 @@ from qreduce.experiments.portfolio_sr.models import (
     TransformedSharpeProblem,
 )
 from qreduce.experiments.runner import run_experiment
+
+
+@pytest.mark.parametrize(("rounds", "max_positions"), [(0, None), (1, None), (0, 2)])
+def test_minimum_investment_scip_roundtrip(tmp_path: Path, rounds: int, max_positions: int | None):
+    """The minimum is enforced in both baseline and local reduction runs."""
+    pytest.importorskip("pyscipopt")
+    tickers = ("A", "B", "C", "D")
+    minimum = 0.30 if max_positions is not None else 0.15
+    problem = SharpePortfolioProblem(
+        tickers=tickers,
+        mean_returns=dict.fromkeys(tickers, 0.1),
+        covariance=((0.01, 0., 0., 0.), (0., 0.025, 0., 0.),
+                    (0., 0., 0.03, 0.), (0., 0., 0., 1.0)),
+        sectors=dict.fromkeys(tickers, "all"),
+        upper_bounds=dict.fromkeys(tickers, 1.0),
+        lower_bound=minimum,
+        max_positions=max_positions,
+    )
+    adapter = SharpePortfolioAdapter(default_sharpe_graph_policy())
+    policy = replace(default_reduction_policy(4, max_reduction_rounds=rounds, has_cardinality=True),
+                     target_binary_variables=0, candidate_domain_max_items=3)
+    config = _build_resolved_run_config(
+        f"minimum-{rounds}", reduction_policy=policy,
+        mis_solver_id="local_greedy", mis_execution=_build_mis_execution_options(),
+        classical_solve=_build_classical_solve_options(),
+    )
+    run = run_experiment("portfolio_sr", problem, adapter, config, output_root=tmp_path)
+    assert run.result.run_result.run_status == "success"
+    artifacts = load_experiment_run(run.run_directory)
+    weights = extract_portfolio_weights(artifacts, weight_tolerance=0)
+    assert sum(weights.values()) == pytest.approx(1, abs=1e-6)
+    assert all(w <= 1e-6 or w >= minimum - 1e-6 for w in weights.values())
+    if max_positions is not None:
+        assert sum(w > 1e-6 for w in weights.values()) == max_positions
+        assert weights["B"] == pytest.approx(minimum, abs=1e-6)
+    assert artifacts.problem["lower_bound"] == minimum
+    assert load_sharpe_portfolio_analysis(run.run_directory).problem_summary["lower_bound"] == minimum
+    if rounds == 0 and max_positions is None:
+        # The legacy runner serialized the dataclass fields, not problem.to_dict().
+        legacy_problem = {
+            "tickers": tickers,
+            "mean_returns": problem.mean_returns,
+            "covariance": problem.covariance,
+            "sectors": problem.sectors,
+            "upper_bounds": problem.upper_bounds,
+            "sector_constraints": None,
+            "max_positions": None,
+            "risk_free_rate": 0.0,
+            "covariance_symmetry_tolerance": 1e-12,
+        }
+        original = replace(problem, lower_bound=0.0, min_selected_assets=0)
+        original_config = replace(
+            config, run_identity=replace(config.run_identity, run_id="no-minimum"),
+            classical_solve=_build_classical_solve_options(model_export_enabled=True),
+        )
+        original_run = run_experiment("portfolio_sr", original, adapter, original_config, output_root=tmp_path)
+        assert original_run.result.run_result.run_status == "success"
+        assert (original_run.run_directory / "problem.json").read_bytes() == (
+            pretty_json(legacy_problem) + "\n"
+        ).encode("utf-8")
+        original_weights = extract_portfolio_weights(load_experiment_run(original_run.run_directory), weight_tolerance=0)
+        assert 1e-6 < original_weights["D"] < 0.15
+        exported = (original_run.run_directory / "residual_model.lp").read_text()
+        assert all(f"delta__{ticker}" in exported for ticker in tickers)
+        assert all(f"cardinality_link__{ticker}" in exported for ticker in tickers)
+
+
+def test_selection_minimum_roundtrip_and_screening_rejection(tmp_path: Path):
+    """A minimum alone creates binaries, and an undersized fixing never reaches SCIP."""
+    pytest.importorskip("pyscipopt")
+    tickers = ("A", "B", "C")
+    problem = SharpePortfolioProblem(
+        tickers, dict.fromkeys(tickers, 0.1),
+        ((0.1, 0.2, 0.2), (0.2, 1.0, 0.5), (0.2, 0.5, 1.0)),
+        dict.fromkeys(tickers, "all"), dict.fromkeys(tickers, 1.0),
+        min_selected_assets=2,
+    )
+    adapter = SharpePortfolioAdapter(default_sharpe_graph_policy())
+    config = _build_resolved_run_config(
+        "selection-minimum", reduction_policy=replace(
+            default_reduction_policy(3, max_reduction_rounds=0), candidate_domain_max_items=1,
+        ),
+        mis_solver_id="local_greedy", mis_execution=_build_mis_execution_options(),
+        classical_solve=_build_classical_solve_options(),
+    )
+    run = run_experiment("portfolio_sr", problem, adapter, config, output_root=tmp_path)
+    assert run.result.run_result.run_status == "success"
+    artifacts = load_experiment_run(run.run_directory)
+    assert artifacts.problem["min_selected_assets"] == 2
+    assert artifacts.problem["max_positions"] is None
+    analysis = load_sharpe_portfolio_analysis(run.run_directory)
+    assert analysis.solution is not None and analysis.solution.selected_count >= 2
+    assert analysis.solution.position_count == 1
+
+    manifest = FixingManifest(
+        retained_item_ids=("A",), excluded_item_ids=("B", "C"),
+        entries=tuple(FixingEntry(t, {f"x_scaled__{t}": 0.0, f"delta__{t}": 0.0}, "screening")
+                      for t in ("B", "C")),
+        origin="screening", round_index=0,
+    )
+    screened = TransformedSharpeProblem(problem, ("A",), manifest, SharpeVariableMapping.for_problem(problem))
+    config = replace(config, run_identity=replace(config.run_identity, run_id="too-few-screened"))
+    rejected = run_experiment("portfolio_sr", screened, adapter, config, output_root=tmp_path)
+    assert rejected.result.run_result.terminal_reason == "candidate_domain_too_small"
 
 
 @pytest.fixture

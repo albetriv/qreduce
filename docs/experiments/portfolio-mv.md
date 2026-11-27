@@ -6,26 +6,31 @@ Si decide la quota di capitale da investire in ciascun asset, bilanciando rendim
 
 ## 2. Formulazione matematica
 
-Sia $I=\{1,\ldots,n\}$ l'insieme degli asset. I parametri sono il rendimento atteso $\mu_i$, la covarianza $\Sigma_{ij}$, l'avversione al rischio $\lambda>0$, i limiti di investimento $0\leq l_i\leq u_i$ e, se richiesti, le cardinalità $K_{\min}$ e $K_{\max}$. La CLI usa gli stessi limiti per tutti gli asset. Le variabili sono i pesi continui $x_i\geq0$ e le selezioni binarie $\delta_i\in\{0,1\}$.
+Sia $I=\{1,\ldots,n\}$ l'insieme degli asset. Per il titolo $i$, $x_i$ è il
+peso continuo, $\delta_i$ la selezione binaria, $\mu_i$ il rendimento atteso
+e $0\leq l_i\leq u_i$ i limiti di investimento. $\Sigma_{ij}$ è la covarianza
+tra i rendimenti dei titoli $i$ e $j$, $\lambda>0$ è l'avversione al rischio
+e $K_{\min}$ e $K_{\max}$ sono i limiti di cardinalità.
 
 $$
-\min_{x,\delta}\quad \lambda\sum_{i\in I}\sum_{j\in I}\Sigma_{ij}x_i x_j-\sum_{i\in I}\mu_i x_i
+\begin{alignedat}{2}
+\min_{x,\delta}\quad &
+\lambda \sum_{i\in I}\sum_{j\in I}\Sigma_{ij}x_i x_j - \sum_{i\in I}\mu_i x_i \\
+\text{soggetto a}\quad & \sum_{i\in I}x_i = 1, \\
+& l_i\delta_i \leq x_i \leq u_i\delta_i, &&\qquad i\in I, \\
+& K_{\min} \leq \sum_{i\in I}\delta_i \leq K_{\max}, &&\qquad \text{(limiti facoltativi)}, \\
+& x_i\geq 0,\quad \delta_i\in\{0,1\}, &&\qquad i\in I.
+\end{alignedat}
 $$
 
-I vincoli sempre attivi sono:
-
-$$
-\sum_{i\in I}x_i=1,\qquad l_i\delta_i\leq x_i\leq u_i\delta_i\quad(i\in I).
-$$
-
-Se specificati, si aggiungono rispettivamente i vincoli:
-
-$$
-\sum_{i\in I}\delta_i\geq K_{\min},\qquad
-\sum_{i\in I}\delta_i\leq K_{\max}.
-$$
-
-Con limite inferiore nullo, una selezione binaria attiva può avere peso nullo: la cardinalità conta le binarie, non necessariamente i pesi strettamente positivi. Nel problema ridotto, gli asset esclusi hanno sia peso sia selezione fissati a zero.
+- **Limiti per titolo.** La CLI usa gli stessi limiti per tutti gli asset.
+  Con limite inferiore nullo, un titolo selezionato può avere peso zero.
+- **Cardinalità.** Minimo e massimo sono facoltativi e si configurano
+  indipendentemente. Nella formula compatta, un minimo omesso equivale a $0$
+  e un massimo omesso a $n$: sono limiti impliciti, non righe aggiunte al
+  modello. La cardinalità conta le selezioni, non i pesi positivi.
+- **Problema ridotto.** Per ogni asset escluso, sia il peso sia la selezione
+  sono fissati a zero.
 
 ## 3. CLI unificata
 

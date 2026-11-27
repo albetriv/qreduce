@@ -41,7 +41,7 @@ def test_catalog_indexes_supported_runs_and_preserves_artifact_text(tmp_path):
     root.mkdir()
     first = _run(root, "a_baseline", schema="1.0")
     second = _run(root, "b_reduced", rounds=(0, 2))
-    _run(root, "other", experiment="portfolio_mv")
+    _run(root, "other", experiment="unrelated_experiment")
     (root / ".hidden").mkdir()
     (root / "not_a_run.txt").write_text("ignored", encoding="utf-8")
     destination = tmp_path / "nested" / "catalog.js"

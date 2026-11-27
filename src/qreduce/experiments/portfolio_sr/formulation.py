@@ -388,46 +388,56 @@ def validate_cardinality_constraint(
     Returns:
         Tuple of (is_valid, error_message).
     """
-    if problem.max_positions is None:
-        return True, None
+    if delta_values is None:
+        return False, "Selection binaries are required"
 
     # Count positions based on weights
     position_count = sum(1 for w in weights.values() if w > weight_tolerance)
 
-    if position_count > problem.max_positions:
+    if problem.max_positions is not None and position_count > problem.max_positions:
         return False, (
             f"Cardinality violation: {position_count} positions exceed "
             f"maximum {problem.max_positions}"
         )
 
-    # If delta values provided, validate integrality and consistency
-    if delta_values is not None:
-        selected_count = 0
-        for ticker in problem.tickers:
-            if ticker not in delta_values:
-                continue
+    for ticker in problem.tickers:
+        weight = weights.get(ticker, 0.0)
+        if weight > weight_tolerance and weight < problem.effective_lower_bound(ticker) - weight_tolerance:
+            return False, f"Weight below lower bound for {ticker}"
 
-            delta = delta_values[ticker]
+    # Validate selection integrality and consistency.
+    selected_count = 0
+    for ticker in problem.tickers:
+        if ticker not in delta_values:
+            return False, f"Missing delta for {ticker}"
 
-            # Check integrality
-            if abs(delta - round(delta)) > integrality_tolerance:
-                return False, f"Non-integral delta for {ticker}: {delta:.6g}"
+        delta = delta_values[ticker]
 
-            is_selected = round(delta) == 1
-            has_weight = weights.get(ticker, 0.0) > weight_tolerance
+        # Check integrality
+        if not math.isfinite(delta) or round(delta) not in (0, 1) or abs(delta - round(delta)) > integrality_tolerance:
+            return False, f"Non-integral delta for {ticker}: {delta:.6g}"
 
-            if is_selected:
-                selected_count += 1
+        is_selected = round(delta) == 1
+        has_weight = weights.get(ticker, 0.0) > weight_tolerance
 
-            # If selected but not invested: allowed (delta=1, x=0)
-            # If invested but not selected: violation
-            if has_weight and not is_selected:
-                return False, f"Weight without selection for {ticker}"
+        if is_selected:
+            selected_count += 1
+            if weights.get(ticker, 0.0) < problem.effective_lower_bound(ticker) - weight_tolerance:
+                return False, f"Selected weight below lower bound for {ticker}"
 
-        if selected_count > problem.max_positions:
-            return False, (
-                f"Selection count {selected_count} exceeds maximum {problem.max_positions}"
-            )
+        # If selected but not invested: allowed with a zero floor.
+        # If invested but not selected: violation
+        if has_weight and not is_selected:
+            return False, f"Weight without selection for {ticker}"
+
+    if problem.min_selected_assets is not None and selected_count < problem.min_selected_assets:
+        return False, (
+            f"Selection count {selected_count} is below minimum {problem.min_selected_assets}"
+        )
+    if problem.max_positions is not None and selected_count > problem.max_positions:
+        return False, (
+            f"Selection count {selected_count} exceeds maximum {problem.max_positions}"
+        )
 
     return True, None
 

@@ -15,7 +15,8 @@ dati reali S&P500.
 - **Pesi continui**: allocazioni calcolate dal solver classico (no codifica binaria)
 - **Sharpe ratio**: unico obiettivo finanziario
 - **Diversificazione settoriale**: vincoli hard nel solver finale (non penalità MWIS)
-- **Cardinalità facoltativa**: limite massimo posizioni (quando abilitato)
+- **Cardinalità facoltativa**: minimo e massimo di asset selezionati, configurabili separatamente
+- **Minimo condizionale facoltativo**: ogni peso è zero oppure almeno il minimo applicabile al titolo, anche senza cardinalità
 - **QUBO MWIS ausiliaria**: problema di riduzione distinto dall'obiettivo finanziario
 
 ## Confronto metodologico con l'articolo di Corbelletto
@@ -56,8 +57,8 @@ Dove:
 
 **portfolioSR adotta un approccio diverso:**
 
-1. **Formulazione continua**: massimizza lo Sharpe ratio con variabili continue,
-   trasformando il problema in un QP convesso:
+1. **Pesi continui e selezioni binarie**: massimizza lo Sharpe ratio
+   trasformando il problema in un MIQP:
 
    ```
    minimize  x_scaled^T Σ x_scaled
@@ -90,15 +91,22 @@ Dove:
 
 ### Problema originale
 
+```text
+maximize SR(x) = (mu^T * x) / sqrt(x^T * Sigma * x)
+subject to  sum_i x_i = 1
+            lower_i * delta_i <= x_i <= upper_i * delta_i
+            delta_i in {0, 1}
+            sum_i delta_i >= K_min  [se impostato]
+            sum_i delta_i <= K_max  [se impostato]
+            sector_min_s <= sum_{i in s} x_i <= sector_max_s  [se configurato]
 ```
-maximize SR(x) = (μ^T x) / √(x^T Σ x)
 
-subject to  Σᵢ xᵢ = 1
-            0 ≤ xᵢ ≤ upperᵢ
-            sector_minₛ ≤ Σᵢ∈ₛ xᵢ ≤ sector_maxₛ
-```
-
-Con tutti i rendimenti medi `μᵢ > 0` (filtro applicato in preprocessing).
+Le selezioni binarie sono sempre presenti, anche con minimi nulli e senza
+cardinalità. Se una selezione è zero il peso è zero; se è uno valgono i limiti
+del titolo. Con minimo zero è possibile selezionare un titolo a peso zero.
+La cardinalità conta le selezioni, non i pesi positivi; minimo e massimo uguali
+impongono cardinalità esatta. Tutti i rendimenti medi sono positivi dopo il
+filtro di preprocessing.
 
 ### Trasformazione convessa
 
@@ -116,18 +124,85 @@ subject to  μ^T x_scaled = 1
 
 Ricostruzione: `xᵢ = x_scaledᵢ / x_scale`, `SR = 1/√(obiettivo)`.
 
-### Cardinalità facoltativa
+### Selezione, minimo e cardinalità facoltativi
 
-Quando abilitata (`max_positions ≠ None`):
+Le binarie non sono scalate e il modello è sempre un MIQP. I settori sono
+facoltativi e i loro limiti sono moltiplicati per `x_scale`. Posti `lower_i`
+uguale al minimo effettivo del titolo e
+`x_scale_max = 1 / mu_min`:
 
+```text
+delta_i in {0, 1}
+x_scaled_i <= upper_i * x_scale_max * delta_i
+x_scaled_i >= lower_i * x_scale - lower_i * x_scale_max * (1 - delta_i)  [se lower_i > 0]
+sum_i delta_i >= K_min  [se min_selected_assets = K_min > 0]
+sum_i delta_i <= K_max  [se max_positions = K_max]
 ```
-δᵢ ∈ {0, 1}
-Σᵢ δᵢ ≤ K
-x_scaledᵢ ≤ Mᵢ · δᵢ   dove Mᵢ = upperᵢ / μ_min
-```
 
-Una binaria attiva (`δᵢ = 1`) può avere peso zero: il vincolo garantisce
-**al massimo** K pesi positivi.
+Il vincolo superiore scalato `x_scaled_i <= upper_i * x_scale` resta in vigore.
+Un titolo con minimo zero può essere selezionato anche a peso zero. Quindi
+`min_selected_assets` da solo non impone altrettante posizioni investite;
+per imporre un peso positivo a ogni titolo selezionato, impostare un minimo
+positivo per tutti i titoli. Il target predefinito di binarie residue è 3.
+
+La CLI espone `--min-selected-assets` e `--max-selected-assets`;
+`--max-positions` resta un alias del massimo. Se si passano entrambi i nomi
+del massimo, i valori devono coincidere. In Python i parametri sono
+`min_selected_assets` e `max_positions`. Il minimo è un intero non negativo,
+zero equivale a ometterlo; il massimo, se impostato, è un intero positivo.
+Nessuno dei due può superare la numerosità dell'universo del problema e il
+minimo non può superare il massimo.
+
+`lower_bound` è il minimo uniforme (default `0.0`, opzione CLI `--lower-bound`).
+CLI e configuratore UIX accettano un `--upper-bound` uniforme, finito e
+positivo (default `1.0`). Un valore superiore a `1` è ridondante con budget
+unitario e pesi non negativi, ma viene passato al modello senza modificarlo.
+In Python si può fornire `lower_bounds`, una mappa da ticker a minimo: i ticker
+omessi hanno minimo zero, quelli sconosciuti sono rifiutati. Ogni minimo deve
+essere finito, tra 0 e 1, e non superare il corrispondente limite superiore.
+Il modello Python accetta anche singoli limiti superiori pari a zero, purché
+la capacità complessiva sia sufficiente. Un `lower_bound` positivo non può
+essere combinato con una mappa esplicita, neppure vuota. Una mappa vuota o
+composta soltanto da zeri equivale all'omissione del parametro.
+
+I controlli preliminari su budget e conflitti settoriali evidenti valgono anche
+per il dominio ridotto, ma non sostituiscono il solver. La riduzione fissa
+pesi e binarie degli esclusi a zero; gli altri titoli rimangono candidati. Il
+modello rifiuta un manifest che non separa tutti i ticker in trattenuti ed
+esclusi o che non fissa esattamente a zero il peso scalato e la binaria di ogni
+escluso. Questo controllo riguarda la compilazione di nuovi modelli, non la
+lettura degli artefatti storici. Un
+dominio candidato deve contenere almeno `min_selected_assets` titoli, ma questo
+non garantisce che il solver possa soddisfare budget, limiti individuali e
+vincoli settoriali. Un tetto esplicito inferiore al minimo è rifiutato con
+riduzione attiva; nella baseline non limita le selezioni. Il postcheck controlla i pesi ricostruiti e distingue
+integrità delle binarie e violazioni dei vincoli.
+
+`problem.json` conserva `max_positions` come chiave del massimo e omette
+`min_selected_assets`, `lower_bound` e `lower_bounds` quando inattivi. Le run
+storiche senza questi campi non hanno un minimo configurato. Il riepilogo di
+analisi riporta le impostazioni del problema. La metrica `selected_count`
+conta tutte le binarie valide pari a 1, incluse quelle associate a pesi nulli.
+È disponibile solo se ci sono binarie e tutti i valori richiesti sono presenti
+e validi. In tal caso compare anche in `validation.tolerances_used` e nel
+riepilogo prodotto da `extract_solution_summary`. `position_count` conta
+invece i pesi investiti sopra la tolleranza. Un `selected_count` mancante,
+anche nelle run storiche, non equivale a zero.
+Le run storiche senza binarie non registrano il conteggio delle selezioni, che
+non va dedotto dai pesi positivi. A parità di pesi e Sharpe, assegnazioni
+equivalenti delle binarie a peso zero possono produrre conteggi diversi.
+Byte identici di `problem.json` descrivono lo stesso input, non dimostrano che
+run di versioni diverse abbiano risolto lo stesso modello: export, mapping e
+fixing possono differire.
+Nel confronto UIX, una mappa `lower_bounds` è mostrata per ticker, con minimo
+zero per i ticker omessi, anziché come minimo uniforme.
+Il confronto usa le tolleranze registrate dal postcheck: verifica la coerenza
+peso–selezione sui pesi ricostruiti e il fixing degli esclusi sui pesi scalati
+e sulle binarie. Per gli artefatti senza tali tolleranze mantiene i controlli
+storici (soglia `1e-8` sui pesi ricostruiti, `0.5` per la selezione).
+
+In `BenchmarkConfig`, `lower_bound`, `lower_bounds` e `min_selected_assets`
+si passano per nome; gli argomenti posizionali preesistenti non cambiano.
 
 ## Dataset
 
@@ -158,10 +233,20 @@ poetry run python -m qreduce.experiments.portfolio_sr --run-id run001
 # Classical-only baseline
 poetry run python -m qreduce.experiments.portfolio_sr --run-id baseline001 \
     --max-reduction-rounds 0
-
-# Con vincolo cardinalità
+# Solo cardinalità massima (alias: --max-positions)
 poetry run python -m qreduce.experiments.portfolio_sr --run-id card001 \
-    --max-positions 15
+    --max-selected-assets 15
+# Solo cardinalità minima: le selezioni a peso zero contano
+poetry run python -m qreduce.experiments.portfolio_sr --run-id minsel001 \
+    --min-selected-assets 5
+
+# Minimo per titolo, senza cardinalità
+poetry run python -m qreduce.experiments.portfolio_sr --run-id min001 \
+    --lower-bound 0.05
+
+# Minimo per titolo e cardinalità
+poetry run python -m qreduce.experiments.portfolio_sr --run-id mincard001 \
+    --lower-bound 0.05 --min-selected-assets 5 --max-selected-assets 15
 
 # Con vincoli settoriali
 poetry run python -m qreduce.experiments.portfolio_sr --run-id sector001 \
@@ -181,13 +266,16 @@ from qreduce.experiments.portfolio_sr import (
 run = run_sharpe_portfolio_experiment(
     "my_run",
     asset_count=50,
+    lower_bound=0.05,
+    min_selected_assets=5,
     max_positions=15,
 )
 
-# Con inputs pre-costruiti (per benchmark)
+# Minimi diversi per ticker: MSFT ha minimo zero
 inputs = build_sharpe_portfolio_inputs(
-    asset_count=100,
-    return_convention="log",
+    explicit_tickers=("AAPL", "MSFT", "NVDA"),
+    lower_bounds={"AAPL": 0.05, "NVDA": 0.10},
+    min_selected_assets=2,
 )
 ```
 
@@ -218,8 +306,8 @@ src/qreduce/experiments/portfolio_sr/
 - Un sottouniverso piccolo può non rappresentare tutti i settori richiesti.
 - La riduzione MWIS propone un dominio candidato; non certifica l'ottimalità.
 - Ogni fixing derivato euristicamente non preserva l'ottimalità globale.
-- Senza cardinalità il residuo è continuo: il beneficio della riduzione non è
-  scontato.
+- Anche senza cardinalità e con minimo zero il residuo contiene binarie; il
+  beneficio della riduzione non è scontato.
 - Non dichiarare vantaggio quantistico.
 
 ## Confronti benchmark

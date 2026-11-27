@@ -206,7 +206,7 @@ class TestCardinalityConstraintValidation:
         problem = _make_cardinality_problem()
         weights = {"A": 0.6, "B": 0.4, "C": 0.0, "D": 0.0}
 
-        valid, msg = validate_cardinality_constraint(problem, weights)
+        valid, msg = validate_cardinality_constraint(problem, weights, {"A": 1, "B": 1, "C": 0, "D": 0})
 
         assert valid
         assert msg is None
@@ -216,7 +216,7 @@ class TestCardinalityConstraintValidation:
         problem = _make_cardinality_problem()
         weights = {"A": 0.4, "B": 0.3, "C": 0.3, "D": 0.0}  # 3 positions > max 2
 
-        valid, msg = validate_cardinality_constraint(problem, weights)
+        valid, msg = validate_cardinality_constraint(problem, weights, {"A": 1, "B": 1, "C": 1, "D": 0})
 
         assert not valid
         assert "3 positions exceed maximum 2" in msg
@@ -354,6 +354,7 @@ class TestValidateSharpeSolution:
         solution = {mapping.x_scale_variable: x_scale}
         for t in problem.tickers:
             solution[mapping.x_scaled_by_ticker[t]] = x_scaled[t]
+            solution[mapping.delta_by_ticker[t]] = 1.0
 
         return solution
 
@@ -470,3 +471,72 @@ class TestExtractSolutionSummary:
         summary = extract_solution_summary(problem, solution)
 
         assert "error" in summary
+
+
+def test_lower_bound_selection_model_and_postcheck() -> None:
+    from dataclasses import replace
+
+    from qreduce.experiments.portfolio_sr.models import TransformedSharpeProblem
+
+    problem = replace(_make_simple_problem(), lower_bound=0.2)
+    mapping = SharpeVariableMapping.for_problem(problem)
+    manifest = FixingManifest(retained_item_ids=problem.tickers, excluded_item_ids=(), entries=(), origin="test")
+    transformed = TransformedSharpeProblem(problem, problem.tickers, manifest, mapping)
+    model = transformed.build_classical_model()
+    assert problem.has_selection_binaries
+    assert transformed.variable_count == len(model.variables)
+    assert transformed.constraint_count == len(model.linear_constraints)
+    assert not any(c.name == "max_cardinality" for c in model.linear_constraints)
+    lower = next(c for c in model.linear_constraints if c.name == "lower_bound__A")
+    assert lower.coefficients[mapping.x_scale_variable] == -0.2
+    assert lower.coefficients[mapping.delta_by_ticker["A"]] == -0.2 * problem.x_scale_bounds[1]
+    assert lower.right_hand_side == -0.2 * problem.x_scale_bounds[1]
+
+    weights = {"A": 0.1, "B": 0.4, "C": 0.5}
+    scale = 1 / sum(problem.mean_returns[t] * weights[t] for t in problem.tickers)
+    solution = {mapping.x_scale_variable: scale}
+    solution.update({mapping.x_scaled_by_ticker[t]: scale * weights[t] for t in problem.tickers})
+    solution.update({mapping.delta_by_ticker[t]: 1.0 for t in problem.tickers})
+    result = validate_sharpe_solution(problem, solution, manifest, _make_test_options())
+    assert not result.original_constraint_compliance
+    assert result.integrality_compliance
+    assert any(m.startswith("lower_bound_violated:A") for m in result.failure_reasons)
+    del solution[mapping.delta_by_ticker["A"]]
+    result = validate_sharpe_solution(problem, solution, manifest, _make_test_options())
+    assert not result.integrality_compliance
+
+
+def test_lower_bound_feasibility_validation() -> None:
+    from dataclasses import replace
+
+    import pytest
+
+    problem = _make_simple_problem()
+    for value in (-0.1, 1.1, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="lower_bound"):
+            replace(problem, lower_bound=value)
+    with pytest.raises(ValueError, match="insufficient_budget_capacity"):
+        replace(problem, lower_bound=0.4, upper_bounds=dict.fromkeys(problem.tickers, 0.45))
+    for value in (1e-310, math.ulp(0.0)):
+        tiny_minimum = replace(problem, lower_bound=value)
+        assert tiny_minimum.has_selection_binaries
+        assert not tiny_minimum.selection_feasibility_issues(problem.tickers)
+    assert "lower_bound" not in problem.to_dict()
+    assert replace(problem, lower_bound=0.2).to_dict()["lower_bound"] == 0.2
+
+
+def test_lower_bound_reduced_domain_and_fixings() -> None:
+    from dataclasses import replace
+
+    from qreduce.experiments.portfolio_sr.adapter import SharpePortfolioAdapter
+    from qreduce.experiments.portfolio_sr.graph_policy import (
+        default_sharpe_graph_policy,
+    )
+
+    problem = replace(_make_simple_problem(), lower_bound=0.3)
+    adapter = SharpePortfolioAdapter(default_sharpe_graph_policy())
+    assert adapter.describe_logical_variables(problem).binary_free == 3
+    manifest = adapter.build_fixing_manifest(problem, ("A", "B"))
+    assert manifest.entries[0].variable_values["delta__C"] == 0
+    constrained = replace(problem, upper_bounds=dict.fromkeys(problem.tickers, 0.5), lower_bound=0.4)
+    assert not adapter.validate_candidate_domain(constrained, ("A",)).is_valid

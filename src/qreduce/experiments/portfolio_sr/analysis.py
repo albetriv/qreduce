@@ -31,6 +31,7 @@ class SolutionMetrics:
     position_count: int | None
     max_weight: float | None
     objective_value: float | None
+    selected_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +177,9 @@ def _extract_problem_summary(problem: dict[str, Any]) -> dict[str, Any]:
         "ticker_count": base_problem.get("ticker_count", len(original_tickers)),
         "sector_count": base_problem.get("sector_count", len(set(base_problem.get("sectors", {}).values()))),
         "max_positions": base_problem.get("max_positions"),
+        "min_selected_assets": base_problem.get("min_selected_assets"),
+        "lower_bound": base_problem.get("lower_bound", 0.0),
+        "lower_bounds": base_problem.get("lower_bounds"),
         "has_sector_constraints": base_problem.get("sector_constraints") is not None,
         "mu_range": base_problem.get("mu_range"),
         "x_scale_bounds": base_problem.get("x_scale_bounds"),
@@ -231,6 +235,7 @@ def _extract_solution_metrics(result: Mapping[str, Any]) -> SolutionMetrics | No
             position_count=_safe_int(metrics_dict.get("position_count")),
             max_weight=metrics_dict.get("max_weight"),
             objective_value=metrics_dict.get("objective_value"),
+            selected_count=_safe_int(metrics_dict.get("selected_count")),
         )
 
     # Fall back to postcheck_result tolerances_used (has some metrics)
@@ -245,6 +250,7 @@ def _extract_solution_metrics(result: Mapping[str, Any]) -> SolutionMetrics | No
                 position_count=_safe_int(tolerances.get("position_count")),
                 max_weight=None,
                 objective_value=_safe_float(tolerances.get("objective_recomputed") or postcheck.get("objective_recomputed")),
+                selected_count=_safe_int(tolerances.get("selected_count")),
             )
 
     return None
@@ -420,6 +426,7 @@ class ComparisonSummary:
                     "expected_return": run.solution.expected_return,
                     "volatility": run.solution.volatility,
                     "position_count": run.solution.position_count,
+                    "selected_count": run.solution.selected_count,
                     "max_weight": run.solution.max_weight,
                 })
 

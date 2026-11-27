@@ -333,15 +333,15 @@ class TestSectorConstraints:
 class TestLogicalVariableCounts:
     """Tests for logical variable counting."""
 
-    def test_counts_continuous_only_without_cardinality(self) -> None:
-        """Without cardinality, only continuous variables are counted."""
+    def test_counts_include_binaries_without_cardinality(self) -> None:
+        """Selection variables are present even without cardinality."""
         problem = _make_test_problem(4)
         policy = default_sharpe_graph_policy()
         adapter = SharpePortfolioAdapter(policy)
 
         counts = adapter.describe_logical_variables(problem)
 
-        assert counts.binary_free == 0
+        assert counts.binary_free == 4
         assert counts.integer_free == 0
         assert counts.continuous_free == 4 + 1  # x_scaled + x_scale
 

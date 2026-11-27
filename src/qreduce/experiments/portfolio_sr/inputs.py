@@ -96,8 +96,11 @@ def build_sharpe_portfolio_inputs(
     annualization_factor: int = 252,
     risk_free_rate: float = 0.0,
     upper_bound: float = 1.0,
+    lower_bound: float = 0.0,
     sector_constraints: SectorConstraints | None = None,
     max_positions: int | None = None,
+    min_selected_assets: int | None = None,
+    lower_bounds: Mapping[str, float] | None = None,
     graph_policy: SharpeGraphPolicy | None = None,
     selection_order: str = "alphabetical",
     random_seed: int | None = None,
@@ -114,8 +117,11 @@ def build_sharpe_portfolio_inputs(
         annualization_factor: Trading days per year. Default: 252.
         risk_free_rate: Risk-free rate for Sharpe calculation. Default: 0.0.
         upper_bound: Maximum weight per asset. Default: 1.0.
+        lower_bound: Minimum weight per selected asset. Default: 0.0.
         sector_constraints: Optional sector diversification constraints.
         max_positions: Optional maximum number of positions (cardinality constraint).
+        min_selected_assets: Optional minimum number of selected assets.
+        lower_bounds: Optional per-ticker minima for the selected universe; use instead of a positive scalar lower_bound.
         graph_policy: MWIS graph construction policy. Default: near_duplicate mode.
         selection_order: How to order tickers for selection. Default: "alphabetical".
         random_seed: Random seed for reproducible random selection.
@@ -203,8 +209,11 @@ def build_sharpe_portfolio_inputs(
         covariance=covariance,
         sectors=sectors,
         upper_bounds=upper_bounds,
+        lower_bound=lower_bound,
         sector_constraints=sector_constraints,
         max_positions=max_positions,
+        min_selected_assets=min_selected_assets,
+        lower_bounds=lower_bounds,
         risk_free_rate=risk_free_rate,
         _covariance_validated=True,  # Already validated in compute_return_statistics
     )
@@ -227,6 +236,12 @@ def build_sharpe_portfolio_inputs(
         "upper_bound": upper_bound,
         "max_positions": max_positions,
     }
+    if lower_bound > 0:
+        preprocessing_config["lower_bound"] = lower_bound
+    if problem.min_selected_assets is not None:
+        preprocessing_config["min_selected_assets"] = problem.min_selected_assets
+    if problem.lower_bounds is not None:
+        preprocessing_config["lower_bounds"] = dict(problem.lower_bounds)
 
     return SharpePortfolioInputs(
         problem=problem,
@@ -410,35 +425,30 @@ def default_reduction_policy(
     *,
     max_reduction_rounds: int = 1,
     has_cardinality: bool = False,
+    min_selected_assets: int | None = None,
 ) -> ReductionPolicy:
     """Create default reduction policy for Sharpe portfolio.
 
     Args:
         asset_count: Number of assets in the problem.
         max_reduction_rounds: Maximum reduction rounds (0=baseline, 1=single, >1=multi).
-        has_cardinality: Whether the problem has cardinality constraints (binary variables).
+        has_cardinality: Retained for API compatibility; selection binaries are always present.
+        min_selected_assets: Minimum selections to support in the default candidate domain.
 
     Returns:
         ReductionPolicy with sensible defaults.
 
-    Notes:
-        When has_cardinality=False, target_binary_variables is set to 0 to disable
-        the binary variable target criterion (since there are no binary variables
-        in the continuous-only problem).
     """
     # Target around 60% of assets as candidate domain
-    max_items = max(1, int(asset_count * 0.6))
+    min_items = max(1, min_selected_assets or 0)
+    max_items = max(min_items, int(asset_count * 0.6))
 
-    # target_binary_variables only makes sense when there are binary variables
-    # (i.e., when cardinality constraint is present)
-    if has_cardinality:
-        target_binaries = 3  # Standard target for small residual
-    else:
-        target_binaries = 0  # Disable this criterion for continuous problems
+    # Every model contains selection binaries, irrespective of cardinality.
+    target_binaries = 3
 
     return ReductionPolicy(
         max_reduction_rounds=max_reduction_rounds,
-        candidate_domain_min_items=1,
+        candidate_domain_min_items=min_items,
         candidate_domain_max_items=max_items,
         num_source_mis_candidates=1,
         min_reduction_ratio=0.1,

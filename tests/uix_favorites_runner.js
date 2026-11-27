@@ -50,7 +50,7 @@ function launch(store = new Map(), mode = "normal") {
     const file = new w.File([typeof data === "string" ? data : JSON.stringify(data)], "favorites.json", { type: "application/json" });
     Object.defineProperty($("favoritesFile"), "files", { configurable: true, value: [file] });
     $("favoritesFile").dispatchEvent(new w.Event("change"));
-    await new Promise(resolve => w.setTimeout(resolve, 25));
+    await new Promise(resolve => w.setTimeout(resolve, 100));
   }
   return { dom, w, $, set, save, select, importData, errors, store,
     failWrites: () => { failWrites = true; } };
@@ -113,6 +113,11 @@ async function main() {
   assert.equal($("loadFavorite").disabled, true);
   assert.equal($("exportFavorites").disabled, true);
   set("runId", "favorite_run");
+  if (family === "portfolio_sr") {
+    set("lowerBound", "0.05");
+    set("minSelectedAssets", "2");
+    set("maxPositions", "5");
+  }
   if (family === "portfolio_mv") set("numSourceMisCandidates", "5");
   if (family === "facility_location") set("instancePath", "data/example instance.txt");
   assert.equal($("copyCommand").disabled, false);
@@ -135,6 +140,11 @@ async function main() {
   assert.equal(archive.entries.length, 2);
   assert.equal(archive.entries[0].format, "multiline");
   set("runId", "changed");
+  if (family === "portfolio_sr") {
+    set("lowerBound", "0");
+    set("minSelectedAssets", "");
+    set("maxPositions", "");
+  }
   w.document.querySelector('[data-format="inline"]').click();
   select("Alfa"); $("loadFavorite").click();
   assert.equal($("cliPreview").textContent, expected);
@@ -193,6 +203,32 @@ async function main() {
   const otherBrowser = launch();
   await otherBrowser.importData(content);
   assert.equal(JSON.parse(otherBrowser.store.get(key)).entries.length, 3);
+  if (family === "portfolio_sr") {
+    const compatible = JSON.parse(JSON.stringify(archive));
+    const entry = compatible.entries[0];
+    compatible.entries = [entry];
+    delete entry.fields.minSelectedAssets;
+    delete entry.fields.lowerBound;
+    entry.command = entry.command.replace("--max-selected-assets", "--max-positions");
+    for (const imported of [false, true]) {
+      const legacy = launch(imported ? new Map() : new Map([[key, JSON.stringify(compatible)]]));
+      if (imported) await legacy.importData(compatible);
+      const storedBeforeLoad = legacy.store.get(key);
+      legacy.set("minSelectedAssets", "3");
+      legacy.set("lowerBound", "0.1");
+      legacy.select(entry.name);
+      assert.equal(legacy.$("loadFavorite").disabled, false);
+      legacy.$("loadFavorite").click();
+      assert.equal(legacy.$("minSelectedAssets").value, "");
+      assert.equal(Number(legacy.$("lowerBound").value), 0);
+      assert.equal(legacy.$("maxPositions").value, "5");
+      assert.match(legacy.$("cliPreview").textContent, /--max-selected-assets\s+5/);
+      assert.doesNotMatch(legacy.$("cliPreview").textContent, /--max-positions|--min-selected-assets|--lower-bound/);
+      assert.equal(legacy.store.get(key), storedBeforeLoad);
+      assert.deepEqual(legacy.errors, []);
+      legacy.dom.window.close();
+    }
+  }
   if (family === "portfolio_mv") {
     otherBrowser.set("numSourceMisCandidates", "7");
     otherBrowser.select("Zeta");

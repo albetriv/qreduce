@@ -155,7 +155,11 @@
     const timeRow = (label, x, y) => row(label, x, y).map((value, index) => index ? wholeSeconds(value) : value);
     heading('Sintesi');
     facts(section, [['Baseline', fmt(a.id)], ['Confronto', fmt(b.id)]]);
-    paragraph(r.sameInstance ? 'Istanza identica: problem.json coincide byte per byte.' : 'Identità dell’istanza non verificata: i file possono differire anche solo nella serializzazione.');
+    const minimumInvestment = run => run.lowerBounds
+      ? 'Minimi per titolo: ' + Object.entries(run.lowerBounds).map(([ticker, value]) => ticker + ' = ' + fmt(value)).join(', ') + '; altri ticker = 0'
+      : fmt(run.lowerBound);
+    facts(section, [['Investimento minimo baseline', minimumInvestment(a)], ['Investimento minimo confronto', minimumInvestment(b)]]);
+    paragraph(r.sameInstance ? 'Definizione del problema identica: problem.json coincide byte per byte. Questo non dimostra che il modello compilato e risolto sia identico.' : 'Identità dell’istanza non verificata: i file possono differire anche solo nella serializzazione.');
     facts(section, [
       ['Dominio del confronto', fmt(count(b)) + ' ticker su ' + fmt(b.originalCount)],
       ['Posizioni baseline escluse', r.baselineExcludedCount == null ? 'Non verificabile' : fmt(r.baselineExcludedCount)],
@@ -218,6 +222,7 @@
       reductionRow('Limite dominio candidato', a.reduction.maxCandidateItems, b.reduction.maxCandidateItems),
       row('Round eseguiti', a.reduction.roundCount, b.reduction.roundCount), reductionRow('Massimo round', a.reduction.maxRounds, b.reduction.maxRounds),
       reductionRow('Target binarie (arresto)', a.reduction.targetBinary, b.reduction.targetBinary), row('Binarie residue', a.reduction.residualBinary, b.reduction.residualBinary),
+      row('Cardinalità minima portafoglio', a.cardinality.min ?? 'Nessun minimo', b.cardinality.min ?? 'Nessun minimo'),
       row('Cardinalità massima portafoglio', a.cardinality.max, b.cardinality.max),
       ['Motivo arresto registrato', a.reduction.stopReason, b.reduction.stopReason, 'Non applicabile'],
       ['Tentativi di recupero', Array.isArray(a.reduction.recovery) ? a.reduction.recovery.length : null, Array.isArray(b.reduction.recovery) ? b.reduction.recovery.length : null, 'Non applicabile']
@@ -280,6 +285,8 @@
       row('Sharpe ratio', a.solution?.sharpeRatio ?? a.solution?.objective, b.solution?.sharpeRatio ?? b.solution?.objective, r.objective.comparable),
       row('Rendimento atteso', a.solution?.expectedReturn, b.solution?.expectedReturn, r.sameInstance),
       row('Volatilità', a.solution?.volatility, b.solution?.volatility, r.sameInstance),
+      row('Ticker selezionati (binarie)', a.solution?.selectedCount, b.solution?.selectedCount, r.sameInstance),
+      row('Posizioni investite (peso sopra tolleranza)', a.solution?.investedCount, b.solution?.investedCount, r.sameInstance),
       row('Gap solver', a.solver.gap, b.solver.gap, false), ['Modello risolto', a.solver.scope, b.solver.scope, 'Non applicabile'],
       ['Ottimalità problema originale', a.solver.originalClaim, b.solver.originalClaim, 'Non applicabile'],
       ['Ottimalità problema residuo', a.solver.residualClaim, b.solver.residualClaim, 'Non applicabile']

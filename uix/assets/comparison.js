@@ -137,8 +137,7 @@
     return {id: m.run_id ?? null, issues, warnings, status: m.run_status ?? null, problemBytes: imported.problemBytes, sense: r.objective_sense ?? null, solution, retained, originalCount: validProblem ? ids.length : null, reduction: {state: classical ? 'not_applicable' : trace.length ? 'available' : 'not_recorded', applied: classical ? false : m.has_reduction === true ? true : null, rounds: trace, policy: meta.portfolio_graph_policy ?? null, maxCandidateItems: c.reduction?.candidate_domain_max_items ?? null, maxRounds: c.reduction?.max_reduction_rounds ?? null, targetBinary: c.reduction?.target_binary_variables ?? null, residualBinary: r.residual_variable_counts?.binary_free ?? null, roundCount: m.round_count ?? null, recovery: r.recovery_attempts ?? null, stopReason: r.run_result?.terminal_reason ?? null}, cardinality: {min: p.min_selected_assets ?? null, max: p.max_selected_assets ?? null}, solver: {gap: finite(r.classical_result?.gap), scope: classical ? 'full' : m.has_reduction === true ? 'reduced' : 'unknown', originalClaim: r.original_problem_optimality_claim ?? null, residualClaim: r.residual_problem_optimality_claim ?? null}, timings: {endToEnd: finite(r.metrics?.end_to_end_runtime_seconds), classical: finite(r.classical_result?.runtime_seconds), mis: finite(r.metrics?.mis_runtime_seconds), budget: r.classical_result?.effective_solver_parameters?.time_limit_seconds ?? null}, config: c};
   }
   // Adapt SR (Sharpe Portfolio) artifacts to the common comparison model.
-  // SR uses: tickers (not asset_ids), mean_returns (not expected_returns),
-  // x_scaled__<ticker> / x_scale (not x__<ticker>), and sharpe_ratio as the quality metric.
+  // Uses tickers, mean_returns, scaled weights and Sharpe ratio as the quality metric.
   function adaptSharpePortfolio(imported) {
     const d = imported.data, p = d['problem.json'] || {}, r = d['run_result.json'] || {}, m = d['run_manifest.json'] || {}, c = d['config_used.json'] || {}, meta = d['experiment_metadata.json'] || {};
     const issues = imported.errors.slice(), warnings = (imported.warnings || []).slice();
@@ -149,7 +148,7 @@
     for (const [label, status] of [['result', r.run_result?.run_status], ['result', r.run_status]]) {
       if (status != null && status !== m.run_status) issues.push('Run status mismatch: ' + label);
     }
-    // SR uses 'tickers' and 'mean_returns' instead of 'asset_ids' and 'expected_returns'
+    // Read ticker identifiers and expected returns.
     const ids = p.tickers, values = r.classical_result?.variable_values;
     const returns = Array.isArray(ids) && p.mean_returns ? ids.map((id, i) => Array.isArray(p.mean_returns) ? p.mean_returns[i] : p.mean_returns[id]) : [];
     const validProblem = Array.isArray(ids) && ids.length > 0 && ids.every(id => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length && returns.length === ids.length && Array.isArray(p.covariance) && p.covariance.length === ids.length && p.covariance.every(row => Array.isArray(row) && row.length === ids.length && row.every(v => finite(v) !== null)) && returns.every(v => finite(v) !== null);
@@ -165,12 +164,20 @@
     if (classical && (m.has_reduction === true || (Array.isArray(r.round_results) && r.round_results.length > 0) || (Number.isFinite(m.round_count) && m.round_count > 0))) issues.push('Classical run has contradictory reduction evidence');
     // SR uses x_scaled__<ticker> / x_scale for weights
     const xScale = finite(values?.x_scale);
+    const tolerance = key => {
+      const value = finite(r.postcheck_result?.tolerances_used?.[key]);
+      return value !== null && value >= 0 ? value : null;
+    };
+    const primalTolerance = tolerance('primal_feasibility');
+    const integralityTolerance = tolerance('integrality');
+    // Historic runs without tolerances retain the original weight and binary checks.
+    const legacyWeightTolerance = 1e-8;
     if (object(values) && Array.isArray(ids) && xScale && xScale > 0) {
       const hasConflict = ids.some(id => {
         const scaledWeight = finite(values['x_scaled__' + id]);
         const delta = finite(values['delta__' + id]);
         const realWeight = scaledWeight != null && xScale > 0 ? scaledWeight / xScale : 0;
-        return realWeight > 1e-8 && delta !== null && delta <= 0.5;
+        return realWeight > (primalTolerance ?? legacyWeightTolerance) && delta !== null && delta <= 0.5;
       });
       if (hasConflict) issues.push('Positive weight conflicts with selection');
     }
@@ -188,7 +195,11 @@
       const scaledWeight = finite(values['x_scaled__' + id]);
       const delta = finite(values['delta__' + id]);
       const realWeight = scaledWeight != null ? scaledWeight / xScale : 0;
-      return realWeight > 1e-8 || (delta ?? 0) > 0.5;
+      const weightConflict = primalTolerance === null
+        ? realWeight > legacyWeightTolerance : Math.abs(scaledWeight ?? 0) > primalTolerance;
+      const binaryConflict = integralityTolerance === null
+        ? (delta ?? 0) > 0.5 : Math.abs(delta ?? 0) > integralityTolerance;
+      return weightConflict || binaryConflict;
     })) issues.push('Selected asset outside retained domain');
     const rounds = [], roundIndices = new Set();
     const recordedRounds = r.round_results;
@@ -206,6 +217,10 @@
     // Extract Sharpe ratio from domain_evaluation_metrics (SR's primary quality metric)
     const domainMetrics = Array.isArray(r.domain_evaluation_metrics) ? r.domain_evaluation_metrics : [];
     const metricValue = id => { const m = domainMetrics.find(x => x?.metric_id === id); return m ? finite(m.value) : null; };
+    const countValue = id => {
+      const count = metricValue(id) ?? r.postcheck_result?.tolerances_used?.[id];
+      return Number.isSafeInteger(count) && count >= 0 && count <= ids.length ? count : null;
+    };
     const sharpeRatio = metricValue('sharpe_ratio');
     if (verified && validProblem && values && xScale && xScale > 0 && ids.every(id => finite(values['x_scaled__' + id]) !== null)) {
       const weights = ids.map(id => values['x_scaled__' + id] / xScale);
@@ -214,7 +229,12 @@
       const volatility = metricValue('volatility') ?? (Number.isFinite(computedVariance) && computedVariance >= -1e-12 ? Math.sqrt(Math.max(0, computedVariance)) : null);
       // For SR, objective is Sharpe ratio (higher is better); do NOT fallback to objective_recomputed (which is variance)
       // If Sharpe ratio is missing, objective is null and quality comparison is not available
-      solution = {objective: sharpeRatio, sharpeRatio, expectedReturn: finite(expectedReturn), volatility: finite(volatility), weights: Object.fromEntries(ids.map((id, i) => [id, weights[i]])), selected: ids.filter((id, i) => finite(values['delta__' + id]) !== null ? values['delta__' + id] > 0.5 : weights[i] > 1e-8)};
+      const selectionRecorded = ids.every(id => finite(values['delta__' + id]) !== null);
+      solution = {objective: sharpeRatio, sharpeRatio, expectedReturn: finite(expectedReturn), volatility: finite(volatility), weights: Object.fromEntries(ids.map((id, i) => [id, weights[i]])), selected: selectionRecorded ? ids.filter(id => values['delta__' + id] > 0.5) : null};
+      // Recorded counts use the solver's selection variables and the postcheck's
+      // weight tolerance, respectively; neither is implied by composition length.
+      solution.selectedCount = countValue('selected_count');
+      solution.investedCount = countValue('position_count');
       if (sharpeRatio === null) warnings.push('Sharpe ratio metric unavailable; quality comparison disabled');
     } else if (verified) issues.push('Solution weights unavailable');
     const declared = object(m.files) ? m.files : {};
@@ -240,7 +260,10 @@
     // SR optimizes Sharpe ratio (maximize); sense in comparison should reflect that
     // The objective_sense in result is 'minimize' (variance), but for comparison we use Sharpe
     const comparisonSense = 'maximize'; // Sharpe ratio is higher-is-better
-    return {id: m.run_id ?? null, issues, warnings, status: m.run_status ?? null, problemBytes: imported.problemBytes, sense: comparisonSense, solution, retained, originalCount: validProblem ? ids.length : null, reduction: {state: classical ? 'not_applicable' : trace.length ? 'available' : 'not_recorded', applied: classical ? false : m.has_reduction === true ? true : null, rounds: trace, policy: meta.graph_policy ?? null, maxCandidateItems: c.reduction?.candidate_domain_max_items ?? null, maxRounds: c.reduction?.max_reduction_rounds ?? null, targetBinary: c.reduction?.target_binary_variables ?? null, residualBinary: r.residual_variable_counts?.binary_free ?? null, roundCount: m.round_count ?? null, recovery: r.recovery_attempts ?? null, stopReason: r.run_result?.terminal_reason ?? null}, cardinality: {min: null, max: p.max_positions ?? null}, solver: {gap: finite(r.classical_result?.gap), scope: classical ? 'full' : m.has_reduction === true ? 'reduced' : 'unknown', originalClaim: r.original_problem_optimality_claim ?? null, residualClaim: r.residual_problem_optimality_claim ?? null}, timings: {endToEnd: finite(r.metrics?.end_to_end_runtime_seconds), classical: finite(r.classical_result?.runtime_seconds), mis: finite(r.metrics?.mis_runtime_seconds), budget: r.classical_result?.effective_solver_parameters?.time_limit_seconds ?? null}, config: c};
+    // Historical SR artifacts did not record a minimum investment.
+    const lowerBounds = object(p.lower_bounds) ? p.lower_bounds : null;
+    const lowerBound = lowerBounds ? null : p.lower_bound == null ? 0 : finite(p.lower_bound);
+    return {id: m.run_id ?? null, issues, warnings, status: m.run_status ?? null, problemBytes: imported.problemBytes, lowerBound, lowerBounds, sense: comparisonSense, solution, retained, originalCount: validProblem ? ids.length : null, reduction: {state: classical ? 'not_applicable' : trace.length ? 'available' : 'not_recorded', applied: classical ? false : m.has_reduction === true ? true : null, rounds: trace, policy: meta.graph_policy ?? null, maxCandidateItems: c.reduction?.candidate_domain_max_items ?? null, maxRounds: c.reduction?.max_reduction_rounds ?? null, targetBinary: c.reduction?.target_binary_variables ?? null, residualBinary: r.residual_variable_counts?.binary_free ?? null, roundCount: m.round_count ?? null, recovery: r.recovery_attempts ?? null, stopReason: r.run_result?.terminal_reason ?? null}, cardinality: {min: p.min_selected_assets ?? null, max: p.max_positions ?? null}, solver: {gap: finite(r.classical_result?.gap), scope: classical ? 'full' : m.has_reduction === true ? 'reduced' : 'unknown', originalClaim: r.original_problem_optimality_claim ?? null, residualClaim: r.residual_problem_optimality_claim ?? null}, timings: {endToEnd: finite(r.metrics?.end_to_end_runtime_seconds), classical: finite(r.classical_result?.runtime_seconds), mis: finite(r.metrics?.mis_runtime_seconds), budget: r.classical_result?.effective_solver_parameters?.time_limit_seconds ?? null}, config: c};
   }
   // Round totals are verified from actual graph IDs and retained IDs, never inferred
   // from the configured cap or from the number of recorded decisions.
@@ -283,7 +306,7 @@
       reductionPercent: initial > 0 && final !== null ? (initial - final) / initial * 100 : null,
       cap: comparison.reduction.maxCandidateItems};
     const statuses = ['selected_both', 'available_not_selected', 'excluded_from_domain', 'domain_unknown'];
-    const positions = baseline.solution && comparison.solution && sameInstance ?
+    const positions = Array.isArray(baseline.solution?.selected) && Array.isArray(comparison.solution?.selected) && sameInstance ?
       statuses.map(status => ({status, count: composition.filter(item => item.status === status).length})) : null;
     const sense = String(baseline.sense).toLowerCase();
     const direction = ['min', 'minimize'].includes(sense) ? -1 : ['max', 'maximize'].includes(sense) ? 1 : 0;
@@ -327,13 +350,13 @@
     const delta = comparable ? b.objective - a.objective : null;
     const retained = comparison.retained && new Set(comparison.retained);
     const selectedB = new Set(b?.selected || []), selectedA = new Set(a?.selected || []);
-    const composition = a && b && sameInstance ? [...new Set([...a.selected, ...b.selected])].map(id => ({id, baselineWeight: a.weights[id] ?? null, comparisonWeight: b.weights[id] ?? null, status: selectedA.has(id) ? selectedB.has(id) ? 'selected_both' : retained ? retained.has(id) ? 'available_not_selected' : 'excluded_from_domain' : 'domain_unknown' : 'comparison_only'})) : [];
+    const composition = a && b && sameInstance && Array.isArray(a.selected) && Array.isArray(b.selected) ? [...new Set([...a.selected, ...b.selected])].map(id => ({id, baselineWeight: a.weights[id] ?? null, comparisonWeight: b.weights[id] ?? null, status: selectedA.has(id) ? selectedB.has(id) ? 'selected_both' : retained ? retained.has(id) ? 'available_not_selected' : 'excluded_from_domain' : 'domain_unknown' : 'comparison_only'})) : [];
     const warnings = [...baseline.issues, ...(baseline.warnings || [])].map(x => 'Baseline: ' + x).concat([...comparison.issues, ...(comparison.warnings || [])].map(x => 'Comparison: ' + x));
     if (!sameInstance) warnings.push('Instance identity not verified');
     if (!comparable) warnings.push('Objective comparison unavailable');
     const objective = {comparable, delta, percent: delta !== null && a.objective !== 0 ? delta / Math.abs(a.objective) * 100 : null};
     const dashboard = dashboardModel(baseline, comparison, sameInstance, objective, composition);
-    return {baseline, comparison, sameInstance, objective, composition, dashboard, baselineExcludedCount: a && b && sameInstance && retained ? composition.filter(x => x.status === 'excluded_from_domain').length : null, warnings};
+    return {baseline, comparison, sameInstance, objective, composition, dashboard, baselineExcludedCount: a && b && Array.isArray(a.selected) && Array.isArray(b.selected) && sameInstance && retained ? composition.filter(x => x.status === 'excluded_from_domain').length : null, warnings};
   }
   return {importRun, importRunSharpe, adaptPortfolio, adaptSharpePortfolio, compareRuns};
 }));

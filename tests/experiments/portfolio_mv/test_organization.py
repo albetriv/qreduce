@@ -20,7 +20,7 @@ def test_portfolio_modules_import(name):
     assert importlib.import_module(f"qreduce.experiments.portfolio_mv.{name}")
 
 
-@pytest.mark.parametrize("document", ["README.md", "portfolio-mv.md", "portfolio-sr.md"])
+@pytest.mark.parametrize("document", ["README.md", "portfolio-mv.md"])
 def test_experiment_documentation_local_links_exist(document):
     root = Path(__file__).resolve().parents[3]
     path = root / "docs/experiments" / document

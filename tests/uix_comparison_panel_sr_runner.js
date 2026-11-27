@@ -36,6 +36,18 @@ function entry(id, classical, sharpe) {
     await fs.mkdir(output, {recursive: true});
     const catalog = path.join(output, 'run_catalog.js');
     const entries = [entry('baseline', true, 1.2), entry('reduced', false, 1.5)];
+    const baselineProblem = JSON.parse(entries[0].files['problem.json']);
+    baselineProblem.lower_bounds = {A: 0.2};
+    entries[0].files['problem.json'] = JSON.stringify(baselineProblem);
+    const reducedProblem = JSON.parse(entries[1].files['problem.json']);
+    reducedProblem.lower_bound = 0.05;
+    reducedProblem.min_selected_assets = 2;
+    entries[1].files['problem.json'] = JSON.stringify(reducedProblem);
+    const reducedResult = JSON.parse(entries[1].files['run_result.json']);
+    reducedResult.domain_evaluation_metrics.push(
+      {metric_id: 'selected_count', value: 2}, {metric_id: 'position_count', value: 2}
+    );
+    entries[1].files['run_result.json'] = JSON.stringify(reducedResult);
     const writeCatalog = runs => fs.writeFile(catalog, 'window.QReduceRunCatalogSR = ' + JSON.stringify(runs) + ';', 'utf8');
     await writeCatalog(entries);
     const page = path.join(uix, 'experiment_portfolio_sr.html');
@@ -66,6 +78,20 @@ function entry(id, classical, sharpe) {
     assert.match(report.textContent, /reduced/);
     assert.match(report.textContent, /1[.,]2/);
     assert.match(report.textContent, /1[.,]5/);
+    assert.match(report.textContent, /Investimento minimo baseline\s*Minimi per titolo: A = 0[.,]2; altri ticker = 0/);
+    assert.match(report.textContent, /Investimento minimo confronto\s*0[.,]05/);
+    assert.match(report.textContent, /Identità dell’istanza non verificata/);
+    const valuesFor = label => Array.from(report.querySelectorAll('tbody tr'))
+      .find(row => row.firstElementChild.textContent === label).textContent;
+    assert.match(valuesFor('Cardinalità minima portafoglio'), /Nessun minimo\s*2/);
+    assert.match(valuesFor('Ticker selezionati (binarie)'), /Non registrato\s*2/i);
+    assert.match(valuesFor('Posizioni investite (peso sopra tolleranza)'), /Non registrato\s*2/i);
+    entries[1].files['problem.json'] = entries[0].files['problem.json'];
+    await writeCatalog(entries);
+    refresh.click();
+    await waitFor(() => !refresh.disabled);
+    assert.match(report.textContent, /problem\.json coincide byte per byte/);
+    assert.match(report.textContent, /non dimostra che il modello compilato e risolto sia identico/);
     assert.ok(!swap.disabled);
     swap.click();
     assert.deepEqual([a.value, b.value], ['reduced', 'baseline']);

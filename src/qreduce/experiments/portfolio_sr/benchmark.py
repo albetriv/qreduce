@@ -15,8 +15,8 @@ excluded tickers, ensuring fair comparison with QReduce.
 import logging
 import random
 import time
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
@@ -88,8 +88,11 @@ class BenchmarkConfig:
 
     # Problem configuration
     upper_bound: float = 1.0
+    lower_bound: float = field(default=0.0, kw_only=True)
     sector_constraints: SectorConstraints | None = None
     max_positions: int | None = None
+    min_selected_assets: int | None = field(default=None, kw_only=True)
+    lower_bounds: Mapping[str, float] | None = field(default=None, kw_only=True)
 
     # Solver configuration
     classical_solver_id: str = "scip"
@@ -138,11 +141,18 @@ def run_benchmark_suite(
         end_date=config.end_date,
         return_convention=config.return_convention,
         upper_bound=config.upper_bound,
+        lower_bound=config.lower_bound,
         sector_constraints=config.sector_constraints,
         max_positions=config.max_positions,
+        min_selected_assets=config.min_selected_assets,
+        lower_bounds=config.lower_bounds,
     )
 
-    target_count = max(1, int(len(inputs.problem.tickers) * config.target_retention_fraction))
+    target_count = max(
+        1,
+        inputs.problem.min_selected_assets or 0,
+        int(inputs.problem.ticker_count * config.target_retention_fraction),
+    )
 
     # 1. Full problem (classical-only baseline)
     if not skip_full:
@@ -239,7 +249,8 @@ def run_full_baseline(
     policy = replace(
         default_reduction_policy(
             inputs.problem.ticker_count,
-            has_cardinality=inputs.problem.max_positions is not None,
+            has_cardinality=inputs.problem.has_selection_binaries,
+            min_selected_assets=inputs.problem.min_selected_assets,
         ),
         max_reduction_rounds=0,
     )
@@ -292,12 +303,15 @@ def run_qreduce_reduction(
     start = time.perf_counter()
 
     n = inputs.problem.ticker_count
-    target = target_retention_count or max(1, int(n * 0.6))
+    target = target_retention_count if target_retention_count is not None else max(
+        1, inputs.problem.min_selected_assets or 0, int(n * 0.6),
+    )
 
     policy = replace(
         default_reduction_policy(
             n,
-            has_cardinality=inputs.problem.max_positions is not None,
+            has_cardinality=inputs.problem.has_selection_binaries,
+            min_selected_assets=inputs.problem.min_selected_assets,
         ),
         max_reduction_rounds=1,
         candidate_domain_max_items=target,
@@ -612,7 +626,8 @@ def _run_screening_with_fixing(
     policy = replace(
         default_reduction_policy(
             problem.ticker_count,
-            has_cardinality=problem.max_positions is not None,
+            has_cardinality=problem.has_selection_binaries,
+            min_selected_assets=problem.min_selected_assets,
         ),
         max_reduction_rounds=0,
     )

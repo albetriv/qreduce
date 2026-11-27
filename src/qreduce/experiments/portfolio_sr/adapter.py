@@ -135,7 +135,7 @@ class SharpePortfolioAdapter:
         else:
             sharpe = None
 
-        return (
+        domain_metrics = (
             DomainEvaluationMetric(
                 metric_id="sharpe_ratio",
                 value=sharpe,
@@ -179,6 +179,17 @@ class SharpePortfolioAdapter:
                 provenance="recomputed_in_postcheck",
             ),
         )
+
+        selected_count = postcheck_result.tolerances_used.get("selected_count")
+        if isinstance(selected_count, (int, float)):
+            domain_metrics += (DomainEvaluationMetric(
+                metric_id="selected_count",
+                value=float(selected_count),
+                unit="count",
+                comparison_convention="neutral",
+                provenance="computed_from_selection_binaries",
+            ),)
+        return domain_metrics
 
     def _empty_metrics(self) -> tuple[DomainEvaluationMetric, ...]:
         """Return metrics with None values when solution is not reconstructible."""
@@ -267,15 +278,9 @@ class SharpePortfolioAdapter:
             fixed_vars = set()
             mapping = SharpeVariableMapping.for_problem(problem)
 
-        len(original.tickers)
-
-        # Count free binary variables (delta, if cardinality constraint)
-        binary_free = 0
-        if original.max_positions is not None and mapping.delta_by_ticker:
-            binary_free = sum(
-                1 for t in original.tickers
-                if mapping.delta_by_ticker[t] not in fixed_vars
-            )
+        # Count free selection binaries, including those for minimum cardinality or investment.
+        deltas = mapping.require_deltas()
+        binary_free = sum(1 for t in original.tickers if deltas[t] not in fixed_vars)
 
         # Count free continuous variables (x_scaled + x_scale)
         continuous_free = 1  # x_scale is always present
@@ -373,7 +378,9 @@ class SharpePortfolioAdapter:
         n_retained = len(retained)
 
         # Compute minimum items for budget
-        minimum_required = self._minimum_items_for_budget(original, retained)
+        minimum_required = max(
+            self._minimum_items_for_budget(original, retained), original.min_selected_assets or 0,
+        )
 
         # Check cardinality constraint
         if original.max_positions is not None and n_retained < 1:
@@ -399,6 +406,11 @@ class SharpePortfolioAdapter:
                     f"insufficient_budget_capacity:{capacity:.6g}",
                 )
             )
+
+        if original.lower_bound > 0 or original.lower_bounds is not None or original.min_selected_assets:
+            issues = original.selection_feasibility_issues(retained)
+            if issues:
+                return DomainValidationResult(False, minimum_required, failure_reasons=issues)
 
         # Check sector constraints
         if original.sector_constraints is not None:
@@ -456,10 +468,10 @@ class SharpePortfolioAdapter:
             min_exposure = problem.sector_constraints.sector_min[sector]
             max_exposure = problem.sector_constraints.sector_max[sector]
 
-            # Get retained tickers in this sector
+            # A ticker whose floor exceeds its sector cap cannot be selected.
             sector_tickers = [
                 t for t in problem.tickers_in_sector(sector)
-                if t in retained_set
+                if t in retained_set and problem.effective_lower_bound(t) <= max_exposure + 1e-9
             ]
 
             # Check if minimum can be satisfied
@@ -529,6 +541,7 @@ class SharpePortfolioAdapter:
             original = problem
 
         mapping = SharpeVariableMapping.for_problem(original)
+        deltas = mapping.require_deltas()
 
         # Build entries for excluded tickers
         excluded = tuple(t for t in available if t not in retained_set)
@@ -538,8 +551,7 @@ class SharpePortfolioAdapter:
             var_values: dict[str, float] = {
                 mapping.x_scaled_by_ticker[ticker]: 0.0,
             }
-            if mapping.delta_by_ticker is not None:
-                var_values[mapping.delta_by_ticker[ticker]] = 0.0
+            var_values[deltas[ticker]] = 0.0
 
             entries.append(FixingEntry(
                 item_id=ticker,

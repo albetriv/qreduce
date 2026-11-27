@@ -23,7 +23,7 @@ The transformation follows:
 
 import math
 from collections.abc import Mapping
-from dataclasses import InitVar, dataclass
+from dataclasses import InitVar, dataclass, field
 from enum import Enum
 from types import MappingProxyType
 from typing import Literal
@@ -159,7 +159,8 @@ class SharpePortfolioProblem:
     - Unit budget constraint
     - Optional upper bounds per asset
     - Optional sector constraints
-    - Optional cardinality constraint (max positions)
+    - Optional lower bounds conditional on selection
+    - Optional minimum and maximum binary selection counts
 
     All tickers must have strictly positive mean returns.
     """
@@ -173,6 +174,13 @@ class SharpePortfolioProblem:
     max_positions: int | None = None
     risk_free_rate: float = 0.0
     covariance_symmetry_tolerance: float = 1e-12
+    lower_bound: float = field(default=0.0, kw_only=True, metadata={"omit_if_default": True})
+    lower_bounds: Mapping[str, float] | None = field(
+        default=None, kw_only=True, metadata={"omit_if_none": True}
+    )
+    min_selected_assets: int | None = field(
+        default=None, kw_only=True, metadata={"omit_if_none": True}
+    )
     _covariance_validated: InitVar[bool] = False
 
     def __post_init__(self, _covariance_validated: bool) -> None:
@@ -191,7 +199,29 @@ class SharpePortfolioProblem:
         _freeze_ticker_mapping(self, "sectors", self.sectors, tickers, string_values=True)
 
         # Validate upper bounds
-        _freeze_ticker_mapping(self, "upper_bounds", self.upper_bounds, tickers, allow_nonpositive=False)
+        _freeze_ticker_mapping(self, "upper_bounds", self.upper_bounds, tickers)
+        if any(upper < 0 for upper in self.upper_bounds.values()):
+            raise ValueError("upper_bounds must be non-negative.")
+
+        if not math.isfinite(self.lower_bound) or not 0 <= self.lower_bound <= 1:
+            raise ValueError("lower_bound must be finite and between 0 and 1.")
+        if self.lower_bounds is not None:
+            if self.lower_bound > 0:
+                raise ValueError("A positive lower_bound cannot be combined with lower_bounds.")
+            if not isinstance(self.lower_bounds, Mapping):
+                raise TypeError("lower_bounds must be a mapping or None.")
+            floors = dict(self.lower_bounds)
+            unknown = set(floors).difference(tickers)
+            if unknown:
+                raise ValueError(f"lower_bounds contains unknown tickers: {sorted(map(str, unknown))}.")
+            for ticker, floor in floors.items():
+                if not math.isfinite(floor) or not 0 <= floor <= 1:
+                    raise ValueError(f"lower_bounds[{ticker}] must be finite and between 0 and 1.")
+            object.__setattr__(
+                self, "lower_bounds", MappingProxyType(floors) if any(floors.values()) else None,
+            )
+        if any(self.effective_lower_bound(t) > self.upper_bounds[t] for t in tickers):
+            raise ValueError("Effective lower_bound cannot exceed the corresponding upper bound.")
 
         # Validate risk-free rate
         # Current version requires risk_free_rate=0.0 because the transformed
@@ -214,6 +244,17 @@ class SharpePortfolioProblem:
                 raise ValueError("max_positions must be at least 1.")
             if self.max_positions > n:
                 raise ValueError(f"max_positions ({self.max_positions}) cannot exceed ticker count ({n}).")
+
+        minimum = self.min_selected_assets
+        if minimum is not None:
+            if isinstance(minimum, bool) or not isinstance(minimum, int):
+                raise TypeError("min_selected_assets must be an integer or None.")
+            if not 0 <= minimum <= n:
+                raise ValueError(f"min_selected_assets must be between 0 and ticker count ({n}).")
+            if self.max_positions is not None and minimum > self.max_positions:
+                raise ValueError("min_selected_assets cannot exceed max_positions.")
+            if minimum == 0:
+                object.__setattr__(self, "min_selected_assets", None)
 
         # Validate covariance
         covariance = tuple(tuple(row) for row in self.covariance)
@@ -250,18 +291,67 @@ class SharpePortfolioProblem:
                     f"sector_constraints mismatch. Missing: {sorted(missing)}, Extra: {sorted(extra)}"
                 )
 
-        # Validate budget feasibility with cardinality
+        # Keep the legacy maximum-cardinality diagnostic; the budget also
+        # applies to problems without selection binaries.
+        sorted_uppers = sorted(self.upper_bounds.values(), reverse=True)
+        capacity = sum(sorted_uppers[:self.max_positions])
         if self.max_positions is not None:
-            sorted_uppers = sorted(self.upper_bounds.values(), reverse=True)
-            capacity = sum(sorted_uppers[:self.max_positions])
             if capacity < 1 - tol:
                 raise ValueError(
                     f"Upper bounds of top {self.max_positions} assets sum to {capacity:.6g}, "
                     "cannot satisfy unit budget."
                 )
+        elif capacity < 1 - tol:
+            raise ValueError(f"insufficient_budget_capacity:{capacity:.6g}")
 
         object.__setattr__(self, "tickers", tickers)
         object.__setattr__(self, "covariance", covariance)
+        if self.lower_bound > 0 or self.lower_bounds is not None or self.min_selected_assets:
+            issues = self.selection_feasibility_issues(tickers)
+            if issues:
+                raise ValueError("; ".join(issues))
+
+    @property
+    def has_selection_binaries(self) -> bool:
+        """Every asset has a selection variable, including in baseline models."""
+        return True
+
+    def effective_lower_bound(self, ticker: str) -> float:
+        """Return the investment floor for a selected ticker."""
+        return self.lower_bounds.get(ticker, self.lower_bound) if self.lower_bounds else self.lower_bound
+
+    def selection_feasibility_issues(self, tickers: tuple[str, ...]) -> tuple[str, ...]:
+        """Necessary budget and sector checks for a candidate universe."""
+        issues = []
+        minimum = self.min_selected_assets or 0
+        eligible = tickers
+        if self.sector_constraints:
+            sector_max = self.sector_constraints.sector_max
+            eligible = tuple(
+                t for t in tickers if self.effective_lower_bound(t) <= sector_max[self.sectors[t]] + 1e-9
+            )
+            eligible_sectors = {self.sectors[t] for t in eligible}
+            for sector in sorted(self.sector_constraints.sectors - eligible_sectors):
+                if self.sector_constraints.sector_min[sector] > 0:
+                    issues.append(f"sector_max_below_lower_bound:{sector}")
+
+        if len(eligible) < minimum:
+            issues.append(f"insufficient_selection_candidates:{len(eligible)}<min={minimum}")
+        limit = min(len(eligible), self.max_positions or len(eligible))
+        budget_with_tolerance = 1 + 1e-9
+        floor_sum = 0.0
+        cheapest_floors = sorted(self.effective_lower_bound(t) for t in eligible)[:limit]
+        for count, floor in enumerate(cheapest_floors):
+            floor_sum += floor
+            if floor_sum > budget_with_tolerance:
+                limit = count
+                if limit < minimum:
+                    issues.append(f"minimum_selection_floors_exceed_budget:min={minimum}")
+                break
+        capacity = sum(sorted((self.upper_bounds[t] for t in eligible), reverse=True)[:limit])
+        if capacity < 1 - 1e-9:
+            issues.append(f"insufficient_budget_capacity:{capacity:.6g}")
+        return tuple(issues)
 
     @property
     def ticker_count(self) -> int:
@@ -310,7 +400,7 @@ class SharpePortfolioProblem:
 
     def to_dict(self) -> dict[str, object]:
         """Serialize for artifact storage."""
-        return {
+        result = {
             "tickers": list(self.tickers),
             "ticker_count": self.ticker_count,
             "sectors": dict(self.sectors),
@@ -321,6 +411,13 @@ class SharpePortfolioProblem:
             "x_scale_bounds": {"lower": self.x_scale_bounds[0], "upper": self.x_scale_bounds[1]},
             "sector_constraints": self.sector_constraints.to_dict() if self.sector_constraints else None,
         }
+        if self.lower_bound > 0:
+            result["lower_bound"] = self.lower_bound
+        if self.lower_bounds is not None:
+            result["lower_bounds"] = dict(self.lower_bounds)
+        if self.min_selected_assets is not None:
+            result["min_selected_assets"] = self.min_selected_assets
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,7 +425,7 @@ class SharpeVariableMapping:
     """Stable mapping from tickers to optimization variable names."""
 
     x_scaled_by_ticker: Mapping[str, str]
-    delta_by_ticker: Mapping[str, str] | None  # Only if cardinality constraint
+    delta_by_ticker: Mapping[str, str] | None  # None allowed for historical mappings only
     x_scale_variable: str = "x_scale"
 
     def __post_init__(self) -> None:
@@ -356,10 +453,14 @@ class SharpeVariableMapping:
     def for_problem(cls, problem: SharpePortfolioProblem) -> "SharpeVariableMapping":
         """Create standard variable mapping for a problem."""
         x_scaled = {t: f"x_scaled__{t}" for t in problem.tickers}
-        delta = None
-        if problem.max_positions is not None:
-            delta = {t: f"delta__{t}" for t in problem.tickers}
+        delta = {t: f"delta__{t}" for t in problem.tickers}
         return cls(x_scaled_by_ticker=x_scaled, delta_by_ticker=delta)
+
+    def require_deltas(self) -> Mapping[str, str]:
+        """Require selection variables when using a mapping in a new model."""
+        if self.delta_by_ticker is None:
+            raise ValueError("Selection binary mapping is required for a new model.")
+        return self.delta_by_ticker
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,10 +470,10 @@ class TransformedSharpeProblem:
     The transformation converts:
         max mu^T x / sqrt(x^T Sigma x)
 
-    To the convex QP:
+    To the mixed-integer quadratic model:
         min x_scaled^T Sigma x_scaled
         s.t. mu^T x_scaled = 1
-             constraints on x_scaled and x_scale
+             constraints on x_scaled, x_scale and binary selections
 
     Solution recovery: x = x_scaled / x_scale, SR = 1/sqrt(objective)
     """
@@ -392,44 +493,40 @@ class TransformedSharpeProblem:
             raise ValueError("retained_tickers must be subset of original tickers.")
         if set(retained) != set(self.fixing_manifest.retained_item_ids):
             raise ValueError("retained_tickers must match fixing manifest.")
+        if (set(self.variable_mapping.x_scaled_by_ticker) != original_tickers
+                or self.variable_mapping.delta_by_ticker is None
+                or set(self.variable_mapping.delta_by_ticker) != original_tickers):
+            raise ValueError("Variable mapping must cover every ticker with weights and binaries.")
+
+        if set(self.fixing_manifest.excluded_item_ids) != original_tickers - set(retained):
+            raise ValueError("Fixing manifest must exclude exactly the non-retained tickers.")
+        deltas = self.variable_mapping.require_deltas()
+        for entry in self.fixing_manifest.entries:
+            expected = {self.variable_mapping.x_scaled_by_ticker[entry.item_id]: 0.0,
+                        deltas[entry.item_id]: 0.0}
+            if entry.variable_values != expected:
+                raise ValueError(
+                    f"Fixing for {entry.item_id} must set exactly its scaled weight and selection binary to zero."
+                )
 
         object.__setattr__(self, "retained_tickers", retained)
 
     @property
     def variable_count(self) -> int:
         """Total number of optimization variables."""
-        n = len(self.original_problem.tickers)
-        base = n + 1  # x_scaled + x_scale
-        if self.original_problem.max_positions is not None:
-            base += n  # delta variables
-        return base
+        return 2 * len(self.original_problem.tickers) + 1
 
     @property
     def constraint_count(self) -> int:
-        """Total number of constraints."""
-        problem = self.original_problem
-        n = len(problem.tickers)
-
-        count = 1  # mu^T x_scaled = 1
-        count += 1  # sum x_scaled = x_scale
-        count += 2 * n  # upper/lower bounds linking
-        count += 2  # x_scale bounds
-        count += 2 * len(self.fixing_manifest.entries)  # fixings
-
-        if problem.sector_constraints:
-            count += 2 * len(problem.sector_constraints.sectors)
-
-        if problem.max_positions is not None:
-            count += 1  # cardinality constraint
-
-        return count
+        """Count the compiled linear rows without constructing the quadratic objective."""
+        return len(self._build_linear_constraints())
 
     def build_classical_model(self) -> ClassicalOptimizationModel:
         """Compile to solver-agnostic optimization model."""
         problem = self.original_problem
         mapping = self.variable_mapping
+        deltas = mapping.require_deltas()
         tickers = problem.tickers
-        len(tickers)
 
         # Variables
         variables: list[ClassicalVariable] = []
@@ -452,17 +549,38 @@ class TransformedSharpeProblem:
             ub,
         ))
 
-        # delta variables (binary, if cardinality constraint)
-        if problem.max_positions is not None and mapping.delta_by_ticker:
-            for ticker in tickers:
-                variables.append(ClassicalVariable(
-                    mapping.delta_by_ticker[ticker],
-                    ClassicalVariableType.BINARY,
-                    0.0,
-                    1.0,
+        # Selection binaries are present even without cardinality or floors.
+        for ticker in tickers:
+            variables.append(ClassicalVariable(
+                deltas[ticker], ClassicalVariableType.BINARY, 0.0, 1.0,
+            ))
+
+        # Quadratic objective: x_scaled^T Sigma x_scaled
+        quadratic_terms: list[QuadraticObjectiveTerm] = []
+        for i, ticker_i in enumerate(tickers):
+            for j, ticker_j in enumerate(tickers[i:], start=i):
+                coef = problem.covariance[i][j]
+                if i != j:
+                    coef *= 2  # Off-diagonal terms counted once
+                quadratic_terms.append(QuadraticObjectiveTerm(
+                    mapping.x_scaled_by_ticker[ticker_i],
+                    mapping.x_scaled_by_ticker[ticker_j],
+                    coef,
                 ))
 
-        # Constraints
+        return ClassicalOptimizationModel(
+            variables=tuple(variables),
+            linear_objective={},  # No linear objective terms
+            quadratic_objective=tuple(quadratic_terms),
+            linear_constraints=self._build_linear_constraints(),
+        )
+
+    def _build_linear_constraints(self) -> tuple[LinearConstraint, ...]:
+        problem = self.original_problem
+        mapping = self.variable_mapping
+        deltas = mapping.require_deltas()
+        tickers = problem.tickers
+        _, ub = problem.x_scale_bounds
         constraints: list[LinearConstraint] = []
 
         # mu^T x_scaled = 1
@@ -499,28 +617,44 @@ class TransformedSharpeProblem:
         # Lower bound (non-negativity is handled by variable bounds)
         # x_scaled_i >= 0 is implicit
 
+        if problem.min_selected_assets is not None:
+            constraints.append(LinearConstraint(
+                "min_cardinality",
+                {deltas[t]: 1.0 for t in tickers},
+                LinearConstraintSense.GREATER_EQUAL,
+                float(problem.min_selected_assets),
+            ))
+
         # Cardinality constraint: sum_i delta_i <= max_positions
-        if problem.max_positions is not None and mapping.delta_by_ticker:
+        if problem.max_positions is not None:
             constraints.append(LinearConstraint(
                 "max_cardinality",
-                {mapping.delta_by_ticker[t]: 1.0 for t in tickers},
+                {deltas[t]: 1.0 for t in tickers},
                 LinearConstraintSense.LESS_EQUAL,
                 float(problem.max_positions),
             ))
 
-            # Linking: x_scaled_i <= M_i * delta_i where M_i = upper_i / mu_min
-            mu_min = problem.mu_min
-            for ticker in tickers:
-                M_i = problem.upper_bounds[ticker] / mu_min
-                coeffs = {
-                    mapping.x_scaled_by_ticker[ticker]: 1.0,
-                    mapping.delta_by_ticker[ticker]: -M_i,
-                }
+        # Linking: x_scaled_i <= M_i * delta_i where M_i = upper_i / mu_min
+        for ticker in tickers:
+            M_i = problem.upper_bounds[ticker] / problem.mu_min
+            coeffs = {
+                mapping.x_scaled_by_ticker[ticker]: 1.0,
+                deltas[ticker]: -M_i,
+            }
+            constraints.append(LinearConstraint(
+                f"cardinality_link__{ticker}", coeffs,
+                LinearConstraintSense.LESS_EQUAL, 0.0,
+            ))
+            floor = problem.effective_lower_bound(ticker)
+            if floor > 0:
+                big_m = floor * ub
                 constraints.append(LinearConstraint(
-                    f"cardinality_link__{ticker}",
-                    coeffs,
-                    LinearConstraintSense.LESS_EQUAL,
-                    0.0,
+                    f"lower_bound__{ticker}",
+                    {mapping.x_scaled_by_ticker[ticker]: 1.0,
+                     mapping.x_scale_variable: -floor,
+                     deltas[ticker]: -big_m},
+                    LinearConstraintSense.GREATER_EQUAL,
+                    -big_m,
                 ))
 
         # Sector constraints
@@ -565,25 +699,7 @@ class TransformedSharpeProblem:
                     value,
                 ))
 
-        # Quadratic objective: x_scaled^T Sigma x_scaled
-        quadratic_terms: list[QuadraticObjectiveTerm] = []
-        for i, ticker_i in enumerate(tickers):
-            for j, ticker_j in enumerate(tickers[i:], start=i):
-                coef = problem.covariance[i][j]
-                if i != j:
-                    coef *= 2  # Off-diagonal terms counted once
-                quadratic_terms.append(QuadraticObjectiveTerm(
-                    mapping.x_scaled_by_ticker[ticker_i],
-                    mapping.x_scaled_by_ticker[ticker_j],
-                    coef,
-                ))
-
-        return ClassicalOptimizationModel(
-            variables=tuple(variables),
-            linear_objective={},  # No linear objective terms
-            quadratic_objective=tuple(quadratic_terms),
-            linear_constraints=tuple(constraints),
-        )
+        return tuple(constraints)
 
     def to_dict(self) -> dict[str, object]:
         """Serialize for artifact storage."""

@@ -10,6 +10,7 @@ Execution modes (controlled by --max-reduction-rounds):
 """
 
 import argparse
+import math
 import sys
 from dataclasses import replace
 from datetime import date
@@ -47,7 +48,7 @@ Examples:
   python -m qreduce.experiments.portfolio_sr --run-id baseline001 --max-reduction-rounds 0
 
   # With cardinality constraint
-  python -m qreduce.experiments.portfolio_sr --run-id card001 --max-positions 15
+  python -m qreduce.experiments.portfolio_sr --run-id card001 --min-selected-assets 5 --max-selected-assets 15
 
   # Custom date range and asset count
   python -m qreduce.experiments.portfolio_sr --run-id custom001 \\
@@ -146,15 +147,31 @@ Examples:
     # Problem configuration
     problem_group = parser.add_argument_group("Problem options")
     problem_group.add_argument(
+        "--lower-bound",
+        type=float,
+        default=0.0,
+        help="Minimum weight per selected asset. Default: 0.0.",
+    )
+    problem_group.add_argument(
         "--upper-bound",
         type=float,
         default=1.0,
         help="Maximum weight per asset. Default: 1.0 (no constraint).",
     )
     problem_group.add_argument(
+        "--min-selected-assets",
+        type=int,
+        help="Minimum number of selected assets (0 disables the constraint).",
+    )
+    problem_group.add_argument(
+        "--max-selected-assets",
+        type=int,
+        help="Maximum number of selected assets.",
+    )
+    problem_group.add_argument(
         "--max-positions",
         type=int,
-        help="Maximum number of positions (cardinality constraint).",
+        help="Compatibility alias for --max-selected-assets.",
     )
     problem_group.add_argument(
         "--risk-free-rate",
@@ -351,8 +368,24 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     if args.max_reduction_rounds < 0:
         parser.error("--max-reduction-rounds must be non-negative")
 
+    if args.max_selected_assets is not None:
+        if args.max_positions is not None and args.max_positions != args.max_selected_assets:
+            parser.error("--max-selected-assets and --max-positions must agree")
+        args.max_positions = args.max_selected_assets
     if args.max_positions is not None and args.max_positions < 1:
-        parser.error("--max-positions must be at least 1")
+        parser.error("--max-selected-assets (or --max-positions) must be at least 1")
+    if args.min_selected_assets is not None and args.min_selected_assets < 0:
+        parser.error("--min-selected-assets must be non-negative")
+    if args.max_positions is not None and (args.min_selected_assets or 0) > args.max_positions:
+        parser.error("--min-selected-assets must not exceed --max-selected-assets")
+    if (args.max_reduction_rounds > 0 and args.candidate_domain_max_items is not None
+            and args.candidate_domain_max_items < (args.min_selected_assets or 0)):
+        parser.error("--candidate-domain-max-items must be at least --min-selected-assets")
+
+    if not math.isfinite(args.lower_bound) or not 0 <= args.lower_bound <= 1:
+        parser.error("--lower-bound must be finite and between 0 and 1")
+    if args.lower_bound > args.upper_bound:
+        parser.error("--lower-bound must not exceed --upper-bound")
 
     # Risk-free rate must be zero in current version
     if args.risk_free_rate != 0.0:
@@ -396,7 +429,7 @@ def _build_reduction_policy(args: argparse.Namespace, asset_count: int) -> Reduc
     """Build reduction policy from CLI arguments."""
     base = default_reduction_policy(
         asset_count,
-        has_cardinality=args.max_positions is not None,
+        min_selected_assets=args.min_selected_assets if args.max_reduction_rounds > 0 else None,
     )
 
     overrides: dict[str, object] = {}
@@ -495,8 +528,10 @@ def main() -> int:
             annualization_factor=args.annualization_factor,
             risk_free_rate=args.risk_free_rate,
             upper_bound=args.upper_bound,
+            lower_bound=args.lower_bound,
             sector_constraints=sector_constraints,
             max_positions=args.max_positions,
+            min_selected_assets=args.min_selected_assets,
             graph_policy=graph_policy,
             mis_solver_id=args.mis_solver_id,
             classical_solver_id=args.classical_solver_id,

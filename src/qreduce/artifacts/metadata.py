@@ -24,11 +24,15 @@ _REDACTED_VALUE = "[REDACTED]"
 def to_primitive(value: object) -> object:
     """Recursively convert supported contracts into JSON-compatible primitives."""
     if is_dataclass(value) and not isinstance(value, type):
-        return {
-            dataclass_field.name: to_primitive(getattr(value, dataclass_field.name))
-            for dataclass_field in fields(value)
-            if not (dataclass_field.metadata.get("omit_if_none") and getattr(value, dataclass_field.name) is None)
-        }
+        result = {}
+        for dataclass_field in fields(value):
+            field_value = getattr(value, dataclass_field.name)
+            if dataclass_field.metadata.get("omit_if_none") and field_value is None:
+                continue
+            if dataclass_field.metadata.get("omit_if_default") and field_value == dataclass_field.default:
+                continue
+            result[dataclass_field.name] = to_primitive(field_value)
+        return result
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):

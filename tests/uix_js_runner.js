@@ -147,7 +147,7 @@ function main() {
 
     // Collect field values for verification (used by reset tests)
     const currentValues = {};
-    ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets",
+    ["lowerBound", "upperBound", "minSelectedAssets", "maxSelectedAssets", "maxPositions",
       "runId", "assetCount", "riskAversion", "generationSeed", "maxRounds", "edgeMode",
      "correlationThreshold", "misSolver", "classicalSolver", "embeddingProfile", "pasqalShots",
      "endToEndBudget", "maxRuntime", "numSourceMisCandidates"].forEach((id) => {

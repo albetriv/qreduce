@@ -168,20 +168,34 @@
                 <h2>Configurazione problema</h2>
                 <p>Vincoli, limiti e parametri dell'ottimizzazione Sharpe.</p>
               </div>
-              <span class="pill">--upper-bound, --max-positions, ...</span>
+              <span class="pill">--upper-bound, --max-selected-assets, ...</span>
             </div>
 
             <div class="form-grid">
+              <!-- PARAM_DESC: 0,05 = almeno il 5% per ogni titolo selezionato; i titoli esclusi pesano zero. -->
+              <div class="field">
+                <label for="lowerBound">Investimento minimo <span class="param">--lower-bound</span></label>
+                <input id="lowerBound" type="number" value="0.0" min="0" max="1" step="0.01" data-favorite-default="0.0">
+                <p class="help">Default: 0.0</p>
+                <p class="error"></p>
+              </div>
               <!-- PARAM_DESC: Peso massimo per singolo asset. -->
               <div class="field">
                 <label for="upperBound">Upper bound <span class="param">--upper-bound</span></label>
-                <input id="upperBound" type="number" value="1.0" min="0" max="1" step="0.01">
-                <p class="help">Default: 1.0 (nessun limite)</p>
+                <input id="upperBound" type="number" value="1.0" min="0" step="any">
+                <p class="help">Default: 1.0. Valori maggiori di 1 sono ammessi ma ridondanti.</p>
                 <p class="error"></p>
               </div>
-              <!-- PARAM_DESC: Massimo numero di posizioni (cardinalità). -->
+              <!-- PARAM_DESC: Numero minimo di ticker selezionati. Con investimento minimo pari a zero, un ticker selezionato può avere peso zero. -->
               <div class="field">
-                <label for="maxPositions">Max posizioni <span class="param">--max-positions</span></label>
+                <label for="minSelectedAssets">Minimo ticker selezionati <span class="param">--min-selected-assets</span></label>
+                <input id="minSelectedAssets" type="number" min="0" step="1" placeholder="Opzionale" data-favorite-default="">
+                <p class="help">Vuoto o 0: nessun minimo</p>
+                <p class="error"></p>
+              </div>
+              <!-- PARAM_DESC: Numero massimo di ticker selezionati (cardinalità). -->
+              <div class="field">
+                <label for="maxPositions">Massimo ticker selezionati <span class="param">--max-selected-assets</span></label>
                 <input id="maxPositions" type="number" min="1" step="1" placeholder="Opzionale">
                 <p class="help">Vincolo cardinalità (opzionale)</p>
                 <p class="error"></p>
@@ -313,11 +327,11 @@
                   <p class="help">Default: 120 (0 = illimitato)</p>
                   <p class="error"></p>
                 </div>
-                <!-- PARAM_DESC: Numero target di variabili binarie nel problema residuo dopo la riduzione. La pipeline cerca di raggiungere questo obiettivo. Attivo solo con riduzione (rounds > 0) e cardinalità (max-positions). Senza cardinalità il modello SR non ha variabili binarie. -->
+                <!-- PARAM_DESC: Numero target di variabili binarie nel problema residuo. Attivo con riduzione. -->
                 <div class="field">
                   <label for="targetBinary">Variabili binarie target <span class="param">--target-binary-variables</span></label>
-                  <input id="targetBinary" type="number" min="0" step="1" placeholder="Default: 3 (con cardinalità)" data-favorite-default="">
-                  <p class="help">Solo con cardinalità; senza binarie il modello SR è QP puro</p>
+                  <input id="targetBinary" type="number" min="0" step="1" placeholder="Default: 3" data-favorite-default="">
+                  <p class="help">Disponibile con riduzione attiva</p>
                   <p class="error"></p>
                 </div>
                 <!-- PARAM_DESC: Rapporto minimo di riduzione accettabile. Se la riduzione ottenuta è inferiore a questa soglia, il round può essere considerato non efficace. Range: 0-1. Attivo solo con riduzione (rounds > 0). -->
@@ -623,6 +637,7 @@
       returnConvention: 'log',
       annualizationFactor: 252,
       selectionOrder: 'alphabetical',
+      lowerBound: 0.0,
       upperBound: 1.0,
       riskFreeRate: 0.0,  // Fixed at 0.0 - model requires this
       edgeMode: 'near_duplicate',
@@ -809,11 +824,7 @@
         }
       });
 
-      // Target binary: disabled in baseline mode OR when no cardinality constraint
-      // Without cardinality, SR model has no binary variables
-      var maxPositionsValue = $('maxPositions').value;
-      var hasCardinality = maxPositionsValue && Number(maxPositionsValue) > 0;
-      $('targetBinary').disabled = !reduction || !hasCardinality;
+      $('targetBinary').disabled = !reduction;
 
       // Model export path: disabled if export not enabled
       var modelExportPath = $('modelExportPath');
@@ -874,14 +885,14 @@
         assets = readNumber('assetCount', 1, Infinity, true);
       }
 
-      const positions = readNumber('maxPositions', 1, Infinity, true, true);
-      if (positions.present && (!assets.valid || positions.value > assets.value)) {
-        positions.valid = false;
-      }
+      const minSelected = readNumber('minSelectedAssets', 0, assets.value ?? Infinity, true, true);
+      const maxSelected = readNumber('maxPositions', 1, assets.value ?? Infinity, true, true);
       return {
         assets: assets,
-        positions: positions,
-        upper: readNumber('upperBound', Number.MIN_VALUE, 1, false),
+        minSelected: minSelected,
+        maxSelected: maxSelected,
+        lower: readNumber('lowerBound', 0, 1, false),
+        upper: readNumber('upperBound', Number.MIN_VALUE, Infinity, false),
         rounds: readNumber('maxRounds', 0, Infinity, true),
         sectors: readSectorConstraints()
       };
@@ -900,9 +911,11 @@
 
       const state = readProblemState();
       const checks = [
-        ['maxPositions', state.positions.valid, 'Richiesto un intero positivo non superiore al numero di asset'],
+        ['minSelectedAssets', state.minSelected.valid, 'Richiesto un intero non negativo non superiore al numero di asset'],
+        ['maxPositions', state.maxSelected.valid, 'Richiesto un intero positivo non superiore al numero di asset'],
         ['maxRounds', state.rounds.valid, 'Richiesto un intero non negativo'],
-        ['upperBound', state.upper.valid, 'Deve essere maggiore di 0 e non superiore a 1']
+        ['lowerBound', state.lower.valid && (!state.upper.valid || state.lower.value <= state.upper.value), 'Deve essere tra 0 e 1 e non superiore all’investimento massimo'],
+        ['upperBound', state.upper.valid, 'Deve essere finito e maggiore di 0']
       ];
 
       // Validate asset selection based on mode
@@ -925,6 +938,11 @@
           valid = false;
         }
       });
+      if (state.minSelected.valid && state.maxSelected.valid && state.maxSelected.present &&
+          state.minSelected.value > state.maxSelected.value) {
+        setError('minSelectedAssets', 'Il minimo non può superare il massimo di ticker selezionati');
+        valid = false;
+      }
       if (!state.sectors.valid) {
         setError('sectorMin', state.sectors.error);
         setError('sectorMax', state.sectors.error);
@@ -1033,6 +1051,10 @@
           setError('maxItems', 'Deve essere maggiore o uguale al minimo');
           valid = false;
         }
+        if (maxItems.present && maxItems.valid && state.minSelected.valid && maxItems.value < state.minSelected.value) {
+          setError('maxItems', 'Il dominio candidato deve poter contenere il minimo di ticker selezionati');
+          valid = false;
+        }
 
         // Recovery validation: if a recovery policy is active, need attempts >= 1
         var recoveryDomainTooSmall = $('recoveryDomainTooSmall').value;
@@ -1113,11 +1135,18 @@
       }
 
       // Problem options
-      if (parseFloat($('upperBound').value) !== DEFAULTS.upperBound) {
-        args.push({ flag: '--upper-bound', value: parseFloat($('upperBound').value) });
+      if (Number($('lowerBound').value) > 0) {
+        args.push({ flag: '--lower-bound', value: Number($('lowerBound').value) });
+      }
+      const upperBound = Number($('upperBound').value);
+      if (upperBound !== DEFAULTS.upperBound) {
+        args.push({ flag: '--upper-bound', value: upperBound });
+      }
+      if (Number($('minSelectedAssets').value) > 0) {
+        args.push({ flag: '--min-selected-assets', value: Number($('minSelectedAssets').value) });
       }
       if ($('maxPositions').value) {
-        args.push({ flag: '--max-positions', value: Number($('maxPositions').value) });
+        args.push({ flag: '--max-selected-assets', value: Number($('maxPositions').value) });
       }
       // Note: risk-free-rate is fixed at 0.0 in current version, not emitted
       if ($('sectorMin').value) {
@@ -1157,8 +1186,7 @@
         if ($('maxItems').value) {
           args.push({ flag: '--candidate-domain-max-items', value: Number($('maxItems').value) });
         }
-        // Target binary only relevant when cardinality is set (SR has no binary variables otherwise)
-        if ($('targetBinary').value && $('maxPositions').value) {
+        if ($('targetBinary').value && !$('targetBinary').disabled) {
           args.push({ flag: '--target-binary-variables', value: Number($('targetBinary').value) });
         }
         if ($('minReductionRatio').value) {
@@ -1359,7 +1387,9 @@
       $('annualizationFactor').value = DEFAULTS.annualizationFactor;
       $('selectionOrder').value = DEFAULTS.selectionOrder;
       $('randomSeed').value = '';
+      $('lowerBound').value = DEFAULTS.lowerBound;
       $('upperBound').value = DEFAULTS.upperBound;
+      $('minSelectedAssets').value = '';
       $('maxPositions').value = '';
       setupRiskFreeFixed();
       $('sectorMin').value = '';
