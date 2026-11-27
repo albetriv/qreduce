@@ -766,6 +766,18 @@ supportata, termina con `mis_problem_representation_unsupported`. Per esempio,
 `local_greedy` riceve `mis_graph`, mentre `dwave_simulated_annealing` riceve
 `qubo` e costruisce il BQM Ocean soltanto nel proprio adapter.
 
+Per il simulated annealing D-Wave locale con riduzione attiva e profilo
+`pegasus_p16` o `zephyr_z12`, `mis_execution.compilation_parameters.chain_strength`
+ammette un override numerico finito e strettamente positivo, esclusi i booleani.
+Le altre combinazioni rifiutano l'override prima della ricerca dell'embedding.
+In sua assenza la politica `balanced_v1` usa `0.375 * qubo.lambda_edge`, dove
+`qubo.lambda_edge` è la penalità effettiva del QUBO canonico del round. L'override
+seleziona la politica `manual`. Il valore risolto modifica gli accoppiamenti di
+catena del BQM embedded, non il QUBO logico, il decoding o il repair. I parametri
+effettivi di compilazione registrano `chain_strength` se richiesto, `_chain_strength`
+e `_chain_strength_policy` dopo l'embedding; non si applica il nuovo default agli
+artefatti storici.
+
 `MISBackendResult` deve includere almeno `samples`, `requested_backend`, `effective_backend`, `requested_provider`, `effective_provider`, `backend_family`, `execution_location`, `capability_status`, `runtime_seconds`, `effective_parameters`, `completion_status` e, in caso di failure, un `terminal_reason` normalizzato. Il backend non puo` restituire risultati parziali senza dichiarare se l'esecuzione e` completa, time-limited, cancellata o fallita.
 
 ### 11.3 Capability e compatibilita`

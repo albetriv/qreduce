@@ -914,16 +914,14 @@ class TestEmbeddingIntegration:
             assert abs(sample.backend_reported_score - expected_energy) < 1e-6
 
     @pytest.mark.parametrize("profile_id", ["pegasus_p16", "zephyr_z12"])
-    def test_chain_strength_metadata_persisted_in_job(self, profile_id):
-        """Chain strength metadata is fully recorded with explicit parameter values.
+    @pytest.mark.parametrize("lambda_edge,requested,effective", [(2.0, None, 0.75), (4.0, None, 1.5), (2.0, 1.25, 1.25)])
+    def test_chain_strength_metadata_and_embedded_coupling(self, profile_id, lambda_edge, requested, effective):
+        """Both topologies use the requested policy and leave the canonical QUBO intact."""
+        # Create a small problem
+        from itertools import combinations
 
-        Verifies:
-        - profile_definition_version is present and non-empty
-        - chain_strength_policy name is correct
-        - chain_strength_policy_parameters contains prefactor=1.414
-        - chain_strength_value is positive
-        - chain_break_method is correct
-        """
+        import dimod
+
         from qreduce.mwis import ReductionGraph, build_mwis_qubo, qubo_to_ising
         from qreduce.mwis.graph import CanonicalMWISProblem
         from qreduce.solving.mwis.contracts import (
@@ -932,8 +930,6 @@ class TestEmbeddingIntegration:
         )
         from qreduce.solving.mwis.dwave_embedding import (
             CHAIN_BREAK_METHOD_MAJORITY_VOTE,
-            CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE,
-            CHAIN_STRENGTH_UNIFORM_TORQUE_PREFACTOR,
             EMBEDDING_PROFILE_DEFINITION_VERSION,
         )
         from qreduce.solving.mwis.dwave_simulated_annealing_backend import (
@@ -941,17 +937,23 @@ class TestEmbeddingIntegration:
         )
         from qreduce.status import BackendFamily, ExecutionMode, ProblemForm
 
-        # Create a small problem
+        node_ids = ("p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "zz")
+        edges = tuple(combinations(node_ids, 2))
         graph = ReductionGraph(
-            node_ids=("p", "q"),
-            node_weights={"p": 2.0, "q": 3.0},
-            edges=(("p", "q"),),
-            edge_reasons={("p", "q"): "conflict"},
+            node_ids=node_ids,
+            node_weights=dict.fromkeys(node_ids, 0.5),
+            edges=edges,
+            edge_reasons=dict.fromkeys(edges, "conflict"),
             graph_policy_id="test",
             graph_policy_version="1",
         )
-        qubo = build_mwis_qubo(graph, lambda_edge=5.0)
+        qubo = build_mwis_qubo(graph, lambda_edge=lambda_edge)
         problem = CanonicalMWISProblem(graph, qubo, qubo_to_ising(qubo))
+
+        parameters = {"embedding_profile": profile_id, "_random_seed": 17}
+        if requested is not None:
+            parameters["chain_strength"] = requested
+        logical_before = qubo.to_dict()
 
         backend = DWaveSimulatedAnnealingMISBackend()
         compilation = backend.compile(
@@ -966,7 +968,7 @@ class TestEmbeddingIntegration:
                 requested_backend_family=BackendFamily.ANNEALING,
                 requested_execution_mode=ExecutionMode.LOCAL,
                 required_problem_form=ProblemForm.QUBO,
-                compilation_parameters={"embedding_profile": profile_id},
+                compilation_parameters=parameters,
             ),
         )
 
@@ -974,37 +976,32 @@ class TestEmbeddingIntegration:
         job = compilation.compiled_job
         params = job.effective_compilation_parameters
 
-        # Verify metadata structure exists
-        assert "_chain_strength_metadata" in params
-        metadata = params["_chain_strength_metadata"]
+        policy = "balanced_v1" if requested is None else "manual"
+        assert params.get("chain_strength") == requested
+        assert ("chain_strength" in params) == (requested is not None)
+        assert params["_chain_strength"] == effective
+        assert params["_chain_strength_policy"] == policy
+        assert compilation.effective_compilation_parameters == params
+        assert params["_chain_strength_metadata"] == {
+            "profile_definition_version": EMBEDDING_PROFILE_DEFINITION_VERSION,
+            "chain_strength_policy": policy,
+            "chain_strength_policy_parameters": (
+                {"factor": 0.375, "effective_lambda_edge": lambda_edge} if requested is None else {}
+            ),
+            "chain_strength_value": effective,
+            "chain_break_method": CHAIN_BREAK_METHOD_MAJORITY_VOTE,
+        }
+        assert job.compiled_problem.qubo.to_dict() == logical_before
 
-        # Verify profile definition version
-        assert "profile_definition_version" in metadata
-        assert metadata["profile_definition_version"] == EMBEDDING_PROFILE_DEFINITION_VERSION
-        assert metadata["profile_definition_version"]  # Non-empty
-
-        # Verify chain strength policy
-        assert "chain_strength_policy" in metadata
-        assert metadata["chain_strength_policy"] == CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE
-
-        # Verify policy parameters contains explicit prefactor
-        assert "chain_strength_policy_parameters" in metadata
-        policy_params = metadata["chain_strength_policy_parameters"]
-        assert isinstance(policy_params, dict)
-        assert "prefactor" in policy_params
-        assert policy_params["prefactor"] == CHAIN_STRENGTH_UNIFORM_TORQUE_PREFACTOR
-
-        # Verify chain strength value is positive
-        assert "chain_strength_value" in metadata
-        assert metadata["chain_strength_value"] > 0
-
-        # Verify chain break method
-        assert "chain_break_method" in metadata
-        assert metadata["chain_break_method"] == CHAIN_BREAK_METHOD_MAJORITY_VOTE
-
-        # Verify backward-compatible flat keys still exist
-        assert params["_chain_strength"] == metadata["chain_strength_value"]
-        assert params["_chain_strength_policy"] == CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE
+        # The clique forces a nontrivial chain on both topologies.
+        embedded = dimod.BinaryQuadraticModel.from_serializable(job.embedded_bqm_serialized).spin
+        embedding = params["_embedding"]
+        chain_couplings = [
+            bias for (u, v), bias in embedded.quadratic.items()
+            if any(u in chain and v in chain for chain in embedding.values())
+        ]
+        assert chain_couplings
+        assert chain_couplings == pytest.approx([-effective] * len(chain_couplings))
 
     def test_prefactor_actually_passed_to_policy(self):
         """Verify with a spy that the recorded prefactor is actually passed to the SDK.

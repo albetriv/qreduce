@@ -109,6 +109,31 @@ def test_zero_reduction_rounds_baseline_is_valid() -> None:
     assert result.is_valid is True
 
 
+@pytest.mark.parametrize(("value", "profile", "solver", "rounds", "valid"), [
+    (0.75, "pegasus_p16", "dwave_simulated_annealing", 1, True),
+    (1, "zephyr_z12", "dwave_simulated_annealing", 1, True),
+    (0.75, "pegasus_p16", "dwave_simulated_annealing", 0, False),
+    (0.75, "zephyr_z12", "local_greedy", 1, False),
+    (0.75, "none", "dwave_simulated_annealing", 1, False),
+    (0.75, None, "dwave_simulated_annealing", 1, False),
+    *((value, "pegasus_p16", "dwave_simulated_annealing", 1, False)
+      for value in (None, True, False, 0, -1, float("nan"), float("inf"), "0.75", 10**400)),
+])
+def test_chain_strength_requires_valid_value_and_embedded_reduction(value, profile, solver, rounds, valid):
+    config = make_config(mis_solver_id=solver)
+    params = {"chain_strength": value}
+    if profile is not None:
+        params["embedding_profile"] = profile
+    result = validate_resolved_run_config(replace(
+        config,
+        reduction=replace(config.reduction, max_reduction_rounds=rounds),
+        mis_execution=replace(config.mis_execution, compilation_parameters=params),
+    ))
+    assert result.is_valid is valid
+    if not valid:
+        assert any(issue.code == "invalid_chain_strength" for issue in result.issues)
+
+
 @pytest.mark.parametrize(
     ("config", "expected_code"),
     [

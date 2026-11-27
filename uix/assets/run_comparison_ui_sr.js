@@ -263,6 +263,10 @@
           el(parent, 'h4', 'Round ' + fmt(round.index));
           table(['Dato del round ' + fmt(round.index), 'Valore'], [
             ['Nodi del grafo effettivo', round.graph?.nodes], ['Archi del grafo effettivo', round.graph?.edges],
+            ...(round.chainStrength ? [
+              ['Politica forza delle catene', round.chainStrength.policy],
+              ['Forza effettiva delle catene', round.chainStrength.effective == null ? null : String(round.chainStrength.effective)],
+            ] : []),
             ['Backend', round.backend?.id], ['Provider', round.backend?.provider], ['Modalità', round.backend?.mode], ['Dispositivo', round.backend?.device],
             ['Presolve esatto applicato', round.audit?.presolve], ['Codifica dei pesi', round.audit?.weightEncoding],
             ['Strategia impulso', round.audit?.pulseStrategy], ['Minimi fisici indipendenti', round.audit?.physicalIndependent],

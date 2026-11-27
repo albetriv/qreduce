@@ -42,6 +42,8 @@
     numReads: "",
     numSweeps: "",
     embeddingProfile: "none",
+    chainStrengthMode: "auto",
+    misChainStrength: "",
     pasqalShots: "",
     pasqalQpuDevice: "",
     pasqalQpuShots: "",
@@ -130,6 +132,8 @@
     }
 
     var reductionActive = isReductionActive();
+    require("misChainStrength", C.chainStrengthState(reductionActive, isDwaveSolver()).valid,
+      "Inserisci un numero finito maggiore di zero.");
 
     // Run ID is required and must not be empty/whitespace
     require("runId", C.value("runId") !== "", "L'ID del run è obbligatorio.");
@@ -617,6 +621,8 @@
         if (embeddingProfile && embeddingProfile !== "none") {
           args.push({ flag: "--mis-embedding-profile", value: embeddingProfile });
         }
+        const chain = C.chainStrengthState(true, true);
+        if (chain.manual) args.push({ flag: "--mis-chain-strength", value: chain.strength });
       }
 
       if (isPasqalCloudSolver()) {
@@ -772,6 +778,7 @@
 
     // Update dynamic solver info panels
     updateSolverInfoPanels(reductionActive);
+    C.updateChainStrengthControls(C.chainStrengthState(reductionActive, dwaveSolver));
   }
 
   /**
@@ -806,9 +813,12 @@
     var isValid = validate();
 
     // Update preview
-    C.$("cliPreview").textContent = !isValid && isReductionActive() && isPasqalQpuSolver()
-      ? "Completa i campi evidenziati per generare il comando QPU."
-      : generateCommand();
+    const chain = C.chainStrengthState(isReductionActive(), isDwaveSolver());
+    C.$("cliPreview").textContent = !chain.valid
+      ? "Configurazione non valida: correggere la forza delle catene."
+      : !isValid && isReductionActive() && isPasqalQpuSolver()
+        ? "Completa i campi evidenziati per generare il comando QPU."
+        : generateCommand();
 
     // Update summary
     C.$("summaryRunId").textContent = C.value("runId") || "run ID mancante";

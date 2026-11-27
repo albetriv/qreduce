@@ -46,6 +46,8 @@ PORTFOLIO_PARAMS = [
     "numReads",
     "numSweeps",
     "embeddingProfile",
+    "chainStrengthMode",
+    "misChainStrength",
     "pasqalShots",
     "pasqalQpuDevice",
     "pasqalQpuShots",
@@ -92,7 +94,10 @@ def extract_param_desc_comments(html_content: str) -> dict[str, str]:
     results = {}
 
     # For each comment, find the associated field ID
-    for match in re.finditer(r'<!--\s*PARAM_DESC:\s*(.+?)\s*-->\s*\n?\s*<div class="(?:field[^"]*|switch-row)"', html_content):
+    for match in re.finditer(
+        r'<!--\s*PARAM_DESC:\s*(.+?)\s*-->\s*<div class="(?:field[^"]*|switch-row)"[^>]*>',
+        html_content,
+    ):
         desc = match.group(1).strip()
         # Find the field ID in the following content
         after_comment = html_content[match.end():]

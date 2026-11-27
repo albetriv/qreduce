@@ -345,6 +345,21 @@
                     </select>
                     <p class="help">Campionamento classico con vincoli topologici, non simulazione quantistica.</p>
                   </div>
+                  <!-- PARAM_DESC: Auto bilanciato usa la penalità effettiva del QUBO; Manuale fissa la forza delle catene. -->
+                  <div class="field" id="chainStrengthControls" hidden>
+                    <label for="chainStrengthMode">Forza delle catene</label>
+                    <select id="chainStrengthMode" aria-describedby="chainStrengthHelp" disabled>
+                      <option value="auto">Auto bilanciato</option>
+                      <option value="manual">Manuale</option>
+                    </select>
+                    <p id="chainStrengthHelp" class="muted">In modalità Auto la pipeline calcola 0.375 × penalità effettiva per arco del QUBO MIS.</p>
+                  </div>
+                  <!-- PARAM_DESC: Valore finito e strettamente positivo per gli accoppiamenti delle catene. -->
+                  <div class="field" id="chainStrengthManual" hidden>
+                    <label for="misChainStrength">Forza manuale <span class="param">--mis-chain-strength</span></label>
+                    <input id="misChainStrength" type="number" step="any" aria-describedby="chainStrengthError" disabled>
+                    <span class="error" id="chainStrengthError" role="status"></span>
+                  </div>
                 </div>
               </div>
 

@@ -53,6 +53,7 @@ def run_portfolio_experiment(
     pasqal_cost_consent: bool = False,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
+    mis_chain_strength: float | None = None,
     model_export_enabled: bool = False,
     model_export_path: str | None = None,
     lower_bound: float = 0.0,
@@ -98,6 +99,7 @@ def run_portfolio_experiment(
             Constrains sampling to hardware-like topology without QPU access.
             Valid values: 'none' (default), 'pegasus_p16', 'zephyr_z12'.
             Requires mis_solver_id='dwave_simulated_annealing' and reduction active.
+        mis_chain_strength: Optional positive override for local embedding chain couplings.
         model_export_enabled: Whether to export the residual model.
         model_export_path: Optional path for model export.
         lower_bound: Minimum investment per selected asset. Default 0.0.
@@ -138,6 +140,7 @@ def run_portfolio_experiment(
         pasqal_cost_consent=pasqal_cost_consent,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
+        mis_chain_strength=mis_chain_strength,
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         min_selected_assets=min_selected_assets,
@@ -148,6 +151,8 @@ def run_portfolio_experiment(
     config = inputs.config
     if reduction_policy is not None:
         config = replace(config, reduction=reduction_policy)
+    if mis_chain_strength is not None and config.reduction.max_reduction_rounds <= 0:
+        raise ValueError("mis_chain_strength requires active reduction.")
     if mis_solver_id == "pasqal_qpu" and config.reduction.max_reduction_rounds != 1:
         raise ValueError("pasqal_qpu requires exactly one reduction round.")
 

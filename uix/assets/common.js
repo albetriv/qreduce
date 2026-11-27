@@ -109,6 +109,22 @@ var QReduceCommon = (function () {
     });
   }
 
+  function chainStrengthState(reductionActive, dwave) {
+    const profile = value("embeddingProfile");
+    const applicable = reductionActive && dwave && ["pegasus_p16", "zephyr_z12"].includes(profile);
+    const manual = applicable && value("chainStrengthMode") === "manual";
+    const strength = Number(value("misChainStrength"));
+    return {applicable, manual, strength, valid: !manual || (Number.isFinite(strength) && strength > 0)};
+  }
+
+  function updateChainStrengthControls(state) {
+    $("chainStrengthControls").hidden = !state.applicable;
+    $("chainStrengthMode").disabled = !state.applicable;
+    $("chainStrengthManual").hidden = !state.manual;
+    $("misChainStrength").disabled = !state.manual;
+    $("misChainStrength").setAttribute("aria-invalid", String(!state.valid));
+  }
+
   /**
    * Show a toast notification.
    * @param {string} message
@@ -1085,6 +1101,8 @@ var QReduceCommon = (function () {
     quote: quote,
     setError: setError,
     clearErrors: clearErrors,
+    chainStrengthState: chainStrengthState,
+    updateChainStrengthControls: updateChainStrengthControls,
     toast: toast,
     copy: copy,
     buildCommand: buildCommand,

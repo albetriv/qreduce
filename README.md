@@ -114,6 +114,11 @@ comandi preferiti salvati nel browser, con import/export JSON. Non verificano
 la disponibilita` di SDK o licenze. Dettagli sui preferiti nella
 [guida agli esperimenti](docs/experiments/README.md#comandi-preferiti).
 
+In **Portfolio SR** e **Portfolio MV**, con riduzione attiva e simulated annealing
+D-Wave su Pegasus o Zephyr, **Forza delle catene** usa **Auto bilanciato** per
+default. Selezionare **Manuale** per emettere `--mis-chain-strength`. La scheda
+**Confronto** mostra il valore effettivo e la politica registrati negli artefatti.
+
 Nel configuratore **Portfolio Mean–Variance**, la scheda **05 · Confronto**
 mostra indicatori e dettagli di una baseline e di un altro run, senza rilanciare
 i solver. Le differenze descrivono i run osservati e non provano causalita`.

@@ -23,6 +23,7 @@ from pathlib import Path
 
 from qreduce.config import (
     DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS,
+    validate_chain_strength,
     validate_timeout_value,
 )
 from qreduce.experiments.portfolio_sr.inputs import (
@@ -62,6 +63,7 @@ def _build_mis_execution_options(
     pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
+    mis_chain_strength: float | None = None,
     mis_solver_id: str = "local_greedy",
 ) -> MISExecutionOptions:
     """Build MISExecutionOptions with correct structure.
@@ -92,6 +94,13 @@ def _build_mis_execution_options(
             raise ValueError("mis_num_sweeps must be a positive integer")
         provider_parameters["num_sweeps"] = mis_num_sweeps
 
+    if mis_chain_strength is not None:
+        error = validate_chain_strength(
+            mis_chain_strength, embedding_profile=mis_embedding_profile, solver_id=mis_solver_id,
+        )
+        if error:
+            raise ValueError(error)
+
     if mis_embedding_profile is not None and mis_embedding_profile != "none":
         if mis_solver_id != "dwave_simulated_annealing":
             raise ValueError(
@@ -105,6 +114,8 @@ def _build_mis_execution_options(
                 f"Valid values: {', '.join(valid_profiles)}"
             )
         compilation_parameters["embedding_profile"] = mis_embedding_profile
+        if mis_chain_strength is not None:
+            compilation_parameters["chain_strength"] = mis_chain_strength
 
     max_distinct_samples = 1
     if pasqal_shots is not None and mis_solver_id != "pasqal_local":
@@ -228,6 +239,7 @@ def run_sharpe_portfolio_experiment(
     pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
+    mis_chain_strength: float | None = None,
     # Reduction configuration
     reduction_policy: ReductionPolicy | None = None,
     # Export configuration
@@ -265,6 +277,7 @@ def run_sharpe_portfolio_experiment(
         pasqal_shots: Local Pasqal shot count.
         mis_num_sweeps: D-Wave num_sweeps parameter.
         mis_embedding_profile: D-Wave embedding profile.
+        mis_chain_strength: Optional positive override for local embedding chain couplings.
         reduction_policy: Reduction policy configuration.
         model_export_enabled: Whether to export the classical model.
         model_export_path: Custom export path for model.
@@ -318,6 +331,8 @@ def run_sharpe_portfolio_experiment(
             min_selected_assets=inputs.problem.min_selected_assets,
         )
     _validate_reduction_cardinality(reduction_policy, inputs.problem.min_selected_assets)
+    if mis_chain_strength is not None and reduction_policy.max_reduction_rounds <= 0:
+        raise ValueError("mis_chain_strength requires active reduction.")
 
     # Build execution options
     mis_execution = _build_mis_execution_options(
@@ -325,6 +340,7 @@ def run_sharpe_portfolio_experiment(
         pasqal_shots=pasqal_shots,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
+        mis_chain_strength=mis_chain_strength,
         mis_solver_id=mis_solver_id,
     )
 
@@ -404,6 +420,7 @@ def run_sharpe_portfolio_from_inputs(
     pasqal_shots: int | None = None,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
+    mis_chain_strength: float | None = None,
     model_export_enabled: bool = False,
     model_export_path: str | None = None,
     output_root: str | Path = DEFAULT_OUTPUT_ROOT,
@@ -424,6 +441,7 @@ def run_sharpe_portfolio_from_inputs(
         pasqal_shots: Local Pasqal shot count.
         mis_num_sweeps: D-Wave num_sweeps parameter.
         mis_embedding_profile: D-Wave embedding profile.
+        mis_chain_strength: Optional positive override for local embedding chain couplings.
         model_export_enabled: Whether to export the classical model.
         model_export_path: Custom export path for model.
         output_root: Root directory for artifacts.
@@ -439,6 +457,8 @@ def run_sharpe_portfolio_from_inputs(
             min_selected_assets=inputs.problem.min_selected_assets,
         )
     _validate_reduction_cardinality(reduction_policy, inputs.problem.min_selected_assets)
+    if mis_chain_strength is not None and reduction_policy.max_reduction_rounds <= 0:
+        raise ValueError("mis_chain_strength requires active reduction.")
 
     # Build execution options
     mis_execution = _build_mis_execution_options(
@@ -446,6 +466,7 @@ def run_sharpe_portfolio_from_inputs(
         pasqal_shots=pasqal_shots,
         mis_num_sweeps=mis_num_sweeps,
         mis_embedding_profile=mis_embedding_profile,
+        mis_chain_strength=mis_chain_strength,
         mis_solver_id=mis_solver_id,
     )
 

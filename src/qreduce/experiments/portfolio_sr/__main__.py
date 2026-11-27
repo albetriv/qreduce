@@ -15,7 +15,7 @@ import sys
 from dataclasses import replace
 from datetime import date
 
-from qreduce.config import validate_timeout_value
+from qreduce.config import validate_chain_strength, validate_timeout_value
 from qreduce.experiments._cli_logging import log_run_command
 from qreduce.experiments.portfolio_sr.execution import run_sharpe_portfolio_experiment
 from qreduce.experiments.portfolio_sr.graph_policy import default_sharpe_graph_policy
@@ -253,6 +253,13 @@ Examples:
         help="D-Wave embedding profile for simulated annealing.",
     )
 
+    solver_group.add_argument(
+        "--mis-chain-strength",
+        type=float,
+        help=("Positive finite chain strength for local Pegasus/Zephyr embedding with reduction active. "
+              "If omitted: 0.375 * effective lambda_edge."),
+    )
+
     # Reduction policy configuration
     reduction_group = parser.add_argument_group("Reduction policy options")
     reduction_group.add_argument(
@@ -406,6 +413,16 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     ):
         parser.error("--mis-num-reads and --mis-num-sweeps require --mis-solver-id=dwave_simulated_annealing")
 
+    if args.mis_chain_strength is not None:
+        error = validate_chain_strength(
+            args.mis_chain_strength,
+            embedding_profile=args.mis_embedding_profile,
+            solver_id=args.mis_solver_id,
+            reduction_active=args.max_reduction_rounds is None or args.max_reduction_rounds > 0,
+        )
+        if error:
+            parser.error(f"--mis-chain-strength: {error}")
+
     # Embedding profile validation
     if args.mis_embedding_profile is not None and args.mis_embedding_profile != "none":
         if args.mis_solver_id != "dwave_simulated_annealing":
@@ -540,6 +557,7 @@ def main() -> int:
             pasqal_shots=args.pasqal_shots,
             mis_num_sweeps=args.mis_num_sweeps,
             mis_embedding_profile=args.mis_embedding_profile,
+            mis_chain_strength=args.mis_chain_strength,
             reduction_policy=reduction_policy,
             model_export_enabled=args.model_export,
             model_export_path=args.model_export_path,

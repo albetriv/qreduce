@@ -31,6 +31,12 @@
   // MIS Backend Descriptions
   // ============================================================================
 
+  // Counts from build_target_topology in qreduce.solving.mwis.dwave_embedding.
+  var EMBEDDING_TOPOLOGIES = {
+    pegasus_p16: { name: "Pegasus P16", nodes: "5.640", edges: "40.484", maxDegree: 15 },
+    zephyr_z12: { name: "Zephyr Z12", nodes: "4.800", edges: "45.864", maxDegree: 20 }
+  };
+
   var MIS_INFO = {
     local_greedy: {
       title: "Local Greedy: informazioni",
@@ -201,12 +207,19 @@
     var panel = createPanel(info, "misSolverInfoPanel");
     container.appendChild(panel);
 
-    // For D-Wave with embedding profile, add embedding warnings
+    // For D-Wave with a known embedding profile, describe the local target graph.
     if (solverId === "dwave_simulated_annealing" &&
-        options.embeddingProfile &&
-        options.embeddingProfile !== "none" &&
-        options.embeddingProfile !== "") {
-      var embeddingPanel = createPanel(info.embeddingWarnings, "embeddingWarningPanel");
+        Object.prototype.hasOwnProperty.call(EMBEDDING_TOPOLOGIES, embedding)) {
+      var topology = EMBEDDING_TOPOLOGIES[embedding];
+      var warnings = info.embeddingWarnings;
+      var embeddingPanel = createPanel({
+        title: warnings.title + ": " + topology.name,
+        type: warnings.type,
+        items: [
+          "<strong>Grafo target locale:</strong> " + topology.nodes + " nodi, " +
+            topology.edges + " collegamenti, fino a " + topology.maxDegree + " vicini per nodo."
+        ].concat(warnings.items)
+      }, "embeddingWarningPanel");
       container.appendChild(embeddingPanel);
     }
   }

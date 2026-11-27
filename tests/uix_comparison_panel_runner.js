@@ -17,7 +17,7 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     'problem.json': {asset_ids: ['a', 'b'], expected_returns: [0.1, 0.2], covariance: [[0.04, 0], [0, 0.09]]},
     'run_result.json': {objective_sense: 'minimize', postcheck_result: {postcheck_feasible: true, objective_recomputed: reduced ? -0.1 : -0.2}, classical_result: {effective_solver_parameters: {time_limit_seconds: reduced ? 'unlimited' : 60}, variable_values: reduced ? {x__a: 1, x__b: 0} : {x__a: 0, x__b: 1}}, final_retained_item_ids: reduced ? ['a'] : null, residual_variable_counts: {binary_free: 1}, run_result: {terminal_reason: 'target_reached'}, round_results: reduced ? [{
       round_index: 0, run_status: 'success', terminal_reason: 'target_reached', retained_item_ids: ['a'], round_reduction_ratio: 0.5,
-      mis_compilation_result: {compiled_job: {effective_backend_id: 'greedy_mis', effective_provider_id: 'local', execution_mode: 'local', compiled_problem: {graph: {node_ids: ['a', 'b'], edges: [['a', 'b']]}}}},
+      mis_compilation_result: {compiled_job: {effective_backend_id: 'simulated_annealing', effective_provider_id: 'dwave', execution_mode: 'local', compiled_problem: {graph: {node_ids: ['a', 'b'], edges: [['a', 'b']]}}, effective_compilation_parameters: {_chain_strength: 0.75, _chain_strength_policy: 'balanced_v1'}}},
       candidate_records: [{candidate_id: 'candidate:0000', selection_status: 'selected', repair_status: 'valid_without_repair', num_selected: 1, num_violated_edges_before_repair: 0, repair_actions: [], selected_item_ids: ['a']}],
       selected_mis_samples: [{raw_sample_id: 'sample:0000', num_selected: 1}],
       candidate_domain_item_records: [{item_id: 'a', decision: 'retained', reason: 'selected_candidate_aggregation'}, {item_id: 'b', decision: 'excluded', reason: 'not_present_in_selected_candidates'}]
@@ -111,6 +111,8 @@ function entry(id, reduced, {omitFinalDomain = false} = {}) {
     assert.match(report.textContent, /<img src=x onerror=alert\(1\)>/);
     assert.equal(report.querySelector('img'), null);
     assert.match(report.textContent, /traccia.*incompleta/i);
+    assert.match(report.textContent, /Politica forza delle catene\s*balanced_v1/);
+    assert.match(report.textContent, /Forza effettiva delle catene\s*0\.75/);
     assert.match(visible, /0[.,]1/);
     assert.match(visible, /50\s*%/);
     assert.match(visible, /2\s*nod/i);

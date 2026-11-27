@@ -15,7 +15,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from qreduce.config import validate_timeout_value
+from qreduce.config import validate_chain_strength, validate_timeout_value
 from qreduce.experiments._cli_logging import log_run_command
 from qreduce.experiments.portfolio_mv.execution import (
     DEFAULT_PORTFOLIO_OUTPUT_ROOT,
@@ -259,6 +259,13 @@ Examples:
         ),
     )
 
+    solver_group.add_argument(
+        "--mis-chain-strength",
+        type=float,
+        help=("Positive finite chain strength for local Pegasus/Zephyr embedding with reduction active. "
+              "If omitted: 0.375 * effective lambda_edge."),
+    )
+
     # Reduction policy options
     reduction_group = parser.add_argument_group("Reduction policy options")
     reduction_group.add_argument(
@@ -372,6 +379,16 @@ def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) ->
     # D-Wave parameters require D-Wave solver
     if (args.mis_num_reads is not None or args.mis_num_sweeps is not None) and args.mis_solver_id != "dwave_simulated_annealing":
         parser.error("--mis-num-reads and --mis-num-sweeps require --mis-solver-id=dwave_simulated_annealing")
+
+    if args.mis_chain_strength is not None:
+        error = validate_chain_strength(
+            args.mis_chain_strength,
+            embedding_profile=args.mis_embedding_profile,
+            solver_id=args.mis_solver_id,
+            reduction_active=args.max_reduction_rounds is None or args.max_reduction_rounds > 0,
+        )
+        if error:
+            parser.error(f"--mis-chain-strength: {error}")
 
     # Embedding profile validation
     if args.mis_embedding_profile is not None and args.mis_embedding_profile != "none":
@@ -767,6 +784,7 @@ def main() -> int:
         pasqal_cost_consent=args.pasqal_cost_consent,
         mis_num_sweeps=args.mis_num_sweeps,
         mis_embedding_profile=args.mis_embedding_profile,
+        mis_chain_strength=args.mis_chain_strength,
         model_export_enabled=args.model_export,
         model_export_path=args.model_export_path,
         lower_bound=args.lower_bound,

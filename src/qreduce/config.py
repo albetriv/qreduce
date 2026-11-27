@@ -14,6 +14,37 @@ DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS: float = 60.0
 # Default budget for end-to-end pipeline execution when not explicitly configured.
 DEFAULT_END_TO_END_BUDGET_SECONDS: float = 60.0
 
+LOCAL_CHAIN_EMBEDDING_PROFILES = ("pegasus_p16", "zephyr_z12")
+
+
+def validate_chain_strength(
+    value: object,
+    *,
+    embedding_profile: object,
+    solver_id: str = "dwave_simulated_annealing",
+    reduction_active: bool = True,
+) -> str | None:
+    """Validate an explicit chain strength and its compilation context."""
+    try:
+        valid_value = (
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value > 0
+        )
+    except OverflowError:
+        valid_value = False
+    if not valid_value:
+        return "chain_strength must be a finite number strictly greater than zero (not a boolean)."
+    if (
+        not reduction_active
+        or solver_id != "dwave_simulated_annealing"
+        or embedding_profile not in LOCAL_CHAIN_EMBEDDING_PROFILES
+    ):
+        return (
+            "chain_strength requires active reduction, mis_solver_id='dwave_simulated_annealing' "
+            "and embedding_profile='pegasus_p16' or 'zephyr_z12'."
+        )
+    return None
+
 
 def validate_timeout_value(value: object, field_name: str) -> str | None:
     """Validate a timeout or budget value.
@@ -379,8 +410,8 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
     compilation_params = execution.compilation_parameters
     has_embedding_profile_key = "embedding_profile" in compilation_params
     embedding_profile = compilation_params.get("embedding_profile")
-    valid_profiles = ("none", "pegasus_p16", "zephyr_z12")
-    hardware_profiles = ("pegasus_p16", "zephyr_z12")
+    hardware_profiles = LOCAL_CHAIN_EMBEDDING_PROFILES
+    valid_profiles = ("none", *hardware_profiles)
 
     if has_embedding_profile_key:
         if embedding_profile is None:
@@ -425,6 +456,16 @@ def validate_resolved_run_config(config: ResolvedRunConfig) -> ValidationResult:
                     "mis_execution.compilation_parameters.embedding_profile",
                     f"embedding_profile='{embedding_profile}' requires max_reduction_rounds >= 1.",
                 )
+
+    if "chain_strength" in compilation_params:
+        error = validate_chain_strength(
+            compilation_params["chain_strength"],
+            embedding_profile=embedding_profile,
+            solver_id=config.mis_solver_id,
+            reduction_active=reduction.max_reduction_rounds > 0,
+        )
+        if error:
+            _add_issue(issues, "invalid_chain_strength", "mis_execution.compilation_parameters.chain_strength", error)
 
     return ValidationResult.invalid(*issues) if issues else ValidationResult.valid()
 

@@ -91,6 +91,9 @@ In entrambe le modalità la correlazione assoluta deve raggiungere la soglia. In
 | `--mis-num-reads` | Numero intero positivo di letture, opzionale e solo per `dwave_simulated_annealing`; se omesso si usa il default del backend. |
 | `--mis-num-sweeps` | Numero intero positivo di sweep, opzionale e solo per `dwave_simulated_annealing`; se omesso si usa il default del backend. |
 | `--mis-embedding-profile` | `none` (default), `pegasus_p16` o `zephyr_z12`; un profilo diverso da `none` richiede `dwave_simulated_annealing` e riduzione attiva. |
+| `--mis-chain-strength` | Override finito e maggiore di zero, ammesso soltanto con riduzione attiva, `dwave_simulated_annealing` e profilo `pegasus_p16` o `zephyr_z12`. Omesso: Auto bilanciato (`0.375 * lambda_edge` effettiva del QUBO). |
+
+Esempio: a una run embedded su Pegasus o Zephyr aggiungere `--mis-chain-strength 0.75` per fissare la forza. L'opzione modifica solo gli accoppiamenti delle catene, non il repair. Per riprodurre una run storica, usare il suo `_chain_strength` registrato: le nuove run senza override usano `balanced_v1`, non la precedente politica `uniform_torque_compensation`. È un'euristica per il simulatore locale, non un default per QPU.
 
 Con `pasqal_local` e riduzione attiva occorre impostare esplicitamente `--max-end-to-end-runtime-seconds` a 0. `pasqal_qpu` richiede esattamente un round di riduzione; il cloud emulator richiede almeno un round.
 

@@ -47,6 +47,10 @@ function entry(id, classical, sharpe) {
     reducedResult.domain_evaluation_metrics.push(
       {metric_id: 'selected_count', value: 2}, {metric_id: 'position_count', value: 2}
     );
+    reducedResult.round_results = [{round_index: 0, terminal_reason: 'no_valid_mis_candidate',
+      mis_compilation_result: {compiled_job: {effective_compilation_parameters: {
+        _chain_strength: 9.618526483406905, _chain_strength_policy: 'uniform_torque_compensation',
+      }}}}];
     entries[1].files['run_result.json'] = JSON.stringify(reducedResult);
     const writeCatalog = runs => fs.writeFile(catalog, 'window.QReduceRunCatalogSR = ' + JSON.stringify(runs) + ';', 'utf8');
     await writeCatalog(entries);
@@ -81,6 +85,8 @@ function entry(id, classical, sharpe) {
     assert.match(report.textContent, /Investimento minimo baseline\s*Minimi per titolo: A = 0[.,]2; altri ticker = 0/);
     assert.match(report.textContent, /Investimento minimo confronto\s*0[.,]05/);
     assert.match(report.textContent, /Identità dell’istanza non verificata/);
+    assert.match(report.textContent, /Politica forza delle catene\s*uniform_torque_compensation/);
+    assert.match(report.textContent, /Forza effettiva delle catene\s*9\.618526483406905/);
     const valuesFor = label => Array.from(report.querySelectorAll('tbody tr'))
       .find(row => row.firstElementChild.textContent === label).textContent;
     assert.match(valuesFor('Cardinalità minima portafoglio'), /Nessun minimo\s*2/);

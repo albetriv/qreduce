@@ -446,6 +446,21 @@
                       <option value="zephyr_z12">zephyr_z12</option>
                     </select>
                   </div>
+                  <!-- PARAM_DESC: Auto bilanciato usa la penalità effettiva del QUBO; Manuale fissa la forza delle catene. -->
+                  <div class="field" id="chainStrengthControls" hidden>
+                    <label for="chainStrengthMode">Forza delle catene</label>
+                    <select id="chainStrengthMode" aria-describedby="chainStrengthHelp" disabled>
+                      <option value="auto">Auto bilanciato</option>
+                      <option value="manual">Manuale</option>
+                    </select>
+                    <p id="chainStrengthHelp" class="muted">In modalità Auto la pipeline calcola 0.375 × penalità effettiva per arco del QUBO MIS.</p>
+                  </div>
+                  <!-- PARAM_DESC: Valore finito e strettamente positivo per gli accoppiamenti delle catene. -->
+                  <div class="field" id="chainStrengthManual" hidden>
+                    <label for="misChainStrength">Forza manuale <span class="param">--mis-chain-strength</span></label>
+                    <input id="misChainStrength" type="number" step="any" aria-describedby="chainStrengthError" disabled>
+                    <span class="error" id="chainStrengthError" role="status"></span>
+                  </div>
                 </div>
               </div>
 
@@ -802,6 +817,7 @@
       document.querySelectorAll('.dwave-only input, .dwave-only select').forEach(el => {
         el.disabled = !dwave || !reduction;
       });
+      C.updateChainStrengthControls(C.chainStrengthState(reduction, dwave));
 
       // Pasqal params: disabled if not Pasqal OR if baseline mode
       document.querySelectorAll('.pasqal-only input').forEach(el => {
@@ -902,6 +918,10 @@
       let valid = true;
       clearErrors(form);
       $('maxRuntime').setAttribute('aria-invalid', 'false');
+      if (!C.chainStrengthState(isReductionActive(), isDwaveSolver()).valid) {
+        setError('misChainStrength', 'Inserisci un numero finito maggiore di zero.');
+        valid = false;
+      }
 
       // Run ID required
       if (!$('runId').value.trim()) {
@@ -1221,6 +1241,8 @@
           if ($('embeddingProfile').value) {
             args.push({ flag: '--mis-embedding-profile', value: $('embeddingProfile').value });
           }
+          const chain = C.chainStrengthState(true, true);
+          if (chain.manual) args.push({ flag: '--mis-chain-strength', value: chain.strength });
         }
 
         // Pasqal params (only if Pasqal solver AND reduction active)
@@ -1414,6 +1436,8 @@
       $('misNumReads').value = '';
       $('misNumSweeps').value = '';
       $('embeddingProfile').value = '';
+      $('chainStrengthMode').value = 'auto';
+      $('misChainStrength').value = '';
       $('pasqalShots').value = '100';
       $('modelExport').checked = false;
       $('modelExportPath').value = '';

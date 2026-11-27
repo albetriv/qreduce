@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from qreduce.config import (
     DEFAULT_CLASSICAL_TIME_LIMIT_SECONDS,
     DEFAULT_END_TO_END_BUDGET_SECONDS,
+    validate_chain_strength,
     validate_timeout_value,
 )
 from qreduce.experiments.portfolio_mv.adapter import MeanVariancePortfolioAdapter
@@ -137,6 +138,7 @@ def build_synthetic_portfolio_inputs(
     pasqal_cost_consent: bool = False,
     mis_num_sweeps: int | None = None,
     mis_embedding_profile: str | None = None,
+    mis_chain_strength: float | None = None,
     lower_bound: float = 0.0,
     upper_bound: float = 0.7,
     min_selected_assets: int | None = None,
@@ -174,6 +176,7 @@ def build_synthetic_portfolio_inputs(
             Constrains sampling to hardware-like topology without QPU access.
             Valid values: 'none' (default), 'pegasus_p16', 'zephyr_z12'.
             Requires mis_solver_id='dwave_simulated_annealing'.
+        mis_chain_strength: Optional positive override for local embedding chain couplings.
         lower_bound: Minimum investment per selected asset. Default 0.0.
         upper_bound: Maximum investment per selected asset. Default 0.7.
         min_selected_assets: Optional minimum number of assets to select (cardinality).
@@ -359,6 +362,13 @@ def build_synthetic_portfolio_inputs(
         )
 
     # Handle embedding profile for D-Wave simulated annealing
+    if mis_chain_strength is not None:
+        error = validate_chain_strength(
+            mis_chain_strength, embedding_profile=mis_embedding_profile, solver_id=mis_solver_id,
+        )
+        if error:
+            raise ValueError(error)
+
     if mis_embedding_profile is not None and mis_embedding_profile != "none":
         if mis_solver_id != "dwave_simulated_annealing":
             raise ValueError(
@@ -372,6 +382,8 @@ def build_synthetic_portfolio_inputs(
                 f"Valid values: {', '.join(valid_profiles)}"
             )
         compilation_parameters: dict[str, object] = {"embedding_profile": mis_embedding_profile}
+        if mis_chain_strength is not None:
+            compilation_parameters["chain_strength"] = mis_chain_strength
         config = replace(
             config,
             mis_execution=replace(

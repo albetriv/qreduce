@@ -138,6 +138,20 @@ I configuratori:
 - mostrano icone informative (ⓘ) con descrizioni dei parametri;
 - non verificano la disponibilità dei solver o l'esistenza dei file.
 
+Nei configuratori Portfolio, con D-Wave Simulated Annealing e riduzione attiva,
+la scheda **Profilo di embedding attivo** mostra il numero di nodi, di
+collegamenti e il massimo numero di vicini per nodo del grafo target locale
+selezionato. Questi valori non misurano la capacità di una QPU reale né
+garantiscono che l'embedding riesca. Con **None** la scheda non compare.
+
+Nei configuratori **Portfolio SR** e **Portfolio MV**, accanto al profilo appare
+**Forza delle catene** solo con riduzione attiva e con Pegasus o Zephyr. **Auto
+bilanciato** non emette il flag: la pipeline usa `0.375 * lambda_edge` effettiva
+del QUBO. **Manuale** richiede un numero finito maggiore di zero prima di
+generare `--mis-chain-strength`. In **Confronto > Traccia per round** vengono
+mostrati politica e valore effettivo registrati, anche se il MIS fallisce dopo
+la compilazione. Gli artefatti storici non vengono ricalcolati.
+
 ### Comandi preferiti
 
 Nel pannello destro di ciascun configuratore, **Comandi preferiti** offre:

@@ -146,6 +146,7 @@ poetry run python -m qreduce.experiments.portfolio_sr --help
 | `--pasqal-shots` | Numero intero positivo di shot, solo con `pasqal_local`; default effettivo 100. |
 | `--mis-num-reads`, `--mis-num-sweeps` | Interi positivi opzionali per `dwave_simulated_annealing`; omessi usano i default del backend. |
 | `--mis-embedding-profile` | `none`, `pegasus_p16` o `zephyr_z12`; omesso non impone un profilo. I profili diversi da `none` richiedono `dwave_simulated_annealing` e riduzione attiva (`--max-reduction-rounds` maggiore di zero). |
+| `--mis-chain-strength` | Override finito e maggiore di zero, ammesso soltanto con riduzione attiva, `dwave_simulated_annealing` e profilo `pegasus_p16` o `zephyr_z12`. Omesso: Auto bilanciato (`0.375 * lambda_edge` effettiva del QUBO). |
 | `--max-reduction-rounds` | Intero non negativo; default 1. Zero disattiva la riduzione, uno abilita un round, valori superiori più round. |
 | `--candidate-domain-min-items` | Minimo di asset nel dominio candidato; default 1. La cardinalità minima alza la soglia effettiva: gli asset mantenuti sono candidati, non selezioni obbligatorie. |
 | `--candidate-domain-max-items` | Massimo di asset nel dominio candidato; il default con riduzione è il maggiore tra 1, il minimo di selezioni richiesto e il 60% (arrotondato per difetto) della numerosità richiesta: numero di ticker espliciti, `--asset-count` oppure 50. Non è ricalcolato sugli asset effettivamente idonei. Con riduzione attiva, un valore esplicito non può essere inferiore a `--min-selected-assets`; nella baseline non limita le selezioni. |
@@ -156,6 +157,8 @@ poetry run python -m qreduce.experiments.portfolio_sr --help
 | `--recovery-policy-on-domain-too-small` | Politica per dominio troppo piccolo: `fail` (default) o `retry_with_larger_domain`. |
 | `--recovery-policy-on-infeasible` | Politica per problema non fattibile: `fail` (default) o `retry_with_larger_domain`. |
 | `--max-recovery-attempts` | Numero massimo di tentativi di recovery; default 0. |
+
+Per fissare la forza in una run embedded, aggiungere per esempio `--mis-chain-strength 0.75`. Per riprodurre una run storica, usare il suo `_chain_strength` registrato: le nuove run senza override usano `balanced_v1`, non la precedente politica `uniform_torque_compensation`. È un'euristica per il simulatore locale, non un default per QPU; non modifica il repair.
 
 ## 5. Directory degli artifact
 

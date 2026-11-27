@@ -388,6 +388,36 @@ test('SR historical weights do not imply binary selection', async () => {
   assert.equal(report.dashboard.positions, null);
 });
 
+test('SR and MV show recorded chain strength even if MIS search failed', async () => {
+  for (const [fixture, importFiles, adapt] of [
+    [synthetic, importRun, adaptPortfolio], [syntheticSR, importRunSharpe, adaptSharpePortfolio],
+  ]) {
+    const files = fixture();
+    change(files, 'run_manifest.json', m => { m.has_reduction = true; m.run_status = 'failed'; });
+    change(files, 'run_result.json', r => {
+      r.classical_result = null;
+      r.postcheck_result = null;
+      r.round_results = [
+        {_chain_strength: 0.75, _chain_strength_policy: 'balanced_v1'},
+        {chain_strength: 1.25, _chain_strength: 1.25, _chain_strength_policy: 'manual'},
+        {_chain_strength_metadata: {chain_strength_value: 9.618526483406905, chain_strength_policy: 'uniform_torque_compensation'}},
+        {chain_strength: 0.75},
+      ].map((effective_compilation_parameters, round_index) => ({
+        round_index, terminal_reason: 'no_valid_mis_candidate',
+        mis_compilation_result: {compiled_job: {effective_compilation_parameters}},
+      }));
+    });
+    const run = adapt(await importFiles(files));
+    assert.equal(run.solution, null);
+    assert.deepEqual(run.reduction.rounds.map(r => r.chainStrength), [
+      {effective: 0.75, policy: 'balanced_v1'},
+      {effective: 1.25, policy: 'manual'},
+      {effective: 9.618526483406905, policy: 'uniform_torque_compensation'},
+      null,
+    ]);
+  }
+});
+
 test('SR comparison uses maximize sense for Sharpe', async () => {
   const a = adaptSharpePortfolio(await importRunSharpe(syntheticSR(true)));
   const b = adaptSharpePortfolio(await importRunSharpe(syntheticSR()));

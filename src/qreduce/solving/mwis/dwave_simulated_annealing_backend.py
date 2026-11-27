@@ -42,6 +42,7 @@ from time import perf_counter
 from typing import Any
 
 from qreduce.capabilities import RuntimeCapabilities
+from qreduce.config import validate_chain_strength
 from qreduce.mwis.graph import CanonicalMWISProblem
 from qreduce.mwis.validation import MWISValidationError, normalize_binary_vector
 from qreduce.solving.mwis.compilation import validate_compilation_request
@@ -60,6 +61,8 @@ from qreduce.status import BackendFamily, ExecutionMode, ProblemForm, TerminalRe
 # Embedding profile constants
 EMBEDDING_PROFILE_KEY = "embedding_profile"
 EMBEDDING_PROFILE_NONE = "none"
+CHAIN_STRENGTH_KEY = "chain_strength"
+BALANCED_CHAIN_STRENGTH_FACTOR = 0.375
 
 
 class DWaveSimulatedAnnealingMISBackend:
@@ -84,7 +87,7 @@ class DWaveSimulatedAnnealingMISBackend:
     _supported_parameter_names = frozenset(
         {"num_reads", "num_sweeps", "beta_range", "beta_schedule_type"}
     )
-    _supported_compilation_parameter_names = frozenset({EMBEDDING_PROFILE_KEY})
+    _supported_compilation_parameter_names = frozenset({EMBEDDING_PROFILE_KEY, CHAIN_STRENGTH_KEY})
 
     def capabilities(self) -> RuntimeCapabilities:
         """Report whether the optional local Ocean sampler is importable.
@@ -172,6 +175,21 @@ class DWaveSimulatedAnnealingMISBackend:
         embedding_profile_id = request.compilation_parameters.get(
             EMBEDDING_PROFILE_KEY, EMBEDDING_PROFILE_NONE
         )
+        requested_strength = request.compilation_parameters.get(CHAIN_STRENGTH_KEY)
+        if CHAIN_STRENGTH_KEY in request.compilation_parameters:
+            error = validate_chain_strength(requested_strength, embedding_profile=embedding_profile_id)
+            if error:
+                return MISCompilationResult(
+                    compiled_job=None,
+                    requested_provider_id=request.requested_provider_id,
+                    requested_backend_id=request.requested_backend_id,
+                    effective_provider_id=None,
+                    effective_backend_id=None,
+                    runtime_seconds=perf_counter() - started_at,
+                    completion_status=MISCompletionStatus.FAILED,
+                    terminal_reason=TerminalReason.INVALID_CONFIGURATION,
+                    diagnostic_message=error,
+                )
 
         # Validate profile value
         try:
@@ -309,41 +327,48 @@ class DWaveSimulatedAnnealingMISBackend:
                     "library_versions": dict(embedding_result.library_versions),
                 }
 
-                # Embed BQM and determine chain strength using uniform_torque_compensation policy
+                # Resolve chain strength from the compiled logical QUBO or the explicit override.
                 # This is done here in compile() so solve() uses the pre-embedded BQM directly
                 try:
                     from qreduce.solving.mwis.dwave_embedding import (
                         CHAIN_BREAK_METHOD_MAJORITY_VOTE,
-                        CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE,
-                        CHAIN_STRENGTH_UNIFORM_TORQUE_PREFACTOR,
                         EMBEDDING_PROFILE_DEFINITION_VERSION,
                         build_target_topology,
                         embed_bqm,
                     )
 
                     target_graph = build_target_topology(profile)
-                    # Pass prefactor explicitly to avoid implicit SDK defaults
+                    effective_lambda_edge = problem.qubo.lambda_edge
+                    if requested_strength is None:
+                        strength = BALANCED_CHAIN_STRENGTH_FACTOR * effective_lambda_edge
+                        strength_policy = "balanced_v1"
+                        policy_parameters = {
+                            "factor": BALANCED_CHAIN_STRENGTH_FACTOR,
+                            "effective_lambda_edge": effective_lambda_edge,
+                        }
+                    else:
+                        strength = float(requested_strength)
+                        strength_policy = "manual"
+                        policy_parameters = {}
                     embedded_bqm, chain_strength = embed_bqm(
                         logical_bqm,
                         embedding_result.embedding,
                         target_graph,
-                        prefactor=CHAIN_STRENGTH_UNIFORM_TORQUE_PREFACTOR,
+                        chain_strength=strength,
                     )
 
                     # Store chain strength metadata at job level (not duplicated per sample)
                     effective_params["_chain_strength_metadata"] = {
                         "profile_definition_version": EMBEDDING_PROFILE_DEFINITION_VERSION,
-                        "chain_strength_policy": CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE,
-                        "chain_strength_policy_parameters": {
-                            "prefactor": CHAIN_STRENGTH_UNIFORM_TORQUE_PREFACTOR,
-                        },
+                        "chain_strength_policy": strength_policy,
+                        "chain_strength_policy_parameters": policy_parameters,
                         "chain_strength_value": chain_strength,
                         "chain_break_method": CHAIN_BREAK_METHOD_MAJORITY_VOTE,
                     }
 
                     # Keep backward-compatible flat keys for simple access
                     effective_params["_chain_strength"] = chain_strength
-                    effective_params["_chain_strength_policy"] = CHAIN_STRENGTH_POLICY_UNIFORM_TORQUE
+                    effective_params["_chain_strength_policy"] = strength_policy
 
                     # Check budget after embedding
                     if (exhausted := check_budget_exhausted("after embedding")) is not None:

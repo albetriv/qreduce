@@ -1,5 +1,6 @@
 """Tests for the optional local D-Wave Ocean simulated-annealing MIS backend."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -68,6 +69,30 @@ def test_capabilities_report_explicit_sdk_unavailability(monkeypatch) -> None:
     assert capabilities.supported_parameter_names == frozenset(
         {"num_reads", "num_sweeps", "beta_range", "beta_schedule_type"}
     )
+
+
+@pytest.mark.parametrize("params", [
+    {"chain_strength": 0.75},
+    {"embedding_profile": "none", "chain_strength": 0.75},
+    *({"embedding_profile": "pegasus_p16", "chain_strength": value}
+      for value in (None, True, False, 0, -1, float("nan"), float("inf"), "0.75")),
+])
+def test_reject_invalid_chain_strength_before_embedding(monkeypatch, params):
+    monkeypatch.setattr(
+        "qreduce.solving.mwis.dwave_simulated_annealing_backend._load_ocean_runtime",
+        lambda: (None, None),
+    )
+
+    def unexpected_embedding(*args, **kwargs):
+        pytest.fail("Invalid override must not reach embedding search")
+
+    monkeypatch.setattr("qreduce.solving.mwis.dwave_embedding.find_embedding", unexpected_embedding)
+    problem = make_problem()
+    request = replace(make_compilation_request(problem), compilation_parameters=params)
+    result = DWaveSimulatedAnnealingMISBackend().compile(problem, request)
+    assert result.compiled_job is None
+    assert result.terminal_reason is TerminalReason.INVALID_CONFIGURATION
+    assert "chain_strength" in result.diagnostic_message
 
 
 def test_backend_compiles_qubo_and_preserves_ocean_samples(monkeypatch) -> None:

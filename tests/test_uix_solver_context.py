@@ -126,14 +126,23 @@ def test_embedding_warnings_and_backend_values_are_retained(page):
               reads: {"value": "123", "disabled": False},
               sweeps: {"value": "456", "disabled": False}}
     inactive = {key: {**value, "disabled": True} for key, value in active.items()}
+    common_warnings = ["minorminer", "dwave-system", "dwave-graphs", "hardware reale"]
+    pegasus_stats = ["Pegasus P16", "5.640 nodi", "40.484 collegamenti", "15 vicini per nodo"]
+    zephyr_stats = ["Zephyr Z12", "4.800 nodi", "45.864 collegamenti", "20 vicini per nodo"]
     result = run_steps(page, [
         {"set": {"maxRounds": "1", "misSolver": "dwave_simulated_annealing",
                  "embeddingProfile": "pegasus_p16", reads: "123", sweeps: "456"},
          "verify": {**active, "embeddingWarningPanel": {
-             "count": 1, "visible": True, "includes": ["minorminer", "dwave-system", "dwave-graphs", "hardware reale"]}},
+             "count": 1, "visible": True, "includes": pegasus_stats + common_warnings,
+             "excludes": zephyr_stats}},
          "remember": ["embeddingWarningPanel", "misSolverInfoPanel"]},
         {"set": {"runId": "keep_warning"}, "verify": {
             "embeddingWarningPanel": {"sameNode": True}, "misSolverInfoPanel": {"sameNode": True}}},
+        {"set": {"embeddingProfile": "zephyr_z12"}, "verify": {
+            **active, "embeddingProfile": {"value": "zephyr_z12", "disabled": False},
+            "embeddingWarningPanel": {"count": 1, "visible": True,
+                                      "includes": zephyr_stats + common_warnings,
+                                      "excludes": pegasus_stats}}},
         {"set": {"embeddingProfile": none}, "verify": {"embeddingWarningPanel": {"exists": False}}},
         {"set": {"embeddingProfile": "pegasus_p16", "misSolver": "pasqal_local", "pasqalShots": "321"},
          "verify": {**inactive, "embeddingWarningPanel": {"exists": False}}},
@@ -143,13 +152,17 @@ def test_embedding_warnings_and_backend_values_are_retained(page):
         {"set": {"misSolver": "dwave_simulated_annealing", "maxRounds": "0"}, "verify": {
             **inactive, "embeddingWarningPanel": {"exists": False}}},
         {"set": {"maxRounds": "1"}, "verify": {
-            **active, "embeddingWarningPanel": {"visible": True, "count": 1}}},
+            **active, "embeddingWarningPanel": {"visible": True, "count": 1,
+                                               "includes": pegasus_stats, "excludes": zephyr_stats}}},
         {"set": {"misSolver": "pasqal_local"}, "verify": {
             "pasqalShots": {"value": "321", "disabled": False},
             "embeddingWarningPanel": {"exists": False}}},
     ])
-    assert "--mis-embedding-profile" not in result["steps"][5]["command"]
-    assert "--mis-embedding-profile pegasus_p16" in result["steps"][6]["command"]
+    assert "--mis-embedding-profile pegasus_p16" in result["steps"][0]["command"]
+    assert "--mis-embedding-profile zephyr_z12" in result["steps"][2]["command"]
+    assert "--mis-embedding-profile" not in result["steps"][3]["command"]
+    assert "--mis-embedding-profile" not in result["steps"][6]["command"]
+    assert "--mis-embedding-profile pegasus_p16" in result["steps"][7]["command"]
 
 
 @pytest.mark.parametrize("page", ("portfolio", "portfolio_sr"))
@@ -236,3 +249,72 @@ def test_contextual_commands_pass_full_cli_validation(page):
         parser = _build_parser()
         args = parser.parse_args(tokens[tokens.index("-m") + 2:])
         _validate_args(parser, args)
+
+
+@pytest.mark.parametrize("page", ("portfolio", "portfolio_sr"))
+def test_chain_strength_context_and_cli_roundtrip(page):
+    if page == "portfolio":
+        from qreduce.experiments.portfolio_mv.__main__ import (
+            _build_parser,
+            _validate_args,
+        )
+    else:
+        from qreduce.experiments.portfolio_sr.__main__ import (
+            _build_parser,
+            _validate_args,
+        )
+
+    hidden = {"chainStrengthControls": {"visible": False}, "misChainStrength": {"disabled": True}}
+    result = run_steps(page, [
+        {"set": {"runId": "strength", "maxRounds": "1", "misSolver": "dwave_simulated_annealing"},
+         "verify": hidden},
+        {"set": {"embeddingProfile": "pegasus_p16"}, "verify": {
+            "chainStrengthControls": {"visible": True}, "chainStrengthMode": {"value": "auto"},
+            "misChainStrength": {"visible": False, "disabled": True},
+        }},
+        {"set": {"chainStrengthMode": "manual"}, "verify": {
+            "misChainStrength": {"visible": True, "disabled": False, "attributes": {"aria-invalid": "true"}},
+        }},
+        {"set": {"misChainStrength": "0"}},
+        {"set": {"misChainStrength": "-2"}},
+        {"set": {"misChainStrength": "0.75"}},
+        {"set": {"embeddingProfile": "zephyr_z12"}},
+        {"set": {"embeddingProfile": "none" if page == "portfolio" else ""}, "verify": hidden},
+        {"set": {"embeddingProfile": "pegasus_p16", "misSolver": "local_greedy"}, "verify": hidden},
+        {"set": {"misSolver": "dwave_simulated_annealing", "maxRounds": "0"}, "verify": hidden},
+        {"set": {"maxRounds": "1", "chainStrengthMode": "auto"}},
+    ])
+    for index, step in enumerate(result["steps"]):
+        if index in (2, 3, 4):
+            assert step["copyDisabled"] is True
+            assert "-m qreduce" not in step["command"]
+            continue
+        assert step["copyDisabled"] is False
+        tokens = shlex.split(step["command"])
+        parser = _build_parser()
+        args = parser.parse_args(tokens[tokens.index("-m") + 2:])
+        _validate_args(parser, args)
+        assert args.mis_chain_strength == (0.75 if index in (5, 6) else None)
+
+
+@pytest.mark.parametrize("module", ["portfolio_sr", "portfolio_mv"])
+@pytest.mark.parametrize("extra_args", [
+    ["--mis-chain-strength=nan"], ["--mis-chain-strength=inf"],
+    ["--mis-chain-strength=0"], ["--mis-chain-strength=-1"], ["--mis-chain-strength=True"],
+    ["--mis-chain-strength=0.75", "--mis-embedding-profile=none"],
+    ["--mis-chain-strength=0.75", "--mis-solver-id=local_greedy"],
+    ["--mis-chain-strength=0.75", "--max-reduction-rounds=0"],
+])
+def test_cli_rejects_invalid_chain_strength(module, extra_args, capsys):
+    from importlib import import_module
+
+    cli = import_module(f"qreduce.experiments.{module}.__main__")
+    parser = cli._build_parser()
+    with pytest.raises(SystemExit) as error:
+        args = parser.parse_args([
+            "--run-id=test", "--mis-solver-id=dwave_simulated_annealing",
+            "--mis-embedding-profile=pegasus_p16", *extra_args,
+        ])
+        cli._validate_args(parser, args)
+    assert error.value.code == 2
+    assert "--mis-chain-strength:" in capsys.readouterr().err
