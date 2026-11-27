@@ -1,4 +1,4 @@
-# QReduce per Intesa Sanpaolo — obiezioni e risposte
+# obiezioni e risposte
 
 Appunti per la presentazione. Le risposte sono formulate per essere dette a voce; distinguono ciò che è già stato verificato da ciò che va misurato nel pilot.
 
